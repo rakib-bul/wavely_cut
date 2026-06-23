@@ -1,0 +1,913 @@
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import path from "path";
+import fs from "fs";
+import { createServer as createViteServer } from "vite";
+import { calculateFields } from "./src/utils/calculations.js";
+import { CuttingEntry, Machine, Profile, AuditLog, UserRole } from "./src/types";
+import { createClient } from "@supabase/supabase-js";
+
+const app = express();
+const PORT = 3000;
+
+app.use(express.json());
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL || "https://qkcbxpafpykmktisyioy.supabase.co";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY2J4cGFmcHlrbWt0aXN5aW95Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE5NzMyNSwiZXhwIjoyMDk3NzczMzI1fQ.-2bMfw9d1hkbAVNWBrOwBKA5WRNNcU2XRXXvM1u4gBQ";
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+
+// Helper to add audit log
+async function addAuditLog(
+  user_email: string,
+  action: 'create' | 'edit' | 'delete' | 'approve',
+  entity_type: string,
+  entity_id: string,
+  old_value?: any,
+  new_value?: any
+) {
+  try {
+    const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+
+    let parsedEntityId = entity_id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(entity_id)) {
+      parsedEntityId = "00000000-0000-0000-0000-000000000000";
+    }
+
+    await supabase.from("audit_logs").insert({
+      user_id: prof?.id || null,
+      user_email,
+      action,
+      entity_type,
+      entity_id: parsedEntityId,
+      old_value: old_value ? old_value : null,
+      new_value: new_value ? new_value : null
+    });
+  } catch (err: any) {
+    console.error("Error creating audit log in Supabase:", err.message);
+  }
+}
+
+// ==========================================
+// 1. AUTHENTICATION API (Supabase Direct Sync)
+// ==========================================
+
+app.post("/api/auth/signup", async (req, res) => {
+  const { email, password, full_name, role, department } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const userName = full_name?.trim() || normalizedEmail.split("@")[0].toUpperCase();
+  const userRole = role || "operator";
+  const userDept = department?.trim() || "Cutting Deck 1";
+
+  try {
+    // Register with Supabase Auth (backend-proxied)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password: password,
+    });
+
+    if (authError) {
+      throw authError;
+    }
+
+    const userId = authData.user?.id || "00000000-0000-0000-0000-000000000000";
+    
+    const newProfile = {
+      id: userId,
+      full_name: userName,
+      email: normalizedEmail,
+      role: userRole,
+      department: userDept
+    };
+
+    // Insert into Supabase profiles table
+    const { error: dbError } = await supabase
+      .from("profiles")
+      .insert(newProfile);
+
+    if (dbError) {
+      console.warn("Could not insert profile in Supabase table:", dbError.message);
+      return res.status(400).json({ error: dbError.message });
+    }
+
+    return res.json({ profile: newProfile, message: "Account created successfully" });
+
+  } catch (err: any) {
+    console.error("Supabase authentication signup error:", err.message);
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  try {
+    if (password) {
+      // Authenticate with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: password
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (authData.user) {
+        // Fetch profile
+        const { data: profile, error: dbErr } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (dbErr) {
+          throw new Error("Could not fetch user profile from Supabase: " + dbErr.message);
+        }
+
+        if (profile) {
+          return res.json({ profile });
+        }
+      }
+    } else {
+      // Passwordless/Bypass mode: Search profiles in Supabase directly by email
+      const { data: profile, error: dbErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", normalizedEmail)
+        .maybeSingle();
+
+      if (dbErr) {
+        throw dbErr;
+      }
+
+      if (profile) {
+        return res.json({ profile });
+      }
+
+      // If profile does not exist, auto-register operator profile dynamically on Supabase
+      const userName = normalizedEmail.split("@")[0].toUpperCase() + " (Operator)";
+      const userRole = "operator";
+      const userDept = "Cutting Floor 1";
+
+      const { data: insertedProfile, error: insertErr } = await supabase
+        .from("profiles")
+        .insert({
+          full_name: userName,
+          email: normalizedEmail,
+          role: userRole,
+          department: userDept
+        })
+        .select()
+        .single();
+
+      if (insertErr) {
+        throw new Error("Could not auto-register profile in Supabase: " + insertErr.message);
+      }
+
+      return res.json({ profile: insertedProfile });
+    }
+  } catch (err: any) {
+    console.error("Supabase login auth error:", err.message);
+    return res.status(400).json({ error: "Authentication failed: " + err.message });
+  }
+});
+
+// ==========================================
+// 2. MACHINES API
+// ==========================================
+
+app.get("/api/machines", async (req, res) => {
+  try {
+    const { data: supabaseMachines, error: sbError } = await supabase
+      .from("machines")
+      .select("*")
+      .order("machine_name", { ascending: true });
+
+    if (sbError) {
+      return res.status(500).json({ error: sbError.message });
+    }
+
+    if (supabaseMachines && supabaseMachines.length > 0) {
+      return res.json(supabaseMachines);
+    } else {
+      // Seed default machines inside Supabase table if it is empty
+      const defaultMachinesToInsert = [
+        { machine_name: "Auto Cutter Machine 1", machine_type: "Auto" },
+        { machine_name: "Auto Cutter Machine 2", machine_type: "Auto" },
+        { machine_name: "Manual Cutting Machine", machine_type: "Manual" },
+        { machine_name: "Stripe Cutting", machine_type: "Stripe" }
+      ];
+
+      const { data: seededMachines, error: seedError } = await supabase
+        .from("machines")
+        .insert(defaultMachinesToInsert)
+        .select();
+
+      if (seedError) {
+        return res.status(500).json({ error: "Could not seed machines: " + seedError.message });
+      }
+
+      return res.json(seededMachines || []);
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/machines", async (req, res) => {
+  const { machine_name, machine_type } = req.body;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = req.headers["x-user-email"] as string;
+
+  if (user_role !== "admin" && user_role !== "supervisor") {
+    return res.status(403).json({ error: "Permission Denied. Only Admin and Supervisor can add machines." });
+  }
+
+  if (!machine_name || !machine_type) {
+    return res.status(400).json({ error: "Name and type are required." });
+  }
+
+  try {
+    const { data: newMachine, error: insertError } = await supabase
+      .from("machines")
+      .insert({ machine_name, machine_type })
+      .select()
+      .single();
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    await addAuditLog(user_email || "system", "create", "machine", newMachine.id, null, newMachine);
+
+    return res.json(newMachine);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 2.5 BUYERS API
+// ==========================================
+
+app.get("/api/buyers", async (req, res) => {
+  try {
+    const { data: buyers, error } = await supabase
+      .from("buyers")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.warn("Could not fetch buyers from Supabase, returning fallbacks:", error.message);
+      const fallbackBuyers = [
+        { name: "ZARA CO." },
+        { name: "GAP GLOBAL" },
+        { name: "H&M IND." },
+        { name: "UNIQLO GROUP" },
+        { name: "LEVI'S CO." },
+        { name: "ADIDAS AG" }
+      ];
+      return res.json(fallbackBuyers);
+    }
+
+    if (!buyers || buyers.length === 0) {
+      // Auto-populate
+      const defaults = [
+        { name: "ZARA CO." },
+        { name: "GAP GLOBAL" },
+        { name: "H&M IND." },
+        { name: "UNIQLO GROUP" },
+        { name: "LEVI'S CO." },
+        { name: "ADIDAS AG" }
+      ];
+      const { data: seeded, error: seedError } = await supabase
+        .from("buyers")
+        .insert(defaults)
+        .select();
+
+      if (seedError) {
+        console.error("Auto-seed empty buyers table failed:", seedError.message);
+        return res.json(defaults);
+      }
+      return res.json(seeded || []);
+    }
+
+    return res.json(buyers);
+  } catch (err: any) {
+    return res.status(555).json({ error: err.message });
+  }
+});
+
+app.post("/api/buyers", async (req, res) => {
+  const { name } = req.body;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = req.headers["x-user-email"] as string;
+
+  if (user_role !== "admin" && user_role !== "supervisor") {
+    return res.status(403).json({ error: "Only Admin and Supervisor can register new buyers." });
+  }
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "Buyer name is required." });
+  }
+
+  try {
+    const cleanName = name.trim().toUpperCase();
+    const { data: newBuyer, error: insertError } = await supabase
+      .from("buyers")
+      .insert({ name: cleanName })
+      .select()
+      .single();
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    await addAuditLog(user_email || "system", "create", "buyer", newBuyer.id, null, newBuyer);
+
+    return res.json(newBuyer);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 3. CUTTING ENTRIES API (CRUD + RLS Flow)
+// ==========================================
+
+app.get("/api/entries", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  try {
+    let query = supabase.from("cutting_entries").select("*");
+    
+    if (user_role === "operator") {
+      const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+      if (prof?.id) {
+        query = query.eq("created_by", prof.id);
+      } else {
+        query = query.eq("created_by", "00000000-0000-0000-0000-000000000000");
+      }
+    }
+
+    const { data: entries, error } = await query;
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const { data: profiles } = await supabase.from("profiles").select("id, email");
+    const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+    
+    const mappedEntries = (entries || []).map(e => ({
+      ...e,
+      total_length_inch: Number(e.total_length_inch) || (Number(e.marker_length_inch) * Number(e.lay)),
+      spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
+      scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - Number(e.marker_efficiency_percent)),
+      created_by: profileMap.get(e.created_by) || e.created_by || user_email,
+      approved_by: profileMap.get(e.approved_by) || e.approved_by || null
+    }));
+
+    mappedEntries.sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return res.json(mappedEntries);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/entries", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role === "manager") {
+    return res.status(403).json({ error: "Permission Denied. Managers do not have write access." });
+  }
+
+  const data = req.body;
+  if (!data.entry_date || !data.shift || !data.machine_id || !data.buyer || !data.job_no || !data.color || !data.item || !data.cut_no) {
+    return res.status(400).json({ error: "Missing required core fields" });
+  }
+
+  try {
+    // 1. Check for duplicate entry on Supabase
+    const { data: dbMatches, error: matchError } = await supabase
+      .from("cutting_entries")
+      .select("id")
+      .ilike("cut_no", data.cut_no.trim())
+      .ilike("job_no", data.job_no.trim())
+      .ilike("buyer", data.buyer.trim())
+      .ilike("color", data.color.trim());
+
+    if (matchError) {
+      return res.status(500).json({ error: matchError.message });
+    }
+
+    if (dbMatches && dbMatches.length > 0) {
+      return res.status(409).json({ error: `An entry with Cut No: ${data.cut_no} for Job No: ${data.job_no} already exists.` });
+    }
+
+    // 2. Resolve creator profile UUID
+    let profId: string | null = null;
+    const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+    if (prof) {
+      profId = prof.id;
+    }
+
+    // Compute lay, ratio and calculate remaining fields
+    const layNum = Number(data.lay) || 1;
+    const ratioNum = Number(data.ratio) || 1;
+
+    const dataToInsert = {
+      entry_date: data.entry_date,
+      shift: data.shift,
+      machine_id: data.machine_id,
+      buyer: data.buyer,
+      job_no: data.job_no,
+      color: data.color,
+      item: data.item,
+      cut_no: data.cut_no,
+      lay: layNum,
+      ratio: ratioNum,
+      table_no: data.table_no || "",
+      fabric_type: data.fabric_type || "",
+      parts: data.parts || "",
+      fabric_used_kg: Number(data.fabric_used_kg) || 0,
+      remnant_weight_kg: Number(data.remnant_weight_kg) || 0,
+      cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg) || 0,
+      marker_length_inch: Number(data.marker_length_inch) || 1,
+      marker_efficiency_percent: Number(data.marker_efficiency_percent) || 80,
+      remarks: data.remarks || "",
+      status: data.status || "draft",
+      created_by: profId,
+      approved_by: data.status === "approved" ? profId : null
+    };
+
+    const { data: insertedEntry, error: insertErr } = await supabase
+      .from("cutting_entries")
+      .insert(dataToInsert)
+      .select()
+      .single();
+
+    if (insertErr) {
+      return res.status(500).json({ error: insertErr.message });
+    }
+
+    const responseEntry = {
+      ...insertedEntry,
+      created_by: user_email,
+      approved_by: insertedEntry.status === "approved" ? user_email : null,
+      total_length_inch: Number(insertedEntry.total_length_inch) || (Number(insertedEntry.marker_length_inch) * Number(insertedEntry.lay)),
+      spreading_scrap_kg: Number(insertedEntry.spreading_scrap_kg) || (Number(insertedEntry.fabric_used_kg) * 0.025),
+      scrap_percent_per_marker: Number(insertedEntry.scrap_percent_per_marker) || (100.00 - Number(insertedEntry.marker_efficiency_percent))
+    };
+
+    await addAuditLog(user_email, "create", "cutting_entry", insertedEntry.id, null, responseEntry);
+
+    return res.json(responseEntry);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Bulk entry mode
+app.post("/api/entries/bulk", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role === "manager") {
+    return res.status(403).json({ error: "Permission Denied. Managers do not have write access." });
+  }
+
+  const { entries } = req.body;
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return res.status(400).json({ error: "No entries provided for bulk import" });
+  }
+
+  const added: any[] = [];
+  const errors: string[] = [];
+
+  // Resolve user Profile UUID in Supabase
+  let profId: string | null = null;
+  try {
+    const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+    if (prof) profId = prof.id;
+  } catch {}
+
+  // Load Supabase machines for reference
+  let supMachines: any[] = [];
+  try {
+    const { data: macs } = await supabase.from("machines").select("id, machine_name");
+    if (macs) supMachines = macs;
+  } catch {}
+
+  for (const item of entries) {
+    if (!item.entry_date || !item.shift || !item.machine_id || !item.buyer || !item.job_no || !item.cut_no) {
+      errors.push(`Row ${item.cut_no || 'Unknown'}: Missing mandatory fields.`);
+      continue;
+    }
+
+    try {
+      // Duplicate detection in Supabase
+      const { data: duplicateMatches } = await supabase
+        .from("cutting_entries")
+        .select("id")
+        .eq("cut_no", item.cut_no.trim())
+        .eq("job_no", item.job_no.trim())
+        .eq("buyer", item.buyer.trim())
+        .limit(1);
+
+      if (duplicateMatches && duplicateMatches.length > 0) {
+        errors.push(`Row ${item.cut_no}: Already exists in system.`);
+        continue;
+      }
+
+      // Map machine ID
+      let finalMachineIdToUse = item.machine_id;
+      if (finalMachineIdToUse.startsWith("machine-") && supMachines.length > 0) {
+        const mat = supMachines.find(sm => sm.id === finalMachineIdToUse || sm.machine_name.toLowerCase().includes(item.machine_name?.toLowerCase() || ""));
+        if (mat) {
+          finalMachineIdToUse = mat.id;
+        } else {
+          finalMachineIdToUse = supMachines[0].id;
+        }
+      }
+
+      const dataToInsert = {
+        entry_date: item.entry_date,
+        shift: item.shift,
+        machine_id: finalMachineIdToUse,
+        buyer: item.buyer,
+        job_no: item.job_no,
+        color: item.color || "Default",
+        item: item.item || "Tee",
+        cut_no: item.cut_no,
+        lay: Number(item.lay) || 1,
+        ratio: Number(item.ratio) || 1,
+        table_no: item.table_no || "T-1",
+        fabric_type: item.fabric_type || "Knit",
+        parts: item.parts || "Body",
+        fabric_used_kg: Number(item.fabric_used_kg) || 0,
+        remnant_weight_kg: Number(item.remnant_weight_kg) || 0,
+        cutting_scrap_weight_kg: Number(item.cutting_scrap_weight_kg) || 0,
+        marker_length_inch: Number(item.marker_length_inch) || 1,
+        marker_efficiency_percent: Number(item.marker_efficiency_percent) || 80,
+        remarks: item.remarks || "Bulk imported",
+        status: "submitted",
+        created_by: profId,
+        approved_by: null
+      };
+
+      const { data: insertedEntry, error: insertErr } = await supabase
+        .from("cutting_entries")
+        .insert(dataToInsert)
+        .select()
+        .single();
+
+      if (insertErr) {
+        errors.push(`Row ${item.cut_no}: Supabase insertion failed: ${insertErr.message}`);
+        continue;
+      }
+
+      const responseEntry = {
+        ...insertedEntry,
+        created_by: user_email,
+        approved_by: null,
+        total_length_inch: Number(insertedEntry.total_length_inch) || (Number(insertedEntry.marker_length_inch) * Number(insertedEntry.lay)),
+        spreading_scrap_kg: Number(insertedEntry.spreading_scrap_kg) || (Number(insertedEntry.fabric_used_kg) * 0.025),
+        scrap_percent_per_marker: Number(insertedEntry.scrap_percent_per_marker) || (100.00 - Number(insertedEntry.marker_efficiency_percent))
+      };
+
+      added.push(responseEntry);
+      await addAuditLog(user_email, "create", "cutting_entry", insertedEntry.id, null, responseEntry);
+    } catch (e: any) {
+      errors.push(`Row ${item.cut_no}: ${e.message}`);
+    }
+  }
+
+  res.json({ success_count: added.length, errors, added });
+});
+
+app.put("/api/entries/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  try {
+    // 1. Fetch current entry from Supabase
+    const { data: existingEntry, error: fetchErr } = await supabase
+      .from("cutting_entries")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !existingEntry) {
+      return res.status(404).json({ error: "Entry not found in system storage." });
+    }
+
+    // Resolve profiles email mapping
+    const { data: profiles } = await supabase.from("profiles").select("id, email");
+    const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+    const creatorEmail = profileMap.get(existingEntry.created_by) || user_email;
+
+    // Role policies
+    if (user_role === "operator" && existingEntry.status === "approved") {
+      return res.status(403).json({ error: "Operators cannot edit approved cutting entries." });
+    }
+    if (user_role === "operator" && creatorEmail.toLowerCase() !== user_email) {
+      return res.status(403).json({ error: "Operators can only edit their own draft entries." });
+    }
+    if (user_role === "manager") {
+      return res.status(403).json({ error: "Managers do not have edit rights." });
+    }
+
+    const data = req.body;
+    const old_value = {
+      ...existingEntry,
+      created_by: creatorEmail,
+      approved_by: profileMap.get(existingEntry.approved_by) || null
+    };
+
+    // Update inside Supabase
+    const { data: updatedEntry, error: updateErr } = await supabase
+      .from("cutting_entries")
+      .update({
+        entry_date: data.entry_date,
+        shift: data.shift,
+        buyer: data.buyer,
+        job_no: data.job_no,
+        color: data.color,
+        item: data.item,
+        cut_no: data.cut_no,
+        lay: Number(data.lay),
+        ratio: Number(data.ratio),
+        table_no: data.table_no,
+        fabric_type: data.fabric_type,
+        parts: data.parts,
+        fabric_used_kg: Number(data.fabric_used_kg),
+        remnant_weight_kg: Number(data.remnant_weight_kg),
+        cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg),
+        marker_length_inch: Number(data.marker_length_inch),
+        marker_efficiency_percent: Number(data.marker_efficiency_percent),
+        remarks: data.remarks,
+        status: data.status
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    const responseEntry = {
+      ...updatedEntry,
+      created_by: creatorEmail,
+      approved_by: updatedEntry.status === "approved" ? user_email : null,
+      total_length_inch: Number(updatedEntry.total_length_inch) || (Number(updatedEntry.marker_length_inch) * Number(updatedEntry.lay)),
+      spreading_scrap_kg: Number(updatedEntry.spreading_scrap_kg) || (Number(updatedEntry.fabric_used_kg) * 0.025),
+      scrap_percent_per_marker: Number(updatedEntry.scrap_percent_per_marker) || (100.00 - Number(updatedEntry.marker_efficiency_percent))
+    };
+
+    await addAuditLog(user_email, "edit", "cutting_entry", updatedEntry.id, old_value, responseEntry);
+
+    return res.json(responseEntry);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/entries/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role !== "supervisor" && user_role !== "admin") {
+    return res.status(403).json({ error: "Only Supervisors or Administrators can delete cutting records." });
+  }
+
+  try {
+    // 1. Fetch current entry for audit logs
+    const { data: existingEntry, error: fetchErr } = await supabase
+      .from("cutting_entries")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !existingEntry) {
+      return res.status(404).json({ error: "Entry not found" });
+    }
+
+    // 2. Delete from Supabase
+    const { error: deleteErr } = await supabase.from("cutting_entries").delete().eq("id", id);
+    if (deleteErr) {
+      return res.status(500).json({ error: deleteErr.message });
+    }
+
+    await addAuditLog(user_email, "delete", "cutting_entry", id, existingEntry, null);
+
+    return res.json({ success: true, message: `Entry with Cut No ${existingEntry.cut_no} was deleted.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/entries/:id/approve", async (req, res) => {
+  const { id } = req.params;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role !== "supervisor" && user_role !== "admin") {
+    return res.status(403).json({ error: "Only Supervisors or Administrators can approve cutting logs." });
+  }
+
+  try {
+    const { data: existingEntry, error: fetchErr } = await supabase
+      .from("cutting_entries")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !existingEntry) {
+      return res.status(404).json({ error: "Entry not found" });
+    }
+
+    // Resolve profile ID for the supervisor approving this entry
+    const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+    
+    const { data: updatedEntry, error: updateErr } = await supabase
+      .from("cutting_entries")
+      .update({
+        status: "approved",
+        approved_by: prof?.id || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    // Get profiles for creator email mapping
+    const { data: profiles } = await supabase.from("profiles").select("id, email");
+    const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+
+    const responseEntry = {
+      ...updatedEntry,
+      created_by: profileMap.get(updatedEntry.created_by) || updatedEntry.created_by || user_email,
+      approved_by: user_email,
+      total_length_inch: Number(updatedEntry.total_length_inch) || (Number(updatedEntry.marker_length_inch) * Number(updatedEntry.lay)),
+      spreading_scrap_kg: Number(updatedEntry.spreading_scrap_kg) || (Number(updatedEntry.fabric_used_kg) * 0.025),
+      scrap_percent_per_marker: Number(updatedEntry.scrap_percent_per_marker) || (100.00 - Number(updatedEntry.marker_efficiency_percent))
+    };
+
+    await addAuditLog(user_email, "approve", "cutting_entry", id, existingEntry, responseEntry);
+
+    return res.json(responseEntry);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 4. AUDIT LOGS API
+// ==========================================
+
+app.get("/api/logs", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+
+  if (user_role !== "admin") {
+    return res.status(403).json({ error: "Only System Administrators can inspect the core audit logs." });
+  }
+
+  try {
+    const { data: logs, error } = await supabase
+      .from("audit_logs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.json(logs || []);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 5. USER PROFILES API
+// ==========================================
+
+app.get("/api/profiles", async (req, res) => {
+  const user_email = req.headers["x-user-email"] as string;
+  if (!user_email) {
+    return res.status(401).json({ error: "Unauthorized. Session required to read profiles." });
+  }
+
+  try {
+    const { data: profiles, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.json(profiles || []);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/profiles/:id/role", async (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role !== "admin") {
+    return res.status(403).json({ error: "Only Admins can modify user roles." });
+  }
+
+  try {
+    const { data: currentProfile, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !currentProfile) {
+      return res.status(404).json({ error: "Profile not found." });
+    }
+
+    const { data: updatedProfile, error: updateErr } = await supabase
+      .from("profiles")
+      .update({ role })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    await addAuditLog(user_email, "edit", "profile", id, currentProfile, updatedProfile);
+    
+    return res.json(updatedProfile);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ==========================================
+// STATIC FILES & VITE HMR HANDLER
+// ==========================================
+
+if (process.env.NODE_ENV !== "production") {
+  createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  }).then((vite) => {
+    app.use(vite.middlewares);
+    
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Development Server running on port ${PORT}`);
+    });
+  });
+} else {
+  const distPath = path.join(process.cwd(), "dist");
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+  
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Production Server running on port ${PORT}`);
+  });
+}

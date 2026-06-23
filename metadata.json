@@ -1,0 +1,6 @@
+{
+  "name": "Wavely Cut",
+  "description": "An ERP-style cutting management system for garment factories, optimizing operator data entry with automatic calculations, real-time dashboards, audit logs, and multi-role operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
