@@ -91,10 +91,11 @@ app.post("/api/auth/signup", async (req, res) => {
   const userDept = department?.trim() || "Cutting Deck 1";
 
   try {
-    // Register with Supabase Auth (backend-proxied)
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Register with Supabase Auth (backend-proxied, auto-confirmed via admin API to avoid email verification blocks)
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: normalizedEmail,
       password: password,
+      email_confirm: true
     });
 
     if (authError) {
@@ -140,14 +141,46 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     if (password) {
       // Authenticate with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let authResult = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password: password
       });
 
-      if (authError) {
-        throw authError;
+      if (authResult.error) {
+        const errMsg = authResult.error.message.toLowerCase();
+        if (errMsg.includes("email not confirmed") || errMsg.includes("confirm")) {
+          console.log(`User ${normalizedEmail} has unconfirmed email. Attempting admin auto-confirmation...`);
+          const { data: usersData, error: listError } = await supabase.auth.admin.listUsers();
+          if (!listError && usersData?.users) {
+            const match = (usersData.users as any[]).find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+            if (match) {
+              console.log(`Found matching user ${match.id}. Confirming email...`);
+              const { error: updateError } = await supabase.auth.admin.updateUserById(match.id, {
+                email_confirm: true
+              });
+              if (!updateError) {
+                console.log("Auto-confirmation successful. Retrying sign-in...");
+                authResult = await supabase.auth.signInWithPassword({
+                  email: normalizedEmail,
+                  password: password
+                });
+              } else {
+                console.error("Failed to update user email_confirm state:", updateError.message);
+              }
+            } else {
+              console.warn("No user matched in admin list for auto-confirmation.");
+            }
+          } else {
+            console.error("Failed to list users for auto-confirmation:", listError?.message);
+          }
+        }
       }
+
+      if (authResult.error) {
+        throw authResult.error;
+      }
+
+      const authData = authResult.data;
 
       if (authData.user) {
         // Fetch profile
