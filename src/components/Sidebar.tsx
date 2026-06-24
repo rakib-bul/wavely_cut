@@ -79,14 +79,14 @@ export default function Sidebar({
         >
           {profiles.map(p => (
             <option key={p.id} value={p.id}>
-              {p.full_name} ({p.role.toUpperCase()})
+              {p.full_name} ({p.role === 'supervisor' ? 'OFFICER' : p.role.toUpperCase()})
             </option>
           ))}
         </select>
         
         <div className="mt-2.5 flex items-center justify-between gap-1">
           <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase tracking-wider font-semibold ${getRoleBadgeColor(currentProfile.role)}`}>
-            {currentProfile.role}
+            {currentProfile.role === 'supervisor' ? 'officer' : currentProfile.role}
           </span>
           <button
             onClick={onLogout}
@@ -104,11 +104,12 @@ export default function Sidebar({
           const Icon = item.icon;
           
           if (!hasAccess) {
+            const displayRoles = item.roles.map(r => r === "supervisor" ? "officer" : r).join(", ");
             return (
               <div 
                 key={item.id} 
                 className="flex items-center gap-3 text-slate-300 dark:text-slate-600 px-3 py-2 rounded-md text-xs font-medium cursor-not-allowed opacity-40 select-none"
-                title={`${item.label} requires ${item.roles.join(", ")} roles.`}
+                title={`${item.label} requires ${displayRoles} roles.`}
               >
                 <Icon size={16} />
                 <span>{item.label}</span>

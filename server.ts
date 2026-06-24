@@ -254,7 +254,7 @@ app.post("/api/machines", async (req, res) => {
   const user_email = req.headers["x-user-email"] as string;
 
   if (user_role !== "admin" && user_role !== "supervisor") {
-    return res.status(403).json({ error: "Permission Denied. Only Admin and Supervisor can add machines." });
+    return res.status(403).json({ error: "Permission Denied. Only Admin and Officer can add machines." });
   }
 
   if (!machine_name || !machine_type) {
@@ -338,7 +338,7 @@ app.post("/api/buyers", async (req, res) => {
   const user_email = req.headers["x-user-email"] as string;
 
   if (user_role !== "admin" && user_role !== "supervisor") {
-    return res.status(403).json({ error: "Only Admin and Supervisor can register new buyers." });
+    return res.status(403).json({ error: "Only Admin and Officer can register new buyers." });
   }
 
   if (!name || !name.trim()) {
@@ -717,7 +717,7 @@ app.delete("/api/entries/:id", async (req, res) => {
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
   if (user_role !== "supervisor" && user_role !== "admin") {
-    return res.status(403).json({ error: "Only Supervisors or Administrators can delete cutting records." });
+    return res.status(403).json({ error: "Only Officers or Administrators can delete cutting records." });
   }
 
   try {
@@ -752,7 +752,7 @@ app.post("/api/entries/:id/approve", async (req, res) => {
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
   if (user_role !== "supervisor" && user_role !== "admin") {
-    return res.status(403).json({ error: "Only Supervisors or Administrators can approve cutting logs." });
+    return res.status(403).json({ error: "Only Officers or Administrators can approve cutting logs." });
   }
 
   try {

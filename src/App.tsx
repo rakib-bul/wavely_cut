@@ -444,38 +444,6 @@ export default function App() {
 
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white dark:bg-slate-900 shadow-xl rounded-2xl border border-slate-200/60 dark:border-slate-800/80 overflow-hidden transition-all duration-300">
-            {/* Dual Mode Tabs Selection Header */}
-            <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
-              <button
-                onClick={() => {
-                  setAuthTab("login");
-                  setAuthError(null);
-                  setAuthSuccess(null);
-                }}
-                className={`flex-1 py-3.5 text-center text-xs font-bold tracking-wider uppercase transition border-b-2 cursor-pointer ${
-                  authTab === "login"
-                    ? "border-slate-800 dark:border-slate-200 text-slate-900 dark:text-white bg-white dark:bg-slate-900"
-                    : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => {
-                  setAuthTab("register");
-                  setAuthError(null);
-                  setAuthSuccess(null);
-                }}
-                className={`flex-1 py-3.5 text-center text-xs font-bold tracking-wider uppercase transition border-b-2 cursor-pointer ${
-                  authTab === "register"
-                    ? "border-slate-800 dark:border-slate-200 text-slate-900 dark:text-white bg-white dark:bg-slate-900"
-                    : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-                }`}
-              >
-                Register
-              </button>
-            </div>
-
             <div className="p-6 sm:p-8 space-y-6">
               {/* Alert Feedback Banners */}
               {authError && (
@@ -498,19 +466,18 @@ export default function App() {
                 </div>
               )}
 
-              {/* SECTION: LOGIN TAB */}
-              {authTab === "login" && (
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                      Welcome Back to Floor Desk
-                    </h3>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                      Enter your operator account coordinates to access current cutting lot registers.
-                    </p>
-                  </div>
+              {/* SECTION: LOGIN FORM */}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                    Welcome Back to Floor Desk
+                  </h3>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    Enter your operator account coordinates to access current cutting lot registers.
+                  </p>
+                </div>
 
-                  <form
+                <form
                     onSubmit={async (e) => {
                       e.preventDefault();
                       setAuthError(null);
@@ -625,167 +592,6 @@ export default function App() {
                     </button>
                   </form>
                 </div>
-              )}
-
-              {/* SECTION: REGISTER TAB */}
-              {authTab === "register" && (
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                      Instate New Fabric Operator
-                    </h3>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                      Configure a system profile mapped inside Supabase and local redundant ledger indexes.
-                    </p>
-                  </div>
-
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      setAuthError(null);
-                      setAuthSuccess(null);
-                      setAuthLoading(true);
-
-                      const formData = new FormData(e.currentTarget);
-                      const email = (formData.get("email") as string)?.trim();
-                      const password = formData.get("password") as string;
-                      const full_name = (formData.get("full_name") as string)?.trim();
-                      const role = formData.get("role") as string;
-                      const department = (formData.get("department") as string)?.trim();
-
-                      if (!email || !password || !full_name || !department) {
-                        setAuthError("All fields must be formatted and complete.");
-                        setAuthLoading(false);
-                        return;
-                      }
-
-                      if (password.length < 6) {
-                        setAuthError("Passphrase key must consist of at least 6 characters.");
-                        setAuthLoading(false);
-                        return;
-                      }
-
-                      try {
-                        const res = await fetch("/api/auth/signup", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ email, password, full_name, role, department })
-                        });
-
-                        const resText = await res.text();
-                        let data: any = {};
-                        try {
-                          data = JSON.parse(resText);
-                        } catch (parseErr) {
-                          throw new Error(`Server responded with non-JSON format (status ${res.status}): ${resText.slice(0, 150)}`);
-                        }
-
-                        if (res.ok) {
-                          setAuthSuccess(data.message || "Account registered successfully! Attempting automatic entry...");
-                          
-                          // Auto log-in with new credentials
-                          setTimeout(() => {
-                            setCurrentProfile(data.profile);
-                            localStorage.setItem("erp_active_profile", JSON.stringify(data.profile));
-                            setAuthLoading(false);
-                          }, 900);
-                        } else {
-                          setAuthError(data.error || "Unable to instate operator identity.");
-                          setAuthLoading(false);
-                        }
-                      } catch (err: any) {
-                        setAuthError("Post failure: " + err.message);
-                        setAuthLoading(false);
-                      }
-                    }}
-                    className="space-y-4 text-xs"
-                  >
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                        Full Name
-                      </label>
-                      <input
-                        name="full_name"
-                        type="text"
-                        placeholder="Hasan Kabir"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                        Company Email
-                      </label>
-                      <input
-                        name="email"
-                        type="email"
-                        placeholder="operator@kafe.com"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                        Security Passphrase (min. 6 chars)
-                      </label>
-                      <input
-                        name="password"
-                        type="password"
-                        placeholder="••••••••"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                          Role Mapping
-                        </label>
-                        <select
-                          name="role"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705 cursor-pointer"
-                        >
-                          <option value="operator">Operator (Data Entry)</option>
-                          <option value="supervisor">Supervisor (Authority)</option>
-                          <option value="manager">Manager (Planning View)</option>
-                          <option value="admin">Admin (System IAM)</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                          Terminal/Floor
-                        </label>
-                        <input
-                          name="department"
-                          type="text"
-                          placeholder="Cutting Floor 3"
-                          required
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition hover:scale-[1.01] uppercase tracking-wider text-[10.5px] cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {authLoading ? (
-                        <>
-                          <RefreshCw size={12} className="animate-spin" />
-                          <span>Creating System Identity...</span>
-                        </>
-                      ) : (
-                        <span>Verify & Create Account</span>
-                      )}
-                    </button>
-                  </form>
-                </div>
-              )}
             </div>
           </div>
         </div>

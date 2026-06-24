@@ -154,7 +154,7 @@ export default function AdminModule({
                         className="bg-slate-50 border border-slate-200 rounded-lg py-1 px-2 font-mono text-[11px] font-semibold text-slate-700 focus:ring-1 focus:ring-slate-905 focus:outline-none transition"
                       >
                         <option value="operator">OPERATOR</option>
-                        <option value="supervisor">SUPERVISOR</option>
+                        <option value="supervisor">OFFICER</option>
                         <option value="manager">MANAGER</option>
                         <option value="admin">ADMIN</option>
                       </select>
