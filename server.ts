@@ -904,7 +904,11 @@ app.put("/api/profiles/:id/role", async (req, res) => {
 // STATIC FILES & VITE HMR HANDLER
 // ==========================================
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.VERCEL) {
+  // On Vercel, static files and routing are handled by Vercel CDN using vercel.json.
+  // The Express app is exported to be run as a Serverless Function.
+  console.log("Running in Vercel Serverless environment");
+} else if (process.env.NODE_ENV !== "production") {
   createViteServer({
     server: { middlewareMode: true },
     appType: "spa",
@@ -926,3 +930,5 @@ if (process.env.NODE_ENV !== "production") {
     console.log(`Production Server running on port ${PORT}`);
   });
 }
+
+export default app;
