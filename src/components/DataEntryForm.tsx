@@ -69,7 +69,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         const parsed = JSON.parse(saved);
         if (parsed.shift === "Day") parsed.shift = "A";
         else if (parsed.shift === "Night") parsed.shift = "B";
-        else if (!["A", "B", "C"].includes(parsed.shift)) parsed.shift = "A";
+        else if (!["A", "B"].includes(parsed.shift)) parsed.shift = "A";
         setFormData(parsed);
         setHasDraft(true);
       } catch (e) {
@@ -216,7 +216,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
       const parsed = JSON.parse(saved);
       if (parsed.shift === "Day") parsed.shift = "A";
       else if (parsed.shift === "Night") parsed.shift = "B";
-      else if (!["A", "B", "C"].includes(parsed.shift)) parsed.shift = "A";
+      else if (!["A", "B"].includes(parsed.shift)) parsed.shift = "A";
       setFormData(parsed);
       setValidationError(null);
       setSubmitSuccess("Restored your autosaved cutting form parameters.");
@@ -416,9 +416,8 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                     onChange={handleInputChange}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-900 focus:border-slate-905 focus:outline-none transition-all text-slate-850 cursor-pointer"
                   >
-                    <option value="A">Shift A</option>
-                    <option value="B">Shift B</option>
-                    <option value="C">Shift C</option>
+                    <option value="A">Day Shift</option>
+                    <option value="B">Night Shift</option>
                   </select>
                 </div>
                 <div className="w-40">

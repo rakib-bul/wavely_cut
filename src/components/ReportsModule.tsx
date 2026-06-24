@@ -17,7 +17,7 @@ import {
   FileSpreadsheet,
   AlertTriangle
 } from "lucide-react";
-import { CuttingEntry, Machine, Profile, UserRole } from "../types";
+import { CuttingEntry, Machine, Profile, UserRole, Buyer } from "../types";
 
 interface ReportsModuleProps {
   entries: CuttingEntry[];
@@ -27,6 +27,7 @@ interface ReportsModuleProps {
   onApproveEntry: (id: string) => void;
   onDeleteEntry: (id: string) => void;
   onSelectEditEntry?: (entry: CuttingEntry) => void;
+  buyers?: Buyer[];
 }
 
 export default function ReportsModule({
@@ -36,7 +37,8 @@ export default function ReportsModule({
   currentProfile,
   onApproveEntry,
   onDeleteEntry,
-  onSelectEditEntry
+  onSelectEditEntry,
+  buyers = []
 }: ReportsModuleProps) {
   // --- Filtering State ---
   const [entryToDelete, setEntryToDelete] = useState<CuttingEntry | null>(null);
@@ -77,16 +79,19 @@ export default function ReportsModule({
 
   // --- Unique buyers & fabric types for dropdown filters ---
   const uniqueBuyers = useMemo(() => {
+    if (buyers && buyers.length > 0) {
+      return buyers.map(b => b.name.toUpperCase().trim());
+    }
     const set = new Set(entries.map(e => e.buyer.toUpperCase().trim()));
     return Array.from(set).filter(Boolean);
-  }, [entries]);
+  }, [entries, buyers]);
 
   const uniqueFabricTypes = useMemo(() => {
     const set = new Set(entries.map(e => e.fabric_type || ""));
     return Array.from(set).filter(Boolean);
   }, [entries]);
 
-  const uniqueShifts = ["A", "B", "C"];
+  const uniqueShifts = ["A", "B"];
 
   // --- Apply Filters, Sorting & Search ---
   const filteredEntries = useMemo(() => {
@@ -355,7 +360,7 @@ export default function ReportsModule({
               className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Shifts</option>
-              {uniqueShifts.map(s => <option key={s} value={s}>{s} Shift</option>)}
+              {uniqueShifts.map(s => <option key={s} value={s}>{s === "A" ? "Day" : s === "B" ? "Night" : s} Shift</option>)}
             </select>
           </div>
 
@@ -537,7 +542,7 @@ export default function ReportsModule({
                       className="hover:bg-slate-50/50 text-slate-600 transition-colors"
                     >
                       <td className="p-3 font-medium whitespace-nowrap">{entry.entry_date}</td>
-                      <td className="p-3"><span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600">{entry.shift}</span></td>
+                      <td className="p-3"><span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600">{entry.shift === "A" ? "Day" : entry.shift === "B" ? "Night" : entry.shift}</span></td>
                       <td className="p-3 font-mono font-bold text-slate-800">{entry.cut_no}</td>
                       <td className="p-3 font-semibold truncate max-w-[120px]">{entry.buyer}</td>
                       <td className="p-3 font-mono text-slate-400">{entry.job_no}</td>

@@ -389,6 +389,33 @@ export default function App() {
     }
   };
 
+  // --- ADMIN: BUYER PARTNER CREATE ACTION ---
+  const handleAddBuyer = async (name: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch("/api/buyers", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Buyer addition denied.");
+        return;
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed adding buyer: " + err.message);
+    }
+  };
+
   // --- Aggregate Dashboard Stats ---
   const compiledDashboardKPIs = useMemo(() => {
     return compileDashboardKPIs(entries);
@@ -852,6 +879,7 @@ export default function App() {
                   onApproveEntry={handleApproveEntry}
                   onDeleteEntry={handleDeleteEntry}
                   onSelectEditEntry={(entry) => setEditingEntry(entry)}
+                  buyers={buyers}
                 />
               </div>
             )}
@@ -877,6 +905,8 @@ export default function App() {
                   onAddMachine={handleAddMachine}
                   schemaDDL={SCHEMA_DDL_STRING}
                   rlsDDL={RLS_DDL_STRING}
+                  buyers={buyers}
+                  onAddBuyer={handleAddBuyer}
                 />
               </div>
             )}
@@ -938,9 +968,8 @@ export default function App() {
                   onChange={e => setEditingEntry({ ...editingEntry, shift: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
                 >
-                  <option value="A">Shift A</option>
-                  <option value="B">Shift B</option>
-                  <option value="C">Shift C</option>
+                  <option value="A">Day Shift</option>
+                  <option value="B">Night Shift</option>
                 </select>
               </div>
 

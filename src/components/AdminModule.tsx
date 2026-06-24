@@ -14,7 +14,7 @@ import {
   Globe,
   Settings2
 } from "lucide-react";
-import { Profile, Machine, AuditLog, UserRole } from "../types";
+import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
 interface AdminModuleProps {
   profiles: Profile[];
@@ -24,6 +24,8 @@ interface AdminModuleProps {
   onAddMachine: (name: string, type: string) => void;
   schemaDDL: string;
   rlsDDL: string;
+  buyers?: Buyer[];
+  onAddBuyer?: (name: string) => void;
 }
 
 export default function AdminModule({
@@ -33,14 +35,19 @@ export default function AdminModule({
   onUpdateRole,
   onAddMachine,
   schemaDDL,
-  rlsDDL
+  rlsDDL,
+  buyers = [],
+  onAddBuyer
 }: AdminModuleProps) {
   // --- Admin Views State ---
-  const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'logs' | 'ddl'>('iam');
+  const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'logs' | 'ddl'>('iam');
 
   // New Machine state
   const [newMacName, setNewMacName] = useState("");
   const [newMacType, setNewMacType] = useState("Auto");
+
+  // New Buyer state
+  const [newBuyerName, setNewBuyerName] = useState("");
 
   // Code Copy State helpers
   const [copiedSchema, setCopiedSchema] = useState(false);
@@ -86,6 +93,14 @@ export default function AdminModule({
             }`}
           >
             <Cpu size={12} /> Machinery
+          </button>
+          <button
+            onClick={() => setActiveAdminTab('buyers')}
+            className={`px-3 py-1.5 rounded-lg transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
+              activeAdminTab === 'buyers' ? 'bg-white shadow-xs text-slate-800 border border-slate-100' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Settings2 size={12} /> Buyers
           </button>
           <button
             onClick={() => setActiveAdminTab('logs')}
@@ -213,6 +228,65 @@ export default function AdminModule({
                       <td className="p-3 font-bold text-slate-700 dark:text-slate-200">{m.machine_name}</td>
                       <td className="p-3"><span className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-lg text-[9px] uppercase font-bold tracking-wider">{m.machine_type}</span></td>
                       <td className="p-3 font-mono text-right text-slate-400 dark:text-slate-500">{m.id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* VIEW E: BUYERS DIRECTORY */}
+      {activeAdminTab === 'buyers' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+          
+          {/* Add buyer panel card */}
+          <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800/80 rounded-xl p-5 space-y-4 text-xs h-fit col-span-1">
+            <h3 className="font-sans font-bold text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-400">Register New Buyer</h3>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Buyer Name</label>
+              <input
+                type="text"
+                value={newBuyerName}
+                onChange={e => setNewBuyerName(e.target.value)}
+                placeholder="e.g., NIKE GLOBAL"
+                className="w-full bg-white border border-slate-200 rounded-lg py-2 px-2.5 outline-none focus:ring-1 focus:ring-slate-950 focus:border-slate-950 transition"
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                if (!newBuyerName.trim()) return alert("Buyer name required.");
+                if (onAddBuyer) {
+                  onAddBuyer(newBuyerName.trim().toUpperCase());
+                }
+                setNewBuyerName("");
+              }}
+              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold transition flex items-center justify-center gap-1 cursor-pointer focus:ring-2 focus:ring-slate-950"
+            >
+              <Plus size={14} /> Add Buyer Partner
+            </button>
+          </div>
+
+          {/* Buyers List Grid */}
+          <div className="col-span-2 space-y-4">
+            <h3 className="font-sans font-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Buyer Partners Directory</h3>
+            
+            <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden text-xs bg-white dark:bg-transparent">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-100/30 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800 font-semibold uppercase tracking-wider text-[10px]">
+                    <th className="p-3">Buyer Company Name</th>
+                    <th className="p-3 text-right">Identifier Reference</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                  {buyers.map(b => (
+                    <tr key={b.id || b.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                      <td className="p-3 font-bold text-slate-700 dark:text-slate-200">{b.name}</td>
+                      <td className="p-3 font-mono text-right text-slate-400 dark:text-slate-500">{b.id || 'Fallback Local'}</td>
                     </tr>
                   ))}
                 </tbody>
