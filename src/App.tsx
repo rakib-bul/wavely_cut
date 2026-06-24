@@ -544,8 +544,15 @@ export default function App() {
                           body: JSON.stringify(payload)
                         });
 
+                        const resText = await res.text();
+                        let data: any = {};
+                        try {
+                          data = JSON.parse(resText);
+                        } catch (parseErr) {
+                          throw new Error(`Server responded with non-JSON format (status ${res.status}): ${resText.slice(0, 150)}`);
+                        }
+
                         if (res.ok) {
-                          const data = await res.json();
                           if (data.profile) {
                             setAuthSuccess("Access granted. Initializing active floor deck...");
                             setTimeout(() => {
@@ -558,8 +565,7 @@ export default function App() {
                             setAuthLoading(false);
                           }
                         } else {
-                          const errBody = await res.json();
-                          setAuthError(errBody.error || "Authentication failed. Double check your email/password.");
+                          setAuthError(data.error || "Authentication failed. Double check your email/password.");
                           setAuthLoading(false);
                         }
                       } catch (err: any) {
@@ -676,7 +682,14 @@ export default function App() {
                           body: JSON.stringify({ email, password, full_name, role, department })
                         });
 
-                        const data = await res.json();
+                        const resText = await res.text();
+                        let data: any = {};
+                        try {
+                          data = JSON.parse(resText);
+                        } catch (parseErr) {
+                          throw new Error(`Server responded with non-JSON format (status ${res.status}): ${resText.slice(0, 150)}`);
+                        }
+
                         if (res.ok) {
                           setAuthSuccess(data.message || "Account registered successfully! Attempting automatic entry...");
                           
