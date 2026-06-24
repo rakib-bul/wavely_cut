@@ -4,8 +4,7 @@ dotenv.config();
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
-import { calculateFields } from "./src/utils/calculations.js";
+import { calculateFields } from "./src/utils/calculations";
 import { CuttingEntry, Machine, Profile, AuditLog, UserRole } from "./src/types";
 import { createClient } from "@supabase/supabase-js";
 
@@ -909,14 +908,16 @@ if (process.env.VERCEL) {
   // The Express app is exported to be run as a Serverless Function.
   console.log("Running in Vercel Serverless environment");
 } else if (process.env.NODE_ENV !== "production") {
-  createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  }).then((vite) => {
-    app.use(vite.middlewares);
-    
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Development Server running on port ${PORT}`);
+  import("vite").then(({ createServer: createViteServer }) => {
+    createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    }).then((vite) => {
+      app.use(vite.middlewares);
+      
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Development Server running on port ${PORT}`);
+      });
     });
   });
 } else {
