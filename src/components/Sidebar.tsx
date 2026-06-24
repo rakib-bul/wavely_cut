@@ -65,24 +65,33 @@ export default function Sidebar({
 
       {/* Profile Swapper (Simulated Auth & RLS Demonstration) */}
       <div className="p-4 mx-4 mb-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800">
-        <label className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block mb-1.5 flex items-center gap-1">
-          <Fingerprint size={10} className="text-slate-600 dark:text-slate-400" /> Simulated User (Auth / RLS)
-        </label>
-        
-        <select
-          value={currentProfile.id}
-          onChange={(e) => {
-            const prof = profiles.find(p => p.id === e.target.value);
-            if (prof) onSwitchProfile(prof);
-          }}
-          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-xs py-1.5 px-2 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-slate-950 dark:focus:ring-slate-300 outline-none"
-        >
-          {profiles.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.full_name} ({p.role === 'supervisor' ? 'OFFICER' : p.role.toUpperCase()})
-            </option>
-          ))}
-        </select>
+        {currentProfile.role === 'admin' ? (
+          <>
+            <label className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block mb-1.5 flex items-center gap-1">
+              <Fingerprint size={10} className="text-slate-600 dark:text-slate-400" /> Simulated User (Auth / RLS)
+            </label>
+            
+            <select
+              value={currentProfile.id}
+              onChange={(e) => {
+                const prof = profiles.find(p => p.id === e.target.value);
+                if (prof) onSwitchProfile(prof);
+              }}
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-xs py-1.5 px-2 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-slate-950 dark:focus:ring-slate-300 outline-none mb-2"
+            >
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name} ({p.role === 'supervisor' ? 'OFFICER' : p.role.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <div className="mb-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Session</span>
+            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block truncate">{currentProfile.full_name}</span>
+          </div>
+        )}
         
         <div className="mt-2.5 flex items-center justify-between gap-1">
           <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase tracking-wider font-semibold ${getRoleBadgeColor(currentProfile.role)}`}>
