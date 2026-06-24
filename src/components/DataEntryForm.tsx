@@ -32,7 +32,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
   // --- Single Entry Form State ---
   const initialFormState = {
     entry_date: new Date().toISOString().substring(0, 10),
-    shift: "Day",
+    shift: "A",
     machine_id: machines[0]?.id || "",
     buyer: "",
     job_no: "",
@@ -66,7 +66,11 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     const saved = localStorage.getItem("garments_cutting_draft");
     if (saved) {
       try {
-        setFormData(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (parsed.shift === "Day") parsed.shift = "A";
+        else if (parsed.shift === "Night") parsed.shift = "B";
+        else if (!["A", "B", "C"].includes(parsed.shift)) parsed.shift = "A";
+        setFormData(parsed);
         setHasDraft(true);
       } catch (e) {
         console.error("Failed to parse autosaved draft", e);
@@ -209,7 +213,11 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
   const loadLastDraft = () => {
     const saved = localStorage.getItem("garments_cutting_draft");
     if (saved) {
-      setFormData(JSON.parse(saved));
+      const parsed = JSON.parse(saved);
+      if (parsed.shift === "Day") parsed.shift = "A";
+      else if (parsed.shift === "Night") parsed.shift = "B";
+      else if (!["A", "B", "C"].includes(parsed.shift)) parsed.shift = "A";
+      setFormData(parsed);
       setValidationError(null);
       setSubmitSuccess("Restored your autosaved cutting form parameters.");
     }
@@ -360,7 +368,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
             </span>
             <button 
               onClick={() => setShowHotkeys(!showHotkeys)}
-              className="text-slate-755 hover:underline cursor-pointer font-semibold"
+              className="text-slate-700 hover:underline cursor-pointer font-semibold"
             >
               {showHotkeys ? "Hide keys" : "Show keys / hotkeys"}
             </button>
@@ -368,9 +376,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
 
           {showHotkeys && (
             <div className="bg-white border border-slate-200 p-3.5 rounded-xl grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-500">
-              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-205 font-mono font-bold">Alt + S</kbd> : Submit for Approval</div>
-              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-205 font-mono font-bold">Alt + D</kbd> : Save to Local Draft Pool</div>
-              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-205 font-mono font-bold">Alt + C</kbd> : Clean Form Fields</div>
+              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono font-bold">Alt + S</kbd> : Submit for Approval</div>
+              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono font-bold">Alt + D</kbd> : Save to Local Draft Pool</div>
+              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono font-bold">Alt + C</kbd> : Clean Form Fields</div>
             </div>
           )}
 
@@ -408,8 +416,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                     onChange={handleInputChange}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-900 focus:border-slate-905 focus:outline-none transition-all text-slate-850 cursor-pointer"
                   >
-                    <option value="Day">Day</option>
-                    <option value="Night">Night</option>
+                    <option value="A">Shift A</option>
+                    <option value="B">Shift B</option>
+                    <option value="C">Shift C</option>
                   </select>
                 </div>
                 <div className="w-40">
@@ -670,7 +679,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               <button
                 type="button"
                 onClick={clearForm}
-                className="px-4 py-2 text-slate-450 hover:text-rose-600 font-medium cursor-pointer transition-colors font-sans"
+                className="px-4 py-2 text-slate-400 hover:text-rose-600 font-medium cursor-pointer transition-colors font-sans"
               >
                 Clear Fields
               </button>
@@ -679,7 +688,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 <button
                   type="button"
                   onClick={loadLastDraft}
-                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border border-amber-550/15 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-colors font-sans"
+                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border border-amber-500/15 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-colors font-sans"
                 >
                   <RefreshCw size={12} className="animate-spin-hover" /> Restore Draft
                 </button>
@@ -691,7 +700,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 type="button"
                 onClick={() => triggerSubmit('draft')}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-250 transition font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-sans"
+                className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-sans"
               >
                 <Save size={13} className="text-slate-400" /> Save Draft
               </button>
@@ -719,7 +728,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
             <div className="flex items-center gap-2 pt-1">
               <button 
                 onClick={loadBulkSample}
-                className="text-slate-755 hover:underline font-semibold font-sans"
+                className="text-slate-700 hover:underline font-semibold font-sans"
               >
                 Load Sample TSV/CSV Rows
               </button>
@@ -738,7 +747,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           </div>
 
           {bulkStatus && (
-            <div className="bg-slate-50 border border-slate-250 p-4 rounded-xl text-xs space-y-2">
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs space-y-2">
               {bulkStatus.success !== undefined && bulkStatus.success > 0 && (
                 <div className="text-emerald-600 font-medium flex items-center gap-1.5">
                   <CheckCircle2 size={14} /> Successfully bulk imported {bulkStatus.success} new cutting entries into ledger!
@@ -749,7 +758,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   <span className="text-rose-600 font-medium flex items-center gap-1.5">
                     <BadgeAlert size={14} /> Skipped or erroneous rows:
                   </span>
-                  <ul className="list-disc pl-5 text-slate-550 space-y-0.5 text-[11px]">
+                  <ul className="list-disc pl-5 text-slate-500 space-y-0.5 text-[11px]">
                     {bulkStatus.errors.map((e, idx) => <li key={idx}>{e}</li>)}
                   </ul>
                 </div>

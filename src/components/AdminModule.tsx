@@ -228,7 +228,7 @@ export default function AdminModule({
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-100 font-sans uppercase tracking-wider text-[10px] font-bold">
             <span>Tracking system audits logs for verification audits</span>
-            <span className="font-bold text-slate-705 font-mono">{auditLogs.length} logs</span>
+            <span className="font-bold text-slate-700 font-mono">{auditLogs.length} logs</span>
           </div>
 
           <div className="space-y-2.5 max-h-[450px] overflow-y-auto pr-1">

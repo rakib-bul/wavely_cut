@@ -82,24 +82,24 @@ export default function KPICards({ metrics }: KPICardsProps) {
         
         // Handle custom styling for highlighted vs standard cards
         const containerClasses = kpi.highlight
-          ? "bg-slate-50 border-slate-300 p-5 rounded-xl border shadow-sm transition-transform hover:-translate-y-0.5 duration-200"
-          : "bg-white border-slate-200 p-5 rounded-xl border shadow-xs transition-transform hover:-translate-y-0.5 duration-200";
+          ? "bg-slate-50 dark:bg-slate-900/60 border-slate-300 dark:border-slate-800 p-5 rounded-xl border shadow-sm transition-transform hover:-translate-y-0.5 duration-200"
+          : "bg-white dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/80 p-5 rounded-xl border shadow-xs transition-transform hover:-translate-y-0.5 duration-200";
 
         const titleClasses = kpi.highlight
-          ? "text-[10px] uppercase tracking-wider font-semibold text-slate-800 mb-1"
-          : "text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1";
+          ? "text-[10px] uppercase tracking-wider font-semibold text-slate-800 dark:text-slate-200 mb-1"
+          : "text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1";
 
         const valueClasses = kpi.highlight
-          ? "text-2xl font-bold font-mono text-slate-900"
-          : `text-2xl font-bold font-mono ${kpi.valueColor || "text-slate-900"}`;
+          ? "text-2xl font-bold font-mono text-slate-900 dark:text-white"
+          : `text-2xl font-bold font-mono ${kpi.valueColor || "text-slate-900 dark:text-slate-100"}`;
 
         const unitClasses = kpi.highlight
-          ? "text-sm text-slate-500 font-medium mb-1"
-          : "text-sm text-slate-400 font-medium mb-1";
+          ? "text-sm text-slate-500 dark:text-slate-400 font-medium mb-1"
+          : "text-sm text-slate-400 dark:text-slate-500 font-medium mb-1";
 
         const iconWrapperClasses = kpi.highlight
-          ? "p-2 rounded-lg bg-slate-900 text-white"
-          : "p-2 rounded-lg bg-slate-100 text-slate-500";
+          ? "p-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white"
+          : "p-2 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400";
 
         return (
           <div key={idx} className={containerClasses} id={`kpi-card-${idx}`}>

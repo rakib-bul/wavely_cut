@@ -97,7 +97,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
         {/* Daily Usage BarChart */}
         <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-555">
+            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
               Fabric Usage Timeline
             </h3>
             <p className="text-xs text-slate-500 mt-1">Gross Fabric Used and Scissor Scrap (KG)</p>
@@ -124,7 +124,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
         {/* Machine Comparison line */}
         <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-555">
+            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
               Machine Efficiency Compare
             </h3>
             <p className="text-xs text-slate-500 mt-1">Actual End-to-End physical cutting yield efficiency (%)</p>
@@ -152,7 +152,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
         {/* Buyer Distribution pie chart */}
         <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-555">
+            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
               Order Volume by Buyer (KG)
             </h3>
             <p className="text-xs text-slate-500 mt-1">Share of total fabrics processed through cutting floor</p>
@@ -203,7 +203,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
         {/* Fabric Type Efficiency */}
         <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-555">
+            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
               Fabric Type Yield & ETE
             </h3>
             <p className="text-xs text-slate-500 mt-1">Average actual fabric yields by fabric material</p>

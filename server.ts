@@ -58,6 +58,23 @@ async function addAuditLog(
   }
 }
 
+// Helper to sanitize shift to a single character ('A', 'B', 'C') matching CHAR(1) constraints
+function sanitizeShift(val: any): string {
+  if (typeof val !== "string") return "A";
+  const clean = val.trim().toUpperCase();
+  if (clean === "A" || clean === "B" || clean === "C") return clean;
+  // If "Day" or "Night", map Day -> A, Night -> B
+  if (clean.includes("DAY") || clean.startsWith("D")) return "A";
+  if (clean.includes("NIGHT") || clean.startsWith("N")) return "B";
+  // Handle strings like "Shift A", "Shift B", "Shift C" or "A Shift"
+  if (clean.includes("A")) return "A";
+  if (clean.includes("B")) return "B";
+  if (clean.includes("C")) return "C";
+  // If first letter is A, B, or C
+  if (clean.length > 0 && ["A", "B", "C"].includes(clean[0])) return clean[0];
+  return "A"; // Safe fallback
+}
+
 // ==========================================
 // 1. AUTHENTICATION API (Supabase Direct Sync)
 // ==========================================
@@ -440,7 +457,7 @@ app.post("/api/entries", async (req, res) => {
 
     const dataToInsert = {
       entry_date: data.entry_date,
-      shift: data.shift,
+      shift: sanitizeShift(data.shift),
       machine_id: data.machine_id,
       buyer: data.buyer,
       job_no: data.job_no,
@@ -555,7 +572,7 @@ app.post("/api/entries/bulk", async (req, res) => {
 
       const dataToInsert = {
         entry_date: item.entry_date,
-        shift: item.shift,
+        shift: sanitizeShift(item.shift),
         machine_id: finalMachineIdToUse,
         buyer: item.buyer,
         job_no: item.job_no,
@@ -653,7 +670,7 @@ app.put("/api/entries/:id", async (req, res) => {
       .from("cutting_entries")
       .update({
         entry_date: data.entry_date,
-        shift: data.shift,
+        shift: sanitizeShift(data.shift),
         buyer: data.buyer,
         job_no: data.job_no,
         color: data.color,

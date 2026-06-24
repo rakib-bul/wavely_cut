@@ -39,6 +39,7 @@ export default function ReportsModule({
   onSelectEditEntry
 }: ReportsModuleProps) {
   // --- Filtering State ---
+  const [entryToDelete, setEntryToDelete] = useState<CuttingEntry | null>(null);
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [filterBuyer, setFilterBuyer] = useState("");
@@ -85,7 +86,7 @@ export default function ReportsModule({
     return Array.from(set).filter(Boolean);
   }, [entries]);
 
-  const uniqueShifts = ["Day", "Night"];
+  const uniqueShifts = ["A", "B", "C"];
 
   // --- Apply Filters, Sorting & Search ---
   const filteredEntries = useMemo(() => {
@@ -296,14 +297,14 @@ export default function ReportsModule({
                 type="date" 
                 value={dateStart} 
                 onChange={e => { setDateStart(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition"
               />
               <span className="text-slate-400 text-[10px] font-bold">TO</span>
               <input 
                 type="date" 
                 value={dateEnd} 
                 onChange={e => { setDateEnd(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition"
               />
             </div>
           </div>
@@ -314,7 +315,7 @@ export default function ReportsModule({
             <select
               value={filterMachine}
               onChange={e => { setFilterMachine(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Machines</option>
               {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
@@ -326,7 +327,7 @@ export default function ReportsModule({
             <select
               value={filterBuyer}
               onChange={e => { setFilterBuyer(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Buyers</option>
               {uniqueBuyers.map(b => <option key={b} value={b}>{b}</option>)}
@@ -339,7 +340,7 @@ export default function ReportsModule({
             <select
               value={filterFabricType}
               onChange={e => { setFilterFabricType(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Fabrics</option>
               {uniqueFabricTypes.map(f => <option key={f} value={f}>{f}</option>)}
@@ -351,7 +352,7 @@ export default function ReportsModule({
             <select
               value={filterShift}
               onChange={e => { setFilterShift(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Shifts</option>
               {uniqueShifts.map(s => <option key={s} value={s}>{s} Shift</option>)}
@@ -363,7 +364,7 @@ export default function ReportsModule({
             <select
               value={filterStatus}
               onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="draft">Draft</option>
@@ -378,7 +379,7 @@ export default function ReportsModule({
             <select
               value={filterOperator}
               onChange={e => { setFilterOperator(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition cursor-pointer"
             >
               <option value="">All Operators</option>
               {profiles.filter(p => p.role === 'operator').map(op => (
@@ -396,7 +397,7 @@ export default function ReportsModule({
                 placeholder="Search Cut No, Job No..."
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-slate-50 border border-slate-205 rounded-lg py-1.5 pl-8 pr-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-705 transition placeholder-slate-400/70"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 pl-8 pr-2 focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none text-slate-700 transition placeholder-slate-400/70"
               />
               <Search className="absolute left-2.5 top-2.5 text-slate-400" size={13} />
             </div>
@@ -589,7 +590,7 @@ export default function ReportsModule({
                           {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
                             <button
                               onClick={() => {
-                                if (confirm(`Delete cut log #${entry.cut_no}?`)) onDeleteEntry(entry.id);
+                                setEntryToDelete(entry);
                               }}
                               className="text-rose-600 hover:text-white hover:bg-rose-500 bg-rose-500/10 p-1.5 rounded-lg transition cursor-pointer"
                               title="Delete Record"
@@ -635,6 +636,64 @@ export default function ReportsModule({
         </div>
 
       </div>
+
+      {/* Custom Confirmation Modal for Deletion */}
+      {entryToDelete && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full text-xs space-y-4 shadow-xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-lg">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-sm text-slate-800">Delete Cutting Log?</h3>
+                <p className="text-[10px] text-slate-400 font-semibold">This action is permanent and irreversible.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-2 text-slate-600 font-sans">
+              <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-slate-400">Cut No:</span>
+                <span className="font-mono font-bold text-slate-800">{entryToDelete.cut_no}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-slate-400">Buyer Group:</span>
+                <span className="font-semibold text-slate-700">{entryToDelete.buyer}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-slate-400">Job Style No:</span>
+                <span className="font-mono text-slate-700">{entryToDelete.job_no}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-slate-400">Fabric Type:</span>
+                <span className="text-slate-700">{entryToDelete.fabric_type}</span>
+              </div>
+              <div className="flex justify-between pt-0.5">
+                <span className="text-slate-400">Fabric Used:</span>
+                <span className="font-semibold text-slate-700">{entryToDelete.fabric_used_kg} kg</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setEntryToDelete(null)}
+                className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDeleteEntry(entryToDelete.id);
+                  setEntryToDelete(null);
+                }}
+                className="px-3.5 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition font-bold flex items-center gap-1 cursor-pointer"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

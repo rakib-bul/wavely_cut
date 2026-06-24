@@ -25,7 +25,8 @@ import {
   Moon,
   Sun,
   AlertCircle,
-  Key
+  Key,
+  Trash2
 } from "lucide-react";
 
 export default function App() {
@@ -59,23 +60,39 @@ export default function App() {
 
   // --- Loading / Network feedback ---
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // --- Selected Edit Modal State ---
   const [editingEntry, setEditingEntry] = useState<CuttingEntry | null>(null);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState<boolean>(false);
   const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
 
-  // --- Ensure dark theme class is removed ---
+  // Reset delete confirmation when modal changes
+  useEffect(() => {
+    setIsConfirmingDelete(false);
+  }, [editingEntry]);
+
+  // --- Enforce Fully Light Theme ---
   useEffect(() => {
     document.documentElement.classList.remove("dark");
+    try {
+      localStorage.removeItem("theme");
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
   // --- Fetch Data from Backend ---
-  const fetchData = async () => {
+  const fetchData = async (isSilent = false) => {
     if (!currentProfile) return;
-    setIsLoading(true);
-    setErrorMessage(null);
+    if (!isSilent) {
+      setIsLoading(true);
+      setErrorMessage(null);
+    } else {
+      setIsSyncing(true);
+    }
     try {
       // Setup headers simulating active auth profile
       const headers = {
@@ -119,16 +136,29 @@ export default function App() {
         setProfiles(profData);
       }
     } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || "An error occurred fetching ledger databases.");
+      console.error("Auto-sync background error:", err);
+      if (!isSilent) {
+        setErrorMessage(err.message || "An error occurred fetching ledger databases.");
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) {
+        setIsLoading(false);
+      } else {
+        setIsSyncing(false);
+      }
     }
   };
 
-  // Refetch when currently logged-in profile shifts
+  // Refetch when currently logged-in profile shifts, and set up automatic background synchronization
   useEffect(() => {
-    fetchData();
+    fetchData(false); // Initial load: not silent
+
+    // Auto sync silently every 10 seconds with Supabase PostgreSQL database
+    const interval = setInterval(() => {
+      fetchData(true); // Background sync: silent
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [currentProfile]);
 
   // --- SWITCH SIMULATED PROFILE (User Switching) ---
@@ -387,9 +417,9 @@ export default function App() {
         </div>
 
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white shadow-xl rounded-2xl border border-slate-200/60 overflow-hidden transition-all duration-300">
+          <div className="bg-white dark:bg-slate-900 shadow-xl rounded-2xl border border-slate-200/60 dark:border-slate-800/80 overflow-hidden transition-all duration-300">
             {/* Dual Mode Tabs Selection Header */}
-            <div className="flex border-b border-slate-100 bg-slate-50/50">
+            <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
               <button
                 onClick={() => {
                   setAuthTab("login");
@@ -398,8 +428,8 @@ export default function App() {
                 }}
                 className={`flex-1 py-3.5 text-center text-xs font-bold tracking-wider uppercase transition border-b-2 cursor-pointer ${
                   authTab === "login"
-                    ? "border-slate-800 text-slate-900 bg-white"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
+                    ? "border-slate-800 dark:border-slate-200 text-slate-900 dark:text-white bg-white dark:bg-slate-900"
+                    : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                 }`}
               >
                 Sign In
@@ -412,8 +442,8 @@ export default function App() {
                 }}
                 className={`flex-1 py-3.5 text-center text-xs font-bold tracking-wider uppercase transition border-b-2 cursor-pointer ${
                   authTab === "register"
-                    ? "border-slate-800 text-slate-900 bg-white"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
+                    ? "border-slate-800 dark:border-slate-200 text-slate-900 dark:text-white bg-white dark:bg-slate-900"
+                    : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                 }`}
               >
                 Register
@@ -778,24 +808,20 @@ export default function App() {
         
         {/* Dynamic header summary banner */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 gap-4">
-          <div>
-            <h1 className="font-display font-semibold text-2xl tracking-tight text-slate-900 dark:text-slate-100">
-              Wavely Cut Section Ledger
-            </h1>
-            <p className="text-xs text-slate-400 mt-1">Replacing paper cards and manual Excel entry with secure data validation.</p>
-          </div>
+          <div />
 
           <div className="flex items-center space-x-3">
             <span className="text-xs text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-1.5 px-3 rounded-lg font-medium flex items-center gap-1.5 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Active Session
             </span>
-            <button
-              onClick={fetchData}
-              className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 cursor-pointer shadow-xs whitespace-nowrap text-xs font-semibold flex items-center gap-1.5"
-              title="Sync latest logs"
+            <span 
+              className="text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-1.5 px-3 rounded-lg font-medium flex items-center gap-1.5 shadow-xs"
+              title="Real-time auto-sync with Supabase PostgreSQL is active"
             >
-              <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} /> {isLoading ? "Syncing..." : "Sync Database"}
-            </button>
+              <RefreshCw size={12} className={`text-emerald-500 ${isSyncing || isLoading ? "animate-spin" : ""}`} />
+              <span className="text-slate-400 font-semibold">Auto-Sync</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </span>
           </div>
         </header>
 
@@ -814,7 +840,7 @@ export default function App() {
         {isLoading && entries.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-20 text-xs text-slate-400 space-y-3">
             <RefreshCw size={24} className="animate-spin text-slate-600" />
-            <span>Booting system components, reading SQLite data...</span>
+            <span>Booting system components, connecting to Supabase database...</span>
           </div>
         ) : (
           <div className="space-y-6">
@@ -936,8 +962,9 @@ export default function App() {
                   onChange={e => setEditingEntry({ ...editingEntry, shift: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
                 >
-                  <option value="Day">Day</option>
-                  <option value="Night">Night</option>
+                  <option value="A">Shift A</option>
+                  <option value="B">Shift B</option>
+                  <option value="C">Shift C</option>
                 </select>
               </div>
 
@@ -1047,20 +1074,62 @@ export default function App() {
                 />
               </div>
 
-              <div className="col-span-2 flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingEntry(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-5 rounded-lg shadow-sm cursor-pointer"
-                >
-                  Save & Re-Formulate
-                </button>
+              <div className="col-span-2 flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                {/* Left side: Delete options for Admin and Supervisor */}
+                {currentProfile && (currentProfile.role === "admin" || currentProfile.role === "supervisor") ? (
+                  <div>
+                    {!isConfirmingDelete ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsConfirmingDelete(true)}
+                        className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition font-semibold flex items-center gap-1.5 cursor-pointer border border-rose-100"
+                        title="Delete this cutting log"
+                      >
+                        <Trash2 size={13} /> Delete Log
+                      </button>
+                    ) : (
+                      <div className="flex items-center space-x-1 bg-rose-50 border border-rose-100 p-1 rounded-lg">
+                        <span className="text-[10px] text-rose-700 font-bold px-1.5">Are you sure?</span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await handleDeleteEntry(editingEntry.id);
+                            setEditingEntry(null);
+                          }}
+                          className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold text-[10px] transition cursor-pointer"
+                        >
+                          Yes, Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsConfirmingDelete(false)}
+                          className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-500 rounded font-semibold text-[10px] border border-slate-200 transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div />
+                )}
+
+                {/* Right side: Action buttons */}
+                <div className="flex items-center space-x-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingEntry(null)}
+                    className="px-4 py-2 text-slate-400 hover:text-slate-700 dark:hover:text-white font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-5 rounded-lg shadow-sm cursor-pointer"
+                  >
+                    Save & Re-Formulate
+                  </button>
+                </div>
               </div>
 
             </form>
