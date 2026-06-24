@@ -181,7 +181,19 @@ app.post("/api/auth/login", async (req, res) => {
         return res.json({ profile });
       }
 
-      // If profile does not exist, auto-register operator profile dynamically on Supabase
+      // If profile does not exist, auto-register operator profile dynamically on Supabase.
+      // Since profiles has a foreign key constraint to auth.users, we must create an auth user first.
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: normalizedEmail,
+        password: "TemporaryPassword123!", // Secure background password for bypass mode
+        email_confirm: true
+      });
+
+      if (authError) {
+        throw new Error("Could not auto-create auth user for bypass-mode: " + authError.message);
+      }
+
+      const userId = authData.user?.id || "00000000-0000-0000-0000-000000000000";
       const userName = normalizedEmail.split("@")[0].toUpperCase() + " (Operator)";
       const userRole = "operator";
       const userDept = "Cutting Floor 1";
@@ -189,6 +201,7 @@ app.post("/api/auth/login", async (req, res) => {
       const { data: insertedProfile, error: insertErr } = await supabase
         .from("profiles")
         .insert({
+          id: userId,
           full_name: userName,
           email: normalizedEmail,
           role: userRole,
@@ -198,6 +211,8 @@ app.post("/api/auth/login", async (req, res) => {
         .single();
 
       if (insertErr) {
+        // Rollback created auth user if profile linking fails
+        await supabase.auth.admin.deleteUser(userId);
         throw new Error("Could not auto-register profile in Supabase: " + insertErr.message);
       }
 
