@@ -15,8 +15,8 @@ const PORT = 3000;
 app.use(express.json());
 
 // Initialize Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || "https://qkcbxpafpykmktisyioy.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY2J4cGFmcHlrbWt0aXN5aW95Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE5NzMyNSwiZXhwIjoyMDk3NzczMzI1fQ.-2bMfw9d1hkbAVNWBrOwBKA5WRNNcU2XRXXvM1u4gBQ";
+const supabaseUrl = "https://qkcbxpafpykmktisyioy.supabase.co";
+const supabaseServiceKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY2J4cGFmcHlrbWt0aXN5aW95Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE5NzMyNSwiZXhwIjoyMDk3NzczMzI1fQ.-2bMfw9d1hkbAVNWBrOwBKA5WRNNcU2XRXXvM1u4gBQ";
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
@@ -135,122 +135,72 @@ app.post("/api/auth/login", async (req, res) => {
   if (!email) {
     return res.status(400).json({ error: "Email is required" });
   }
+  if (!password) {
+    return res.status(400).json({ error: "Password is required" });
+  }
 
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    if (password) {
-      // Authenticate with Supabase Auth
-      let authResult = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password: password
-      });
+    // Authenticate with Supabase Auth
+    let authResult = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: password
+    });
 
-      if (authResult.error) {
-        const errMsg = authResult.error.message.toLowerCase();
-        if (errMsg.includes("email not confirmed") || errMsg.includes("confirm")) {
-          console.log(`User ${normalizedEmail} has unconfirmed email. Attempting admin auto-confirmation...`);
-          const { data: usersData, error: listError } = await supabase.auth.admin.listUsers();
-          if (!listError && usersData?.users) {
-            const match = (usersData.users as any[]).find((u: any) => u.email?.toLowerCase() === normalizedEmail);
-            if (match) {
-              console.log(`Found matching user ${match.id}. Confirming email...`);
-              const { error: updateError } = await supabase.auth.admin.updateUserById(match.id, {
-                email_confirm: true
+    if (authResult.error) {
+      const errMsg = authResult.error.message.toLowerCase();
+      if (errMsg.includes("email not confirmed") || errMsg.includes("confirm")) {
+        console.log(`User ${normalizedEmail} has unconfirmed email. Attempting admin auto-confirmation...`);
+        const { data: usersData, error: listError } = await supabase.auth.admin.listUsers();
+        if (!listError && usersData?.users) {
+          const match = (usersData.users as any[]).find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+          if (match) {
+            console.log(`Found matching user ${match.id}. Confirming email...`);
+            const { error: updateError } = await supabase.auth.admin.updateUserById(match.id, {
+              email_confirm: true
+            });
+            if (!updateError) {
+              console.log("Auto-confirmation successful. Retrying sign-in...");
+              authResult = await supabase.auth.signInWithPassword({
+                email: normalizedEmail,
+                password: password
               });
-              if (!updateError) {
-                console.log("Auto-confirmation successful. Retrying sign-in...");
-                authResult = await supabase.auth.signInWithPassword({
-                  email: normalizedEmail,
-                  password: password
-                });
-              } else {
-                console.error("Failed to update user email_confirm state:", updateError.message);
-              }
             } else {
-              console.warn("No user matched in admin list for auto-confirmation.");
+              console.error("Failed to update user email_confirm state:", updateError.message);
             }
           } else {
-            console.error("Failed to list users for auto-confirmation:", listError?.message);
+            console.warn("No user matched in admin list for auto-confirmation.");
           }
+        } else {
+          console.error("Failed to list users for auto-confirmation:", listError?.message);
         }
       }
+    }
 
-      if (authResult.error) {
-        throw authResult.error;
-      }
+    if (authResult.error) {
+      throw authResult.error;
+    }
 
-      const authData = authResult.data;
+    const authData = authResult.data;
 
-      if (authData.user) {
-        // Fetch profile
-        const { data: profile, error: dbErr } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", authData.user.id)
-          .single();
-
-        if (dbErr) {
-          throw new Error("Could not fetch user profile from Supabase: " + dbErr.message);
-        }
-
-        if (profile) {
-          return res.json({ profile });
-        }
-      }
-    } else {
-      // Passwordless/Bypass mode: Search profiles in Supabase directly by email
+    if (authData.user) {
+      // Fetch profile
       const { data: profile, error: dbErr } = await supabase
         .from("profiles")
         .select("*")
-        .eq("email", normalizedEmail)
-        .maybeSingle();
+        .eq("id", authData.user.id)
+        .single();
 
       if (dbErr) {
-        throw dbErr;
+        throw new Error("Could not fetch user profile from Supabase: " + dbErr.message);
       }
 
       if (profile) {
         return res.json({ profile });
       }
-
-      // If profile does not exist, auto-register operator profile dynamically on Supabase.
-      // Since profiles has a foreign key constraint to auth.users, we must create an auth user first.
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: normalizedEmail,
-        password: "TemporaryPassword123!", // Secure background password for bypass mode
-        email_confirm: true
-      });
-
-      if (authError) {
-        throw new Error("Could not auto-create auth user for bypass-mode: " + authError.message);
-      }
-
-      const userId = authData.user?.id || "00000000-0000-0000-0000-000000000000";
-      const userName = normalizedEmail.split("@")[0].toUpperCase() + " (Operator)";
-      const userRole = "operator";
-      const userDept = "Cutting Floor 1";
-
-      const { data: insertedProfile, error: insertErr } = await supabase
-        .from("profiles")
-        .insert({
-          id: userId,
-          full_name: userName,
-          email: normalizedEmail,
-          role: userRole,
-          department: userDept
-        })
-        .select()
-        .single();
-
-      if (insertErr) {
-        // Rollback created auth user if profile linking fails
-        await supabase.auth.admin.deleteUser(userId);
-        throw new Error("Could not auto-register profile in Supabase: " + insertErr.message);
-      }
-
-      return res.json({ profile: insertedProfile });
     }
+    throw new Error("Profile not found for authenticated user.");
   } catch (err: any) {
     console.error("Supabase login auth error:", err.message);
     return res.status(400).json({ error: "Authentication failed: " + err.message });

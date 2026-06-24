@@ -35,7 +35,6 @@ export default function App() {
 
   // --- Auth UI States ---
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
-  const [loginMode, setLoginMode] = useState<"secure" | "sandbox">("secure");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(false);
@@ -484,32 +483,6 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Inner Login Method Selection Toggle */}
-                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100/80 dark:bg-slate-950/40 rounded-xl border border-slate-200/20">
-                    <button
-                      type="button"
-                      onClick={() => setLoginMode("secure")}
-                      className={`py-1.5 px-3 rounded-lg text-[10px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        loginMode === "secure"
-                          ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm"
-                          : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
-                      }`}
-                    >
-                      <Shield size={11} /> Secure Password
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLoginMode("sandbox")}
-                      className={`py-1.5 px-3 rounded-lg text-[10px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        loginMode === "sandbox"
-                          ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm"
-                          : "text-slate-400 dark:text-slate-500 hover:text-slate-600"
-                      }`}
-                    >
-                      <Key size={11} /> Sandbox Bypass
-                    </button>
-                  </div>
-
                   <form
                     onSubmit={async (e) => {
                       e.preventDefault();
@@ -527,16 +500,14 @@ export default function App() {
                         return;
                       }
 
+                      if (!password) {
+                        setAuthError("Password is required.");
+                        setAuthLoading(false);
+                        return;
+                      }
+
                       try {
-                        const payload: any = { email };
-                        if (loginMode === "secure") {
-                          if (!password) {
-                            setAuthError("Password is required for secure authentication.");
-                            setAuthLoading(false);
-                            return;
-                          }
-                          payload.password = password;
-                        }
+                        const payload = { email, password };
 
                         const res = await fetch("/api/auth/login", {
                           method: "POST",
@@ -588,36 +559,28 @@ export default function App() {
                            type="email"
                            placeholder="operator@kafe.com"
                            required
-                           className="w-full pl-8 bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705 transition-colors"
+                           className="w-full pl-8 bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-750 transition-colors"
                          />
                        </div>
                      </div>
  
-                     {loginMode === "secure" && (
-                       <div>
-                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                           Passphrase Key
-                         </label>
-                         <div className="relative">
-                           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
-                             <Lock size={13} />
-                           </span>
-                           <input
-                             name="password"
-                             type="password"
-                             placeholder="••••••••"
-                             required={loginMode === "secure"}
-                             className="w-full pl-8 bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-705 transition-colors"
-                           />
-                         </div>
+                     <div>
+                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                         Passphrase Key
+                       </label>
+                       <div className="relative">
+                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                           <Lock size={13} />
+                         </span>
+                         <input
+                           name="password"
+                           type="password"
+                           placeholder="••••••••"
+                           required
+                           className="w-full pl-8 bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-750 transition-colors"
+                         />
                        </div>
-                     )}
- 
-                     {loginMode === "sandbox" && (
-                       <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-[10px] text-slate-705 leading-relaxed">
-                         ℹ️ <strong>Developer Override:</strong> Quick sandbox mode retrieves previous session cards or registers a fresh mock Operator on the fly. Password verification is bypassed.
-                       </div>
-                     )}
+                     </div>
  
                      <button
                        type="submit"
