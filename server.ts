@@ -24,6 +24,9 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
+// In-memory cache for database buyers
+let cachedBuyers: any[] | null = null;
+
 
 // Helper to add audit log
 async function addAuditLog(
@@ -286,47 +289,24 @@ app.post("/api/machines", async (req, res) => {
 
 app.get("/api/buyers", async (req, res) => {
   try {
+    // If we have cached buyers, return them immediately
+    if (cachedBuyers !== null) {
+      return res.json(cachedBuyers);
+    }
+
     const { data: buyers, error } = await supabase
       .from("buyers")
       .select("*")
       .order("name", { ascending: true });
 
     if (error) {
-      console.warn("Could not fetch buyers from Supabase, returning fallbacks:", error.message);
-      const fallbackBuyers = [
-        { name: "ZARA CO." },
-        { name: "GAP GLOBAL" },
-        { name: "H&M IND." },
-        { name: "UNIQLO GROUP" },
-        { name: "LEVI'S CO." },
-        { name: "ADIDAS AG" }
-      ];
-      return res.json(fallbackBuyers);
+      console.error("Could not fetch buyers from Supabase:", error.message);
+      return res.json([]);
     }
 
-    if (!buyers || buyers.length === 0) {
-      // Auto-populate
-      const defaults = [
-        { name: "ZARA CO." },
-        { name: "GAP GLOBAL" },
-        { name: "H&M IND." },
-        { name: "UNIQLO GROUP" },
-        { name: "LEVI'S CO." },
-        { name: "ADIDAS AG" }
-      ];
-      const { data: seeded, error: seedError } = await supabase
-        .from("buyers")
-        .insert(defaults)
-        .select();
-
-      if (seedError) {
-        console.error("Auto-seed empty buyers table failed:", seedError.message);
-        return res.json(defaults);
-      }
-      return res.json(seeded || []);
-    }
-
-    return res.json(buyers);
+    // Save database buyers to memory cache
+    cachedBuyers = buyers || [];
+    return res.json(cachedBuyers);
   } catch (err: any) {
     return res.status(555).json({ error: err.message });
   }
@@ -356,6 +336,9 @@ app.post("/api/buyers", async (req, res) => {
     if (insertError) {
       return res.status(500).json({ error: insertError.message });
     }
+
+    // Invalidate memory cache so it re-fetches from DB
+    cachedBuyers = null;
 
     await addAuditLog(user_email || "system", "create", "buyer", newBuyer.id, null, newBuyer);
 

@@ -53,7 +53,14 @@ export default function App() {
 
   // --- Core Entity States ---
   const [machines, setMachines] = useState<Machine[]>([]);
-  const [buyers, setBuyers] = useState<Buyer[]>([]);
+  const [buyers, setBuyers] = useState<Buyer[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_buyers");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [entries, setEntries] = useState<CuttingEntry[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
@@ -111,6 +118,11 @@ export default function App() {
       if (buyerRes.ok) {
         const buyerData = await buyerRes.json();
         setBuyers(buyerData);
+        try {
+          localStorage.setItem("erp_cached_buyers", JSON.stringify(buyerData));
+        } catch (e) {
+          console.error("Failed to cache buyers locally", e);
+        }
       }
 
       // 2. Fetch Cutting Entries (Restricted based on active user's role on server)

@@ -315,7 +315,6 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
             <ClipboardPaste size={18} className="text-slate-600" /> Wavely Cut Floor Logs
           </h2>
-          <p className="text-xs text-slate-500 mt-1">Replacing paper cards and Excel sheets with validated database entry.</p>
         </div>
 
         <div className="flex gap-1 border-b border-slate-200 self-stretch sm:self-auto">
