@@ -27,7 +27,8 @@ import {
   Sun,
   AlertCircle,
   Key,
-  Trash2
+  Trash2,
+  Sparkles
 } from "lucide-react";
 
 export default function App() {
@@ -498,10 +499,36 @@ export default function App() {
     }
   };
 
+  // --- Categorize Main vs Stripe Cutting Entries ---
+  const { mainEntries, stripeEntries } = useMemo(() => {
+    const stripeMachineIds = new Set(
+      machines
+        .filter(m => m.machine_type?.toLowerCase() === "stripe" || m.machine_name?.toLowerCase().includes("stripe"))
+        .map(m => m.id)
+    );
+
+    const main: CuttingEntry[] = [];
+    const stripe: CuttingEntry[] = [];
+
+    entries.forEach(e => {
+      if (stripeMachineIds.has(e.machine_id)) {
+        stripe.push(e);
+      } else {
+        main.push(e);
+      }
+    });
+
+    return { mainEntries: main, stripeEntries: stripe };
+  }, [entries, machines]);
+
   // --- Aggregate Dashboard Stats ---
-  const compiledDashboardKPIs = useMemo(() => {
-    return compileDashboardKPIs(entries);
-  }, [entries]);
+  const compiledMainKPIs = useMemo(() => {
+    return compileDashboardKPIs(mainEntries);
+  }, [mainEntries]);
+
+  const compiledStripeKPIs = useMemo(() => {
+    return compileDashboardKPIs(stripeEntries);
+  }, [stripeEntries]);
 
   if (!currentProfile) {
     return (
@@ -706,6 +733,8 @@ export default function App() {
     switch (activeTab) {
       case "dashboard":
         return "Cutting Dashboard";
+      case "stripe_dashboard":
+        return "Stripe Cutting Dashboard";
       case "data_entry":
         return "Cutting Records Entry";
       case "reports":
@@ -798,9 +827,37 @@ export default function App() {
             {/* TAB 1: OPERATIONS DASHBOARD */}
             {activeTab === "dashboard" && (
               <div className="space-y-6 animate-fade-in">
-                <DailyReport entries={entries} machines={machines} />
-                <KPICards metrics={compiledDashboardKPIs} />
-                <DashboardCharts entries={entries} machines={machines} />
+                <DailyReport entries={mainEntries} machines={machines} />
+                <KPICards metrics={compiledMainKPIs} />
+                <DashboardCharts entries={mainEntries} machines={machines} />
+              </div>
+            )}
+
+            {/* TAB 1.5: STRIPE CUTTING DASHBOARD */}
+            {activeTab === "stripe_dashboard" && (
+              <div className="space-y-6 animate-fade-in">
+                <DailyReport entries={stripeEntries} machines={machines} />
+                <KPICards metrics={compiledStripeKPIs} />
+                <DashboardCharts entries={stripeEntries} machines={machines} />
+
+                {/* Dedicated Stripe Cutting Ledger */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl p-6 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Stripe Logs Ledger</h3>
+                    <p className="text-xs text-slate-500 mt-1">Manage and approve stripe cutting entries in isolation.</p>
+                  </div>
+                  <ReportsModule
+                    entries={stripeEntries}
+                    machines={machines}
+                    profiles={profiles}
+                    currentProfile={currentProfile}
+                    onApproveEntry={handleApproveEntry}
+                    onDeleteEntry={handleDeleteEntry}
+                    onSelectEditEntry={(entry) => setEditingEntry(entry)}
+                    buyers={buyers}
+                    onSubmitDraft={handleSubmitDraft}
+                  />
+                </div>
               </div>
             )}
 
@@ -820,7 +877,7 @@ export default function App() {
             {activeTab === "reports" && (
               <div className="animate-fade-in">
                 <ReportsModule
-                  entries={entries}
+                  entries={mainEntries}
                   machines={machines}
                   profiles={profiles}
                   currentProfile={currentProfile}
@@ -837,7 +894,7 @@ export default function App() {
             {activeTab === "analytics" && (
               <div className="animate-fade-in">
                 <AnalyticsModule 
-                  entries={entries} 
+                  entries={mainEntries} 
                   machines={machines} 
                 />
               </div>

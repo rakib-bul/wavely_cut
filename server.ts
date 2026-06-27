@@ -144,8 +144,15 @@ app.post("/api/auth/login", async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Authenticate with Supabase Auth
-    let authResult = await supabase.auth.signInWithPassword({
+    // Authenticate with Supabase Auth using a temporary client to avoid mutating the main service-role client
+    const tempAuthClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    let authResult = await tempAuthClient.auth.signInWithPassword({
       email: normalizedEmail,
       password: password
     });
@@ -164,7 +171,7 @@ app.post("/api/auth/login", async (req, res) => {
             });
             if (!updateError) {
               console.log("Auto-confirmation successful. Retrying sign-in...");
-              authResult = await supabase.auth.signInWithPassword({
+              authResult = await tempAuthClient.auth.signInWithPassword({
                 email: normalizedEmail,
                 password: password
               });

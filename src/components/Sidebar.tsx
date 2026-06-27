@@ -41,6 +41,7 @@ export default function Sidebar({
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["operator", "supervisor", "manager", "admin"] },
+    { id: "stripe_dashboard", label: "Stripe Panel", icon: Sparkles, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "data_entry", label: "Cutting Entries", icon: ListPlus, roles: ["operator", "supervisor", "admin"] },
     { id: "reports", label: "Ledgers & Reports", icon: FileSpreadsheet, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["supervisor", "manager", "admin"] },

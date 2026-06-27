@@ -25,6 +25,22 @@ interface DataEntryFormProps {
   onWebImport: (entries: any[]) => Promise<{ success: boolean; count?: number; errors?: string[] }>;
 }
 
+const PREDEFINED_ITEMS = [
+  "T-Shirt Short Sleeve",
+  "T-Shirt Long Sleeve",
+  "Polo Shirt",
+  "Top",
+  "Bottom",
+  "Top+Bottom",
+  "Pant",
+  "Jacket",
+  "Hoodie",
+  "Rumper",
+  "Pocket",
+  "Contrast Panel",
+  "Tank Top"
+];
+
 export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport }: DataEntryFormProps) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
@@ -57,6 +73,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHotkeys, setShowHotkeys] = useState(false);
+  const [forceCustomItem, setForceCustomItem] = useState(false);
 
   // --- Autosave Draft State ---
   const [hasDraft, setHasDraft] = useState(false);
@@ -72,6 +89,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         else if (!["A", "B"].includes(parsed.shift)) parsed.shift = "A";
         setFormData(parsed);
         setHasDraft(true);
+        if (parsed.item && !PREDEFINED_ITEMS.includes(parsed.item)) {
+          setForceCustomItem(true);
+        }
       } catch (e) {
         console.error("Failed to parse autosaved draft", e);
       }
@@ -192,6 +212,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           shift: formData.shift,
           machine_id: formData.machine_id
         });
+        setForceCustomItem(false);
       } else {
         setValidationError(res.error || "An database submission error occurred.");
       }
@@ -208,6 +229,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     setHasDraft(false);
     setValidationError(null);
     setSubmitSuccess(null);
+    setForceCustomItem(false);
   };
 
   const loadLastDraft = () => {
@@ -220,6 +242,11 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
       setFormData(parsed);
       setValidationError(null);
       setSubmitSuccess("Restored your autosaved cutting form parameters.");
+      if (parsed.item && !PREDEFINED_ITEMS.includes(parsed.item)) {
+        setForceCustomItem(true);
+      } else {
+        setForceCustomItem(false);
+      }
     }
   };
 
@@ -485,13 +512,40 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               {/* 4. item */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Item</label>
-                <input
-                  type="text"
-                  name="item"
-                  value={formData.item}
-                  onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
-                />
+                <div className="space-y-2">
+                  <select
+                    name="item_select"
+                    value={formData.item !== "" && !PREDEFINED_ITEMS.includes(formData.item) ? "custom" : formData.item}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "custom") {
+                        setFormData(prev => ({ ...prev, item: "" }));
+                        setForceCustomItem(true);
+                      } else {
+                        setFormData(prev => ({ ...prev, item: val }));
+                        setForceCustomItem(false);
+                      }
+                    }}
+                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
+                  >
+                    <option value="">-- Choose Item --</option>
+                    {PREDEFINED_ITEMS.map(it => (
+                      <option key={it} value={it}>{it}</option>
+                    ))}
+                    <option value="custom">Custom / Other</option>
+                  </select>
+
+                  {(forceCustomItem || (formData.item !== "" && !PREDEFINED_ITEMS.includes(formData.item))) && (
+                    <input
+                      type="text"
+                      name="item"
+                      placeholder="Type custom garment item"
+                      value={formData.item}
+                      onChange={handleInputChange}
+                      className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs animate-fade-in"
+                    />
+                  )}
+                </div>
               </div>
 
               {/* 5. cut no */}
