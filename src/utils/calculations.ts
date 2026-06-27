@@ -8,21 +8,25 @@ export function calculateFields(entry: Omit<CuttingEntry, 'total_length_inch' | 
   const lay = Number(entry.lay) || 0;
   const marker_length_inch = Number(entry.marker_length_inch) || 0;
   const fabric_used_kg = Number(entry.fabric_used_kg) || 0;
-  const remnant_weight_kg = Number(entry.remnant_weight_kg) || 0;
+  // Remarks field now maps to Remnant Kg
+  const remnant_weight_kg = parseFloat(entry.remarks) || 0;
   const cutting_scrap_weight_kg = Number(entry.cutting_scrap_weight_kg) || 0;
   const marker_efficiency_percent = Number(entry.marker_efficiency_percent) || 0;
 
-  // 1. Total Length (Inch)
-  const total_length_inch = marker_length_inch * lay;
+  // 1. Total Marker Length (inch) = Lay * Marker Length Inch
+  const total_length_inch = parseFloat((lay * marker_length_inch).toFixed(2));
 
-  // 2. Total Used Fabric (Inch)
-  const total_used_fabric_inch = total_length_inch;
+  // 2. Total Fabric Used (Inch) = (Lay * Marker Length Inch * Marker Efficiency/100)
+  const total_used_fabric_inch = parseFloat((lay * marker_length_inch * (marker_efficiency_percent / 100)).toFixed(2));
 
   // 3. Spreading Scrap (KG)
-  // Typically edge scrap, styling margins, or end bits, averagely 2.5% of total fabric used
-  const spreading_scrap_kg = parseFloat((fabric_used_kg * 0.025).toFixed(3));
+  // Maps to the remnant_weight_kg input field (labeled as Spreading Scrap(KG))
+  // If empty or 0, fallback to 2.5% estimation
+  const spreading_scrap_kg = Number(entry.remnant_weight_kg) > 0
+    ? Number(entry.remnant_weight_kg)
+    : parseFloat((fabric_used_kg * 0.025).toFixed(3));
 
-  // 4. Scrap % As Per Marker
+  // 4. Scrap % As Per Marker = 100 - Marker Efficiency
   const scrap_percent_per_marker = parseFloat((100 - marker_efficiency_percent).toFixed(2));
 
   // 5. Cutting Scrap %
@@ -83,9 +87,9 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   const targetEntries = approved.length > 0 ? approved : entries; // fallback if none approved
 
   const total_fabric_used = targetEntries.reduce((acc, current) => acc + (current.fabric_used_kg || 0), 0);
-  const total_remnant = targetEntries.reduce((acc, current) => acc + (current.remnant_weight_kg || 0), 0);
+  const total_remnant = targetEntries.reduce((acc, current) => acc + (parseFloat(current.remarks) || 0), 0);
   const total_cutting_scrap = targetEntries.reduce((acc, current) => acc + (current.cutting_scrap_weight_kg || 0), 0);
-  const total_spreading_scrap = targetEntries.reduce((acc, current) => acc + (current.spreading_scrap_kg || 0), 0);
+  const total_spreading_scrap = targetEntries.reduce((acc, current) => acc + (current.remnant_weight_kg || 0), 0);
   const total_marker_scrap = targetEntries.reduce((acc, current) => acc + (current.actual_marker_scrap_kg || 0), 0);
 
   // Total fabric spread = total used - remnants

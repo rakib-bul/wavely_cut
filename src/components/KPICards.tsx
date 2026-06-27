@@ -30,7 +30,9 @@ export default function KPICards({ metrics }: KPICardsProps) {
       unit: "KG",
       desc: "Total weight of fabric rolls issued to the table",
       icon: Weight,
-      highlight: false,
+      color: "text-[#2563EB] bg-[#2563EB]/10",
+      statusText: "Operational",
+      statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
     },
     {
       title: "Actual Fabric Spread",
@@ -38,7 +40,9 @@ export default function KPICards({ metrics }: KPICardsProps) {
       unit: "KG",
       desc: "Fabric laid after subtracting remnant/roll-end waste",
       icon: Layers,
-      highlight: false,
+      color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10",
+      statusText: "Standard",
+      statusColor: "bg-blue-500/15 text-blue-600 border-blue-500/20",
     },
     {
       title: "Total Cutting Scrap",
@@ -46,7 +50,9 @@ export default function KPICards({ metrics }: KPICardsProps) {
       unit: "KG",
       desc: "Direct physical scissor scrap collected from cuts",
       icon: Scissors,
-      highlight: false,
+      color: "text-[#DC2626] bg-[#DC2626]/10",
+      statusText: "Scrap Alert",
+      statusColor: metrics.total_cutting_scrap > 50 ? "bg-rose-500/15 text-rose-600 border-rose-500/20" : "bg-slate-500/15 text-slate-600 border-slate-500/20",
     },
     {
       title: "Marker CAD Efficiency",
@@ -54,7 +60,9 @@ export default function KPICards({ metrics }: KPICardsProps) {
       unit: "%",
       desc: "Target CAD layout efficiency (Provided by pattern dept)",
       icon: Cpu,
-      highlight: false,
+      color: "text-amber-600 bg-amber-500/10",
+      statusText: "Optimized",
+      statusColor: "bg-amber-500/15 text-amber-600 border-amber-500/20",
     },
     {
       title: "Actual Physical ETE Efficiency",
@@ -62,7 +70,10 @@ export default function KPICards({ metrics }: KPICardsProps) {
       unit: "%",
       desc: "End-to-end efficiency of finished panel weight",
       icon: Percent,
-      highlight: true, // Special highlighted card
+      color: "text-[#16A34A] bg-[#16A34A]/10",
+      statusText: "Compliant",
+      statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+      highlight: true,
     },
     {
       title: "ETE Efficiency Gap",
@@ -70,8 +81,9 @@ export default function KPICards({ metrics }: KPICardsProps) {
       unit: "%",
       desc: "Difference between theoretical vs physical efficiency",
       icon: TriangleAlert,
-      highlight: false,
-      valueColor: metrics.efficiency_gap > 8 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-500"
+      color: metrics.efficiency_gap > 8 ? "text-[#DC2626] bg-[#DC2626]/10" : "text-[#F59E0B] bg-[#F59E0B]/10",
+      statusText: metrics.efficiency_gap > 8 ? "Action Required" : "Stable",
+      statusColor: metrics.efficiency_gap > 8 ? "bg-red-500/15 text-red-600 border-red-500/20" : "bg-slate-500/15 text-slate-600 border-slate-500/20",
     }
   ];
 
@@ -80,44 +92,46 @@ export default function KPICards({ metrics }: KPICardsProps) {
       {kpis.map((kpi, idx) => {
         const Icon = kpi.icon;
         
-        // Handle custom styling for highlighted vs standard cards
+        // Redesigned with 24px padding (p-6), clean borders, high contrast
         const containerClasses = kpi.highlight
-          ? "bg-slate-50 dark:bg-slate-900/60 border-slate-300 dark:border-slate-800 p-5 rounded-xl border shadow-sm transition-transform hover:-translate-y-0.5 duration-200"
-          : "bg-white dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/80 p-5 rounded-xl border shadow-xs transition-transform hover:-translate-y-0.5 duration-200";
-
-        const titleClasses = kpi.highlight
-          ? "text-[10px] uppercase tracking-wider font-semibold text-slate-800 dark:text-slate-200 mb-1"
-          : "text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1";
-
-        const valueClasses = kpi.highlight
-          ? "text-2xl font-bold font-mono text-slate-900 dark:text-white"
-          : `text-2xl font-bold font-mono ${kpi.valueColor || "text-slate-900 dark:text-slate-100"}`;
-
-        const unitClasses = kpi.highlight
-          ? "text-sm text-slate-500 dark:text-slate-400 font-medium mb-1"
-          : "text-sm text-slate-400 dark:text-slate-500 font-medium mb-1";
-
-        const iconWrapperClasses = kpi.highlight
-          ? "p-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white"
-          : "p-2 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400";
+          ? "bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/80 border-2 border-emerald-500/30 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-300 relative overflow-hidden"
+          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all hover:-translate-y-0.5 duration-300 relative overflow-hidden";
 
         return (
           <div key={idx} className={containerClasses} id={`kpi-card-${idx}`}>
-            <div className="flex items-center justify-between mb-3">
-              <p className={titleClasses}>{kpi.title}</p>
-              <div className={iconWrapperClasses}>
-                <Icon size={15} />
+            
+            {/* Top row: Icon on left, status badge on right */}
+            <div className="flex items-center justify-between mb-4.5">
+              <div className={`p-3 rounded-xl ${kpi.color}`}>
+                <Icon size={20} className="stroke-[2.5]" />
+              </div>
+              
+              {/* Machine/Metric Status Badge */}
+              <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border tracking-wider ${kpi.statusColor}`}>
+                {kpi.statusText}
+              </span>
+            </div>
+
+            {/* Label and Value */}
+            <div className="space-y-1">
+              <span className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+                {kpi.title}
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-slate-900 dark:text-white leading-none font-mono">
+                  {kpi.amount}
+                </span>
+                <span className="text-sm text-slate-400 dark:text-slate-500 font-bold uppercase">
+                  {kpi.unit}
+                </span>
               </div>
             </div>
-            
-            <div className="flex items-end gap-1.5">
-              <h3 className={valueClasses}>{kpi.amount}</h3>
-              <span className={unitClasses}>{kpi.unit}</span>
-            </div>
-            
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2.5 leading-relaxed">
+
+            {/* Description */}
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-4 border-t border-slate-100 dark:border-slate-800/60 pt-3 leading-relaxed">
               {kpi.desc}
             </p>
+            
           </div>
         );
       })}

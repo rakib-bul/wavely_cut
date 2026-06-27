@@ -8,9 +8,6 @@ import {
   Tooltip, 
   Legend, 
   ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell, 
   LineChart, 
   Line 
 } from "recharts";
@@ -27,7 +24,7 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
   const compiledEntries = useMemo(() => entries.filter(e => e.status !== 'draft'), [entries]);
 
   // COLORS
-  const chartColors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
+  const chartColors = ["#2563EB", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6"];
 
   // ==========================================
   // 1. MACHINE METRICS
@@ -36,12 +33,11 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
     return machines.map(m => {
       const match = compiledEntries.filter(e => e.machine_id === m.id);
       const totalUsed = match.reduce((sum, e) => sum + (e.fabric_used_kg || 0), 0);
-      const totalRemnant = match.reduce((sum, e) => sum + (e.remnant_weight_kg || 0), 0);
+      const totalRemnant = match.reduce((sum, e) => sum + (parseFloat(e.remarks) || 0), 0);
       const cuttingScrape = match.reduce((sum, e) => sum + (e.cutting_scrap_weight_kg || 0), 0);
-      const spreadingScrape = match.reduce((sum, e) => sum + (e.spreading_scrap_kg || 0), 0);
+      const spreadingScrape = match.reduce((sum, e) => sum + (e.remnant_weight_kg || 0), 0);
       const markerScrap = match.reduce((sum, e) => sum + (e.actual_marker_scrap_kg || 0), 0);
       
-      const netSpanned = totalUsed - totalRemnant;
       const totalWaste = cuttingScrape + spreadingScrape + markerScrap;
 
       const avgEte = match.length > 0
@@ -119,42 +115,45 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
     })).sort((a,b) => b.used - a.used);
   }, [compiledEntries]);
 
+  // Style details for labels to increase contrast:
+  const axisLabelColor = "#334155";
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 font-sans">
       
       {/* 1. MACHINE METRICS SECTION */}
       <section className="space-y-4">
         <div>
-          <h3 className="font-sans font-bold text-xs text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Cpu size={14} className="text-slate-600" /> Machine cutting analytics comparison
+          <h3 className="font-sans font-extrabold text-xs text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Cpu size={14} className="text-[#2563EB]" /> Machine Cutting Analytics Comparison
           </h3>
-          <p className="text-xs text-slate-500 mt-1">Comparing performance limits: Automatics vs Manual processes.</p>
+          <p className="text-sm text-slate-500 mt-1 font-medium">Comparing performance limits: Automatics vs Manual processes.</p>
         </div>
 
         {/* Machine Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {machineMetrics.map((mc, idx) => (
-            <div key={mc.id} className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-xl p-5 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/50 mb-3.5">
-                <span className="font-sans font-bold text-xs text-slate-700 dark:text-slate-300">{mc.name}</span>
-                <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded px-1.5 py-0.5 font-bold uppercase tracking-wider">{mc.type} Line</span>
+            <div key={mc.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/50 mb-4">
+                <span className="font-sans font-extrabold text-sm text-slate-800 dark:text-slate-200">{mc.name}</span>
+                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full px-2.5 py-1 font-extrabold uppercase tracking-wider">{mc.type} Line</span>
               </div>
               <div className="grid grid-cols-2 gap-4 text-xs font-mono">
                 <div>
-                  <span className="text-slate-400 dark:text-slate-550 block text-[9px] uppercase tracking-wider font-semibold font-sans mb-0.5">Fabric Cuts</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{mc.volume} Jobs</span>
+                  <span className="text-slate-450 dark:text-slate-500 block text-[9px] uppercase tracking-wider font-extrabold font-sans mb-1">Fabric Cuts</span>
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-white">{mc.volume} Jobs</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 dark:text-slate-550 block text-[9px] uppercase tracking-wider font-semibold font-sans mb-0.5">Qty Processed</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{mc.fabricUsed} kg</span>
+                  <span className="text-slate-455 dark:text-slate-500 block text-[9px] uppercase tracking-wider font-extrabold font-sans mb-1">Processed</span>
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-white">{mc.fabricUsed} kg</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold font-sans mb-0.5">ETE Efficiency</span>
-                  <span className="font-bold text-slate-700">{mc.efficiency}%</span>
+                  <span className="text-slate-450 block text-[9px] uppercase tracking-wider font-extrabold font-sans mb-1">ETE Efficiency</span>
+                  <span className="font-extrabold text-sm text-emerald-600">{mc.efficiency}%</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 dark:text-slate-550 block text-[9px] uppercase tracking-wider font-semibold font-sans mb-0.5">Scrap Yield</span>
-                  <span className="font-bold text-rose-500 dark:text-rose-400/90">{mc.scrapRate}%</span>
+                  <span className="text-slate-455 dark:text-slate-500 block text-[9px] uppercase tracking-wider font-extrabold font-sans mb-1">Scrap Yield</span>
+                  <span className="font-extrabold text-sm text-rose-600">{mc.scrapRate}%</span>
                 </div>
               </div>
             </div>
@@ -162,20 +161,20 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
         </div>
 
         {/* Machine Visual Comparison Charts */}
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-5 rounded-xl min-w-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
           <div className="mb-4">
-            <h4 className="font-sans font-semibold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">Yield % vs Scrap Rate by Machine</h4>
+            <h4 className="font-sans font-extrabold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Yield % vs Scrap Rate by Machine</h4>
           </div>
-          <div className="h-64 min-w-0 min-h-0">
+          <div className="h-72 min-w-0 min-h-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={machineMetrics} margin={{ top: 10, left: -20, right: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(241, 245, 249, 0.5)" />
-                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                <Tooltip wrapperStyle={{ fontSize: '11px' }} contentStyle={{ backgroundColor: "#0f172a", border: "none", borderRadius: "8px", color: "#f8fafc" }} />
-                <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                <Bar dataKey="efficiency" name="ETE Physical Efficiency %" fill="#475569" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="scrapRate" name="Actual Total Scrap %" fill="#fda4af" radius={[4, 4, 0, 0]} />
+              <BarChart data={machineMetrics} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} stroke="#E2E8F0" />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} stroke="#E2E8F0" />
+                <Tooltip wrapperStyle={{ fontSize: '11px', fontFamily: 'Inter' }} contentStyle={{ backgroundColor: "#0F172A", border: "none", borderRadius: "12px", color: "#F8FAFC", boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
+                <Bar dataKey="efficiency" name="ETE Physical Efficiency %" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="scrapRate" name="Actual Total Scrap %" fill="#DC2626" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -185,27 +184,27 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
       {/* 2. BUYER ANALYTICS SECTION */}
       <section className="space-y-4">
         <div>
-          <h3 className="font-sans font-bold text-xs text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Award size={14} className="text-slate-600" /> Buyer Accounts Yield Rankings
+          <h3 className="font-sans font-extrabold text-xs text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Award size={14} className="text-[#2563EB]" /> Buyer Accounts Yield Rankings
           </h3>
-          <p className="text-xs text-slate-500 mt-1">Yield and scrap rates broken down by business buyers.</p>
+          <p className="text-sm text-slate-500 mt-1 font-medium">Yield and scrap rates broken down by business buyers.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Buyer Comparison Bar Chart */}
-          <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-5 rounded-xl min-w-0">
-            <h4 className="font-sans font-semibold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-4">Total processed volume by partner (KG)</h4>
-            <div className="h-64 min-w-0 min-h-0">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
+            <h4 className="font-sans font-extrabold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">Total processed volume by partner (KG)</h4>
+            <div className="h-72 min-w-0 min-h-0">
               {buyerMetrics.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400 dark:text-slate-550">No entries.</div>
+                <div className="h-full flex items-center justify-center text-xs text-slate-400">No entries.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                  <BarChart data={buyerMetrics} margin={{ top: 10, left: -20, right: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(241, 245, 249, 0.5)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                    <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                    <Tooltip wrapperStyle={{ fontSize: '11px' }} contentStyle={{ backgroundColor: "#0f172a", border: "none", borderRadius: "8px", color: "#f8fafc" }} />
-                    <Bar dataKey="used" name="Fabric Processed (KG)" fill="#64748b" radius={[4, 4, 0, 0]} />
+                  <BarChart data={buyerMetrics} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} stroke="#E2E8F0" />
+                    <YAxis tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} stroke="#E2E8F0" />
+                    <Tooltip wrapperStyle={{ fontSize: '11px', fontFamily: 'Inter' }} contentStyle={{ backgroundColor: "#0F172A", border: "none", borderRadius: "12px", color: "#F8FAFC" }} />
+                    <Bar dataKey="used" name="Fabric Processed (KG)" fill="#2563EB" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -213,32 +212,34 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
           </div>
 
           {/* Buyer Data Details List Table */}
-          <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-xl overflow-hidden text-xs">
-            <div className="p-4 bg-slate-50/70 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/40">
-              <span className="font-sans font-semibold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Yield Summary Grid</span>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs text-xs">
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <span className="font-sans font-extrabold text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">Yield Summary Grid</span>
             </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100/30 dark:bg-slate-950 text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Buyer Partner</th>
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Cuts</th>
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Total Used</th>
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Scrap %</th>
-                  <th className="p-3 font-semibold text-right text-[10px] uppercase tracking-wider">ETE Efficiency</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
-                {buyerMetrics.map((bm,i) => (
-                  <tr key={bm.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                    <td className="p-3 font-bold text-slate-700 dark:text-slate-300">{bm.name}</td>
-                    <td className="p-3 font-mono text-slate-400">{bm.count} jobs</td>
-                    <td className="p-3 font-mono font-medium">{bm.used} kg</td>
-                    <td className="p-3 font-mono text-rose-500 dark:text-rose-400">{bm.scrapRate}%</td>
-                    <td className="p-3 font-mono font-bold text-right text-slate-700">{bm.efficiency}%</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider pl-5">Buyer Partner</th>
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider">Cuts</th>
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider">Total Used</th>
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider">Scrap %</th>
+                    <th className="p-4 font-extrabold text-right text-[10px] uppercase tracking-wider pr-5">ETE Efficiency</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                  {buyerMetrics.map((bm,i) => (
+                    <tr key={bm.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition">
+                      <td className="p-4 font-extrabold text-slate-800 dark:text-slate-200 pl-5">{bm.name}</td>
+                      <td className="p-4 font-mono text-slate-500">{bm.count} jobs</td>
+                      <td className="p-4 font-mono font-bold text-slate-700 dark:text-slate-300">{bm.used} kg</td>
+                      <td className="p-4 font-mono text-rose-600 font-bold">{bm.scrapRate}%</td>
+                      <td className="p-4 font-mono font-black text-right text-emerald-600 pr-5">{bm.efficiency}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -246,56 +247,58 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
       {/* 3. FABRIC TYPE ANALYTICS */}
       <section className="space-y-4">
         <div>
-          <h3 className="font-sans font-bold text-xs text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Layers size={14} className="text-slate-600" /> Fabric Quality & Stretch Classes
+          <h3 className="font-sans font-extrabold text-xs text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Layers size={14} className="text-[#2563EB]" /> Fabric Quality & Stretch Classes
           </h3>
-          <p className="text-xs text-slate-500 mt-1">Investigating structural efficiency limits based on fabric blends (modal, fleece, cotton jersey).</p>
+          <p className="text-sm text-slate-500 mt-1 font-medium">Investigating structural efficiency limits based on fabric blends (modal, fleece, cotton jersey).</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Fabric table list */}
-          <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-xl overflow-hidden text-xs">
-            <div className="p-4 bg-slate-50/70 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/40">
-              <span className="font-sans font-semibold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Blends & Weaves Statistics</span>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs text-xs">
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <span className="font-sans font-extrabold text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">Blends & Weaves Statistics</span>
             </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100/30 dark:bg-slate-950 text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Fabric Blend Type</th>
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Quantity</th>
-                  <th className="p-3 font-semibold text-[10px] uppercase tracking-wider">Scrap Rate %</th>
-                  <th className="p-3 font-semibold text-right text-[10px] uppercase tracking-wider">Yield Efficiency</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
-                {fabricMetrics.map((fm,i) => (
-                  <tr key={fm.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                    <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{fm.name}</td>
-                    <td className="p-3 font-mono text-slate-400">{fm.used} kg</td>
-                    <td className="p-3 font-mono text-rose-500 dark:text-rose-400">{fm.scrapRate}%</td>
-                    <td className="p-3 font-mono font-bold text-right text-slate-700">{fm.efficiency}%</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider pl-5">Fabric Blend Type</th>
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider">Quantity</th>
+                    <th className="p-4 font-extrabold text-[10px] uppercase tracking-wider">Scrap Rate %</th>
+                    <th className="p-4 font-extrabold text-right text-[10px] uppercase tracking-wider pr-5">Yield Efficiency</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                  {fabricMetrics.map((fm,i) => (
+                    <tr key={fm.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition">
+                      <td className="p-4 font-extrabold text-slate-800 dark:text-slate-200 pl-5">{fm.name}</td>
+                      <td className="p-4 font-mono text-slate-500">{fm.used} kg</td>
+                      <td className="p-4 font-mono text-rose-600 font-bold">{fm.scrapRate}%</td>
+                      <td className="p-4 font-mono font-black text-right text-emerald-600 pr-5">{fm.efficiency}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Fabric Efficiency Radar/Line Chart */}
-          <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-5 rounded-xl min-w-0">
-            <h4 className="font-sans font-semibold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-4">ETE yield vs Scrap Rate by knit quality</h4>
-            <div className="h-64 min-w-0 min-h-0">
+          {/* Fabric Efficiency Line Chart */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
+            <h4 className="font-sans font-extrabold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">ETE yield vs Scrap Rate by knit quality</h4>
+            <div className="h-72 min-w-0 min-h-0">
               {fabricMetrics.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400 dark:text-slate-550">No fabric data.</div>
+                <div className="h-full flex items-center justify-center text-xs text-slate-400">No fabric data.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                  <LineChart data={fabricMetrics} margin={{ top: 10, left: -20, right: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(241, 245, 249, 0.5)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                    <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                    <Tooltip wrapperStyle={{ fontSize: '11px' }} contentStyle={{ backgroundColor: "#0f172a", border: "none", borderRadius: "8px", color: "#f8fafc" }} />
-                    <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    <Line type="monotone" dataKey="efficiency" name="Yield Efficiency %" stroke="#475569" activeDot={{ r: 6 }} strokeWidth={2} />
-                    <Line type="monotone" dataKey="scrapRate" name="Scrap Rate %" stroke="#ec4899" strokeWidth={2} />
+                  <LineChart data={fabricMetrics} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} stroke="#E2E8F0" />
+                    <YAxis tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} stroke="#E2E8F0" />
+                    <Tooltip wrapperStyle={{ fontSize: '11px', fontFamily: 'Inter' }} contentStyle={{ backgroundColor: "#0F172A", border: "none", borderRadius: "12px", color: "#F8FAFC" }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
+                    <Line type="monotone" dataKey="efficiency" name="Yield Efficiency %" stroke="#2563EB" strokeWidth={3} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="scrapRate" name="Scrap Rate %" stroke="#DC2626" strokeWidth={3} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

@@ -435,6 +435,7 @@ app.post("/api/entries", async (req, res) => {
     const layNum = Number(data.lay) || 1;
     const ratioNum = Number(data.ratio) || 1;
 
+    const finalStatus = data.status === "submitted" ? "approved" : (data.status || "draft");
     const dataToInsert = {
       entry_date: data.entry_date,
       shift: sanitizeShift(data.shift),
@@ -455,9 +456,9 @@ app.post("/api/entries", async (req, res) => {
       marker_length_inch: Number(data.marker_length_inch) || 1,
       marker_efficiency_percent: Number(data.marker_efficiency_percent) || 80,
       remarks: data.remarks || "",
-      status: data.status || "draft",
+      status: finalStatus,
       created_by: profId,
-      approved_by: data.status === "approved" ? profId : null
+      approved_by: finalStatus === "approved" ? profId : null
     };
 
     const { data: insertedEntry, error: insertErr } = await supabase
@@ -570,9 +571,9 @@ app.post("/api/entries/bulk", async (req, res) => {
         marker_length_inch: Number(item.marker_length_inch) || 1,
         marker_efficiency_percent: Number(item.marker_efficiency_percent) || 80,
         remarks: item.remarks || "Bulk imported",
-        status: "submitted",
+        status: "approved",
         created_by: profId,
-        approved_by: null
+        approved_by: profId
       };
 
       const { data: insertedEntry, error: insertErr } = await supabase
@@ -589,7 +590,7 @@ app.post("/api/entries/bulk", async (req, res) => {
       const responseEntry = {
         ...insertedEntry,
         created_by: user_email,
-        approved_by: null,
+        approved_by: user_email,
         total_length_inch: Number(insertedEntry.total_length_inch) || (Number(insertedEntry.marker_length_inch) * Number(insertedEntry.lay)),
         spreading_scrap_kg: Number(insertedEntry.spreading_scrap_kg) || (Number(insertedEntry.fabric_used_kg) * 0.025),
         scrap_percent_per_marker: Number(insertedEntry.scrap_percent_per_marker) || (100.00 - Number(insertedEntry.marker_efficiency_percent))
@@ -645,6 +646,11 @@ app.put("/api/entries/:id", async (req, res) => {
       approved_by: profileMap.get(existingEntry.approved_by) || null
     };
 
+    const editorProfile = (profiles || []).find(p => p.email.toLowerCase() === user_email.toLowerCase());
+    const editorId = editorProfile ? editorProfile.id : null;
+    const finalStatus = data.status === "submitted" ? "approved" : data.status;
+    const approvedBy = finalStatus === "approved" ? (existingEntry.approved_by || editorId) : null;
+
     // Update inside Supabase
     const { data: updatedEntry, error: updateErr } = await supabase
       .from("cutting_entries")
@@ -667,7 +673,8 @@ app.put("/api/entries/:id", async (req, res) => {
         marker_length_inch: Number(data.marker_length_inch),
         marker_efficiency_percent: Number(data.marker_efficiency_percent),
         remarks: data.remarks,
-        status: data.status
+        status: finalStatus,
+        approved_by: approvedBy
       })
       .eq("id", id)
       .select()
@@ -680,7 +687,7 @@ app.put("/api/entries/:id", async (req, res) => {
     const responseEntry = {
       ...updatedEntry,
       created_by: creatorEmail,
-      approved_by: updatedEntry.status === "approved" ? user_email : null,
+      approved_by: updatedEntry.status === "approved" ? (profileMap.get(updatedEntry.approved_by) || user_email) : null,
       total_length_inch: Number(updatedEntry.total_length_inch) || (Number(updatedEntry.marker_length_inch) * Number(updatedEntry.lay)),
       spreading_scrap_kg: Number(updatedEntry.spreading_scrap_kg) || (Number(updatedEntry.fabric_used_kg) * 0.025),
       scrap_percent_per_marker: Number(updatedEntry.scrap_percent_per_marker) || (100.00 - Number(updatedEntry.marker_efficiency_percent))

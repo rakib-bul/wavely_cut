@@ -8,8 +8,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell
@@ -65,7 +63,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
     }
     buyerDataMap[b].value += e.fabric_used_kg || 0;
   });
-  const buyerColors = ["#6366f1", "#4f46e5", "#818cf8", "#4338ca", "#a5b4fc", "#312e81"];
+  const buyerColors = ["#2563EB", "#3B82F6", "#60A5FA", "#1D4ED8", "#93C5FD", "#1E3A8A"];
   const buyerData = Object.values(buyerDataMap).map(b => ({
     name: b.name,
     value: parseFloat(b.value.toFixed(1))
@@ -88,6 +86,11 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
     efficiency: f.count > 0 ? parseFloat((f.avgEte / f.count).toFixed(1)) : 0
   }));
 
+  // Style details for labels to increase contrast:
+  // Using slate-700 (#334155) for dark, readable text.
+  const axisLabelColor = "#334155";
+  const darkAxisLabelColor = "#94A3B8";
+
   return (
     <div className="space-y-6 font-sans">
       
@@ -95,50 +98,69 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Daily Usage BarChart */}
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Fabric Usage Timeline
             </h3>
-            <p className="text-xs text-slate-500 mt-1">Gross Fabric Used and Scissor Scrap (KG)</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Gross Fabric Used vs. Cutting Scrap (KG)</p>
           </div>
-          <div className="h-64 min-w-0 min-h-0">
+          <div className="h-68 min-w-0 min-h-0">
             {dailyData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">No active entry history to plot.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={dailyData} margin={{ top: 10, left: -20, right: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(241, 245, 249, 0.5)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                  <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                  <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '8px', color: '#f8fafc', fontSize: '11px', fontFamily: 'Inter' }} />
-                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                  <Bar dataKey="used" name="Fabric Used (KG)" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="scrap" name="Cutting Scrap (KG)" fill="#fda4af" radius={[4, 4, 0, 0]} />
+                <BarChart data={dailyData} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                    stroke="#E2E8F0"
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                    stroke="#E2E8F0"
+                  />
+                  <Tooltip 
+                    contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', fontFamily: 'Inter', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
+                  <Bar dataKey="used" name="Fabric Yield Input (KG)" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="scrap" name="Cutting Scrap (KG)" fill="#DC2626" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
  
-        {/* Machine Comparison line */}
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
+        {/* Machine Comparison bar chart */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
-              Machine Efficiency Compare
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Machine Performance Compare
             </h3>
-            <p className="text-xs text-slate-500 mt-1">Actual End-to-End physical cutting yield efficiency (%)</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Actual End-to-End Yield vs. Scrap Rate (%)</p>
           </div>
-          <div className="h-64 min-w-0 min-h-0">
+          <div className="h-68 min-w-0 min-h-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={machinePerformances} margin={{ top: 10, left: -20, right: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(241, 245, 249, 0.5)" />
-                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '8px', color: '#f8fafc', fontSize: '11px', fontFamily: 'Inter' }} />
-                <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                <Bar dataKey="efficiency" name="ETE Physical Efficiency (%)" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="scrapRate" name="Scissor Scrap Weight %" fill="#ec4899" radius={[4, 4, 0, 0]} />
+              <BarChart data={machinePerformances} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                  stroke="#E2E8F0"
+                />
+                <YAxis 
+                  domain={[0, 100]} 
+                  tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                  stroke="#E2E8F0"
+                />
+                <Tooltip 
+                  contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', fontFamily: 'Inter', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
+                />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
+                <Bar dataKey="efficiency" name="ETE Physical Yield (%)" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="scrapRate" name="Scrap Rate (%)" fill="#DC2626" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -150,14 +172,14 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Buyer Distribution pie chart */}
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Order Volume by Buyer (KG)
             </h3>
-            <p className="text-xs text-slate-500 mt-1">Share of total fabrics processed through cutting floor</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Share of total fabrics processed through cutting floor</p>
           </div>
-          <div className="h-64 flex flex-col md:flex-row items-center justify-around min-w-0 min-h-0">
+          <div className="h-68 flex flex-col md:flex-row items-center justify-around min-w-0 min-h-0">
             {buyerData.length === 0 ? (
               <div className="text-xs text-slate-400">No active data.</div>
             ) : (
@@ -178,20 +200,23 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
                           <Cell key={`cell-${index}`} fill={buyerColors[index % buyerColors.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(val) => `${val} KG`} contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '8px', color: '#f8fafc', fontSize: '11px' }} />
+                      <Tooltip 
+                        formatter={(val) => `${val} KG`} 
+                        contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
                 
                 {/* Custom Legend */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 p-2 self-start md:self-center">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-2 self-start md:self-center">
                   {buyerData.map((item, index) => (
-                    <div key={item.name} className="flex items-center space-x-2 text-xs text-slate-600 dark:text-slate-400">
+                    <div key={item.name} className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300">
                       <span 
-                        className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" 
+                        className="w-3 h-3 rounded-md inline-block shrink-0" 
                         style={{ backgroundColor: buyerColors[index % buyerColors.length] }} 
                       />
-                      <span className="font-medium truncate max-w-[100px]">{item.name}</span>
+                      <span className="font-semibold truncate max-w-[120px]">{item.name}</span>
                     </div>
                   ))}
                 </div>
@@ -201,25 +226,38 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
         </div>
  
         {/* Fabric Type Efficiency */}
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 p-6 rounded-xl shadow-xs min-w-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
           <div className="mb-4">
-            <h3 className="font-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Fabric Type Yield & ETE
             </h3>
-            <p className="text-xs text-slate-500 mt-1">Average actual fabric yields by fabric material</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Average actual fabric yields by fabric material</p>
           </div>
-          <div className="h-64 min-w-0 min-h-0">
+          <div className="h-68 min-w-0 min-h-0">
             {fabricData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">No active data.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={fabricData} layout="vertical" margin={{ top: 10, left: 10, right: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="rgba(241, 245, 249, 0.5)" />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                  <YAxis type="category" dataKey="name" width={85} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                  <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '8px', color: '#f8fafc', fontSize: '11px' }} />
-                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                  <Bar dataKey="efficiency" name="Yield ETE-Efficiency (%)" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={11} />
+                <BarChart data={fabricData} layout="vertical" margin={{ top: 10, left: 15, right: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="rgba(226, 232, 240, 0.7)" />
+                  <XAxis 
+                    type="number" 
+                    domain={[0, 100]} 
+                    tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                    stroke="#E2E8F0"
+                  />
+                  <YAxis 
+                    type="category" 
+                    dataKey="name" 
+                    width={90} 
+                    tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                    stroke="#E2E8F0"
+                  />
+                  <Tooltip 
+                    contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
+                  <Bar dataKey="efficiency" name="Yield ETE-Efficiency (%)" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={12} />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "./components/Sidebar";
 import KPICards from "./components/KPICards";
 import DashboardCharts from "./components/DashboardCharts";
+import DailyReport from "./components/DailyReport";
 import DataEntryForm from "./components/DataEntryForm";
 import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
@@ -80,17 +81,49 @@ export default function App() {
     setIsConfirmingDelete(false);
   }, [editingEntry]);
 
-  // --- Enforce Fully Light Theme ---
-  useEffect(() => {
-    document.documentElement.classList.remove("dark");
+  // --- Theme State & Handler ---
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
-      localStorage.removeItem("theme");
+      const saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") {
+        return saved;
+      }
+      return "light";
+    } catch {
+      return "light";
+    }
+  });
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    try {
+      localStorage.setItem("theme", theme);
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [theme]);
 
   // --- Fetch Data from Backend ---
+  const safeFetchJson = async (url: string, init?: RequestInit) => {
+    try {
+      const res = await fetch(url, init);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error(`Expected JSON but received ${contentType || "none"}`);
+      }
+      return await res.json();
+    } catch (err: any) {
+      throw err;
+    }
+  };
+
   const fetchData = async (isSilent = false) => {
     if (!currentProfile) return;
     if (!isSilent) {
@@ -108,47 +141,49 @@ export default function App() {
       };
 
       // 1. Fetch Machines
-      const macRes = await fetch("/api/machines", { headers });
-      if (!macRes.ok) throw new Error("Failed to load machine definitions.");
-      const macData = await macRes.json();
+      const macData = await safeFetchJson("/api/machines", { headers });
       setMachines(macData);
 
       // 1.5 Fetch Buyers
-      const buyerRes = await fetch("/api/buyers", { headers });
-      if (buyerRes.ok) {
-        const buyerData = await buyerRes.json();
+      try {
+        const buyerData = await safeFetchJson("/api/buyers", { headers });
         setBuyers(buyerData);
         try {
           localStorage.setItem("erp_cached_buyers", JSON.stringify(buyerData));
         } catch (e) {
           console.error("Failed to cache buyers locally", e);
         }
+      } catch (buyerErr) {
+        console.warn("Could not fetch buyers list silently:", buyerErr);
       }
 
       // 2. Fetch Cutting Entries (Restricted based on active user's role on server)
-      const entRes = await fetch("/api/entries", { headers });
-      if (!entRes.ok) throw new Error("Failed to load cutting entry ledgers.");
-      const entData = await entRes.json();
+      const entData = await safeFetchJson("/api/entries", { headers });
       setEntries(entData);
 
       // 3. Fetch Audit Logs (Strictly safe; only load if active role is admin)
       if (currentProfile.role === "admin") {
-        const logRes = await fetch("/api/logs", { headers });
-        if (logRes.ok) {
-          const logData = await logRes.json();
+        try {
+          const logData = await safeFetchJson("/api/logs", { headers });
           setAuditLogs(logData);
+        } catch (logErr) {
+          console.warn("Could not fetch audit logs silently:", logErr);
         }
       }
 
       // 4. Fetch Profiles list
-      const profRes = await fetch("/api/profiles", { headers });
-      if (profRes.ok) {
-        const profData = await profRes.json();
+      try {
+        const profData = await safeFetchJson("/api/profiles", { headers });
         setProfiles(profData);
+      } catch (profErr) {
+        console.warn("Could not fetch profiles list silently:", profErr);
       }
     } catch (err: any) {
-      console.error("Auto-sync background error:", err);
-      if (!isSilent) {
+      // For background auto-sync, connection drops are common and transient (especially during local dev server restarts)
+      if (isSilent) {
+        console.warn("Silent background auto-sync deferred (will retry):", err.message || err);
+      } else {
+        console.error("Auto-sync load error:", err);
         setErrorMessage(err.message || "An error occurred fetching ledger databases.");
       }
     } finally {
@@ -248,6 +283,36 @@ export default function App() {
     }
   };
 
+  // --- SUBMIT DRAFT (AUTO-APPROVE) ACTION ---
+  const handleSubmitDraft = async (entry: CuttingEntry) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch(`/api/entries/${entry.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          ...entry,
+          status: "submitted"
+        })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Submission failed.");
+        return;
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      alert("Network submission failed: " + err.message);
+    }
+  };
+
   // --- DELETE ENTRY ACTION ---
   const handleDeleteEntry = async (id: string) => {
     try {
@@ -275,7 +340,7 @@ export default function App() {
   };
 
   // --- UPDATE INDIVIDUAL ENTRY (EDIT SAVE) ---
-  const handleEditEntrySave = async (e: React.FormEvent) => {
+  const handleEditEntrySave = async (e: React.FormEvent, targetStatus?: 'draft' | 'submitted') => {
     e.preventDefault();
     if (!editingEntry) return;
 
@@ -289,10 +354,15 @@ export default function App() {
         "X-User-Email": currentProfile.email
       };
 
+      const payload = {
+        ...editingEntry,
+        status: targetStatus || editingEntry.status
+      };
+
       const res = await fetch(`/api/entries/${editingEntry.id}`, {
         method: "PUT",
         headers,
-        body: JSON.stringify(editingEntry)
+        body: JSON.stringify(payload)
       });
 
       const body = await res.json();
@@ -435,20 +505,41 @@ export default function App() {
 
   if (!currentProfile) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans transition-colors duration-200 relative">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans transition-colors duration-200 relative">
         
+        {/* Floating Theme Switcher */}
+        <div className="absolute top-4 right-4 z-50">
+          <button
+            onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
+            className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 py-2.5 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+          >
+            {theme === "light" ? (
+              <>
+                <Moon size={13} className="text-slate-500" />
+                <span>Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun size={13} className="text-amber-500" />
+                <span>Light Mode</span>
+              </>
+            )}
+          </button>
+        </div>
+
         <div className="sm:mx-auto sm:w-full sm:max-w-md font-sans">
           {/* Brand Visual Logo */}
           <div className="flex justify-center">
-            <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg relative overflow-hidden group">
+            <div className="w-14 h-14 bg-slate-900 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg relative overflow-hidden group">
               <div className="absolute inset-0 bg-white/10 translate-y-12 group-hover:translate-y-0 transition-transform duration-300 pointer-events-none" />
               W
             </div>
           </div>
-          <h2 className="mt-6 text-center text-2xl font-extrabold tracking-tight text-slate-900 font-display">
+          <h2 className="mt-6 text-center text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white font-display">
             Wavely Cut
           </h2>
-          <p className="mt-2 text-center text-xs text-slate-500 max-w-sm mx-auto">
+          <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-450 max-w-sm mx-auto">
             Developed by **Rakib Hasan** <br />
             Real-time cloth cutting records platform with secure user authentication & digital audit ledger.
           </p>
@@ -557,36 +648,36 @@ export default function App() {
                         Company Email
                       </label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 dark:text-slate-500 pointer-events-none">
                           <User size={13} />
                         </span>
                         <input
                           name="email"
-                           type="email"
-                           placeholder="operator@kafe.com"
-                           required
-                           className="w-full pl-8 bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-750 transition-colors"
-                         />
-                       </div>
-                     </div>
+                          type="email"
+                          placeholder="operator@kafe.com"
+                          required
+                          className="w-full pl-8 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 dark:focus:ring-slate-750 text-slate-750 dark:text-slate-200 transition-colors"
+                        />
+                      </div>
+                    </div>
  
-                     <div>
-                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                         Passphrase Key
-                       </label>
-                       <div className="relative">
-                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
-                           <Lock size={13} />
-                         </span>
-                         <input
-                           name="password"
-                           type="password"
-                           placeholder="••••••••"
-                           required
-                           className="w-full pl-8 bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 text-slate-750 transition-colors"
-                         />
-                       </div>
-                     </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                        Passphrase Key
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 dark:text-slate-500 pointer-events-none">
+                          <Lock size={13} />
+                        </span>
+                        <input
+                          name="password"
+                          type="password"
+                          placeholder="••••••••"
+                          required
+                          className="w-full pl-8 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-950 dark:focus:ring-slate-750 text-slate-750 dark:text-slate-200 transition-colors"
+                        />
+                      </div>
+                    </div>
  
                      <button
                        type="submit"
@@ -611,8 +702,25 @@ export default function App() {
     );
   }
 
+  const getTabTitle = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return "Industrial Analytics Dashboard";
+      case "data_entry":
+        return "Cutting Records Entry";
+      case "reports":
+        return "Digital Ledger & Reports";
+      case "analytics":
+        return "Advanced Floor Analytics";
+      case "admin":
+        return "IAM & Machine Admin";
+      default:
+        return "Industrial Analytics Dashboard";
+    }
+  };
+
   return (
-    <div className="flex bg-slate-50 min-h-screen text-slate-800 selection:bg-slate-900/10">
+    <div className="flex bg-[#F5F7FB] dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 selection:bg-blue-600/10">
       
       {/* 1. Sidebar Navigation */}
       <Sidebar
@@ -625,24 +733,45 @@ export default function App() {
       />
 
       {/* 2. Main Terminal Content Canvas */}
-      <main className="flex-1 flex flex-col min-h-screen max-w-7xl mx-auto px-6 py-6 overflow-y-auto space-y-6">
+      <main className="flex-1 flex flex-col min-h-screen max-w-7xl mx-auto px-6 pb-12 overflow-y-auto space-y-6">
         
-        {/* Dynamic header summary banner */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 gap-4">
-          <div />
+        {/* Dynamic header summary banner - Sticky and Blurred */}
+        <header className="sticky top-0 z-40 flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 px-6 -mx-6 bg-[#F5F7FB]/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 gap-4 mb-2">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+              {getTabTitle()}
+            </h1>
+          </div>
 
           <div className="flex items-center space-x-3">
-            <span className="text-xs text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-1.5 px-3 rounded-lg font-medium flex items-center gap-1.5 shadow-xs">
+            <span className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Active Session
             </span>
             <span 
-              className="text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-1.5 px-3 rounded-lg font-medium flex items-center gap-1.5 shadow-xs"
+              className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs"
               title="Real-time auto-sync with Supabase PostgreSQL is active"
             >
               <RefreshCw size={12} className={`text-emerald-500 ${isSyncing || isLoading ? "animate-spin" : ""}`} />
-              <span className="text-slate-400 font-semibold">Auto-Sync</span>
+              <span className="text-slate-500 dark:text-slate-400 font-bold">Auto-Sync</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </span>
+            <button
+              onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
+              className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+            >
+              {theme === "light" ? (
+                <>
+                  <Moon size={13} className="text-slate-500" />
+                  <span>Dark Mode</span>
+                </>
+              ) : (
+                <>
+                  <Sun size={13} className="text-amber-500" />
+                  <span>Light Mode</span>
+                </>
+              )}
+            </button>
           </div>
         </header>
 
@@ -669,6 +798,7 @@ export default function App() {
             {/* TAB 1: OPERATIONS DASHBOARD */}
             {activeTab === "dashboard" && (
               <div className="space-y-6 animate-fade-in">
+                <DailyReport entries={entries} machines={machines} />
                 <KPICards metrics={compiledDashboardKPIs} />
                 <DashboardCharts entries={entries} machines={machines} />
               </div>
@@ -698,6 +828,7 @@ export default function App() {
                   onDeleteEntry={handleDeleteEntry}
                   onSelectEditEntry={(entry) => setEditingEntry(entry)}
                   buyers={buyers}
+                  onSubmitDraft={handleSubmitDraft}
                 />
               </div>
             )}
@@ -766,7 +897,7 @@ export default function App() {
               </div>
             )}
 
-            <form onSubmit={handleEditEntrySave} className="grid grid-cols-2 gap-4 h-[350px] overflow-y-auto pr-1">
+            <form onSubmit={(e) => handleEditEntrySave(e)} className="grid grid-cols-2 gap-4 h-[350px] overflow-y-auto pr-1">
               
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Date</label>
@@ -829,7 +960,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Ratio</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Size Ratio</label>
                 <input 
                   type="number"
                   value={editingEntry.ratio}
@@ -840,7 +971,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Fabric Used (KG)</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Fabric Weight Used (KG)</label>
                 <input 
                   type="number"
                   step="0.001"
@@ -852,7 +983,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Remnant (KG)</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Spreading Scrap (KG)</label>
                 <input 
                   type="number"
                   step="0.001"
@@ -864,7 +995,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Scissor Scrap (KG)</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Cutting Scrap (KG)</label>
                 <input 
                   type="number"
                   step="0.001"
@@ -876,7 +1007,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Theoretical CAD Eff %</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Efficiency %</label>
                 <input 
                   type="number"
                   step="0.1"
@@ -888,7 +1019,7 @@ export default function App() {
               </div>
 
               <div className="col-span-2">
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Exceptions Remarks</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Remnants Weight (KG)</label>
                 <textarea 
                   value={editingEntry.remarks}
                   onChange={e => setEditingEntry({ ...editingEntry, remarks: e.target.value })}
@@ -946,12 +1077,31 @@ export default function App() {
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit"
-                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-5 rounded-lg shadow-sm cursor-pointer"
-                  >
-                    Save & Re-Formulate
-                  </button>
+                  {editingEntry.status === "draft" ? (
+                    <>
+                      <button 
+                        type="button"
+                        onClick={(e) => handleEditEntrySave(e, 'draft')}
+                        className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium cursor-pointer"
+                      >
+                        Save Draft
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={(e) => handleEditEntrySave(e, 'submitted')}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-5 rounded-lg shadow-sm cursor-pointer"
+                      >
+                        Commit & Submit
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      type="submit"
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-5 rounded-lg shadow-sm cursor-pointer"
+                    >
+                      Save & Re-Formulate
+                    </button>
+                  )}
                 </div>
               </div>
 

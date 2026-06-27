@@ -317,23 +317,23 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           </h2>
         </div>
 
-        <div className="flex gap-1 border-b border-slate-200 self-stretch sm:self-auto">
+        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 self-stretch sm:self-auto font-sans">
           <button
             onClick={() => setActiveTab('single')}
-            className={`px-4 py-2 text-xs font-semibold border-b-2 transition duration-150 ${
+            className={`px-5 py-2.5 text-xs font-bold border-b-2 transition-all duration-150 cursor-pointer ${
               activeTab === 'single' 
-                ? 'border-slate-800 text-slate-900' 
-                : 'border-transparent text-slate-400 hover:text-slate-700'
+                ? 'border-[#2563EB] text-[#2563EB]' 
+                : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
             Manual Form
           </button>
           <button
             onClick={() => setActiveTab('bulk')}
-            className={`px-4 py-2 text-xs font-semibold border-b-2 transition duration-150 ${
+            className={`px-5 py-2.5 text-xs font-bold border-b-2 transition-all duration-150 cursor-pointer ${
               activeTab === 'bulk' 
-                ? 'border-slate-800 text-slate-900' 
-                : 'border-transparent text-slate-400 hover:text-slate-700'
+                ? 'border-[#2563EB] text-[#2563EB]' 
+                : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
             Bulk Excel Paste-In
@@ -382,7 +382,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           )}
 
           {/* Form Grid Sections - Sequential Series as Requested */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-6">
             
             {/* Context Header with Title and Date/Shift/Machine on extreme top-right */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between pb-5 border-b border-slate-150 gap-4">
@@ -396,36 +396,36 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               </div>
               
               {/* Context Block: Date, Shift, Machine */}
-              <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
-                <div className="w-36">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
+              <div className="flex flex-wrap items-center gap-4 self-start lg:self-auto font-sans">
+                <div className="w-40">
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Date</label>
                   <input
                     type="date"
                     name="entry_date"
                     value={formData.entry_date}
                     onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-900 focus:border-slate-905 focus:outline-none transition-all text-slate-850"
+                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs cursor-pointer"
                   />
                 </div>
-                <div className="w-32">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Shift</label>
+                <div className="w-36">
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Shift</label>
                   <select
                     name="shift"
                     value={formData.shift}
                     onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-900 focus:border-slate-905 focus:outline-none transition-all text-slate-850 cursor-pointer"
+                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
                   >
                     <option value="A">Day Shift</option>
                     <option value="B">Night Shift</option>
                   </select>
                 </div>
-                <div className="w-40">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Machine</label>
+                <div className="w-44">
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Machine</label>
                   <select
                     name="machine_id"
                     value={formData.machine_id}
                     onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-900 focus:border-slate-905 focus:outline-none transition-all text-slate-850 cursor-pointer"
+                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
                   >
                     <option value="">-- Choose Machine --</option>
                     {machines.map(m => (
@@ -437,16 +437,17 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
             </div>
 
             {/* Serial input grids organized in order */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            {/* Serial input grids organized in order */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 font-sans text-slate-700 dark:text-slate-200">
               
               {/* 1. Buyer */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Buyer</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Buyer</label>
                 <select
                   name="buyer"
                   value={formData.buyer}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium cursor-pointer"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
                 >
                   <option value="">-- Choose Buyer --</option>
                   {buyers.map(b => (
@@ -459,185 +460,185 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
 
               {/* 2. Job no */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Job no</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Job no</label>
                 <input
                   type="text"
                   name="job_no"
                   value={formData.job_no}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 3. color */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Color</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Color</label>
                 <input
                   type="text"
                   name="color"
                   value={formData.color}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 4. item */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Item</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Item</label>
                 <input
                   type="text"
                   name="item"
                   value={formData.item}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 5. cut no */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Cut no</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Cut no</label>
                 <input
                   type="text"
                   name="cut_no"
                   value={formData.cut_no}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 6. Lay */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Lay</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Lay</label>
                 <input
                   type="number"
                   name="lay"
                   value={formData.lay}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 7. Ratio */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Ratio</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Ratio</label>
                 <input
                   type="number"
                   name="ratio"
                   value={formData.ratio}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 8. Table */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Table</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Table</label>
                 <input
                   type="text"
                   name="table_no"
                   value={formData.table_no}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 9. Fabric type */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Fabric type</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Fabric type</label>
                 <input
                   type="text"
                   name="fabric_type"
                   value={formData.fabric_type}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
               {/* 10. Parts(qty) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Parts(qty)</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Parts(qty)</label>
                 <input
                   type="text"
                   name="parts"
                   value={formData.parts}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
-              {/* 11. Fabric used kg */}
+              {/* 11. Fabric Weight Used (KG) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Fabric used kg</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Fabric Weight Used (KG)</label>
                 <input
                   type="number"
                   step="0.001"
                   name="fabric_used_kg"
                   value={formData.fabric_used_kg}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
-              {/* 12. Remenant */}
+              {/* 12. Remnants Weight (KG) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Remenant (Remarks & Notes)</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Remnants Weight (KG)</label>
                 <input
                   type="text"
                   name="remarks"
                   value={formData.remarks}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
-              {/* 13. Weght or scrap */}
+              {/* 13. Cutting Scrap (KG) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Weght or scrap (KG)</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Cutting Scrap (KG)</label>
                 <input
                   type="number"
                   step="0.001"
                   name="cutting_scrap_weight_kg"
                   value={formData.cutting_scrap_weight_kg}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
-              {/* 14. market length */}
+              {/* 14. Marker Length (Inches) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Market length (Inches)</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Length (Inches)</label>
                 <input
                   type="number"
                   name="marker_length_inch"
                   value={formData.marker_length_inch}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
-              {/* 15. maker efficiency % */}
+              {/* 15. Marker Efficiency % */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Maker efficiency %</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Efficiency %</label>
                 <input
                   type="number"
                   step="0.1"
                   name="marker_efficiency_percent"
                   value={formData.marker_efficiency_percent}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
 
-              {/* 16. remnant Kg */}
+              {/* 16. Spreading Scrap (KG) */}
               <div>
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Remnant Kg</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Spreading Scrap (KG)</label>
                 <input
                   type="number"
                   step="0.001"
                   name="remnant_weight_kg"
                   value={formData.remnant_weight_kg}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs focus:ring-1 focus:ring-slate-950 focus:border-slate-950 focus:outline-none transition-all text-slate-800 font-medium"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
             </div>
@@ -650,21 +651,33 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 pt-1 text-xs">
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Est. Spreading Scrap:</span>
-                  <span className="font-mono font-bold text-slate-700">
-                    {formData.fabric_used_kg ? (Number(formData.fabric_used_kg) * 0.025).toFixed(2) : "0.00"} KG
+                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Total Cut Qty:</span>
+                  <span className="font-mono font-bold text-indigo-600">
+                    {formData.lay && formData.ratio ? (Number(formData.lay) * Number(formData.ratio)).toLocaleString() : "0"} pcs
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Est. CAD Marker Waste:</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Total Marker Length (inch):</span>
+                  <span className="font-mono font-bold text-indigo-600">
+                    {formData.lay && formData.marker_length_inch ? (Number(formData.lay) * Number(formData.marker_length_inch)).toFixed(1) : "0.0"} Inches
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Total Fabric Used (inch):</span>
+                  <span className="font-mono font-bold text-emerald-600">
+                    {formData.lay && formData.marker_length_inch && formData.marker_efficiency_percent ? (Number(formData.lay) * Number(formData.marker_length_inch) * Number(formData.marker_efficiency_percent) / 100).toFixed(1) : "0.0"} Inches
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Scrap% per Marker:</span>
                   <span className="font-mono font-bold text-slate-700">
                     {formData.marker_efficiency_percent ? (100 - Number(formData.marker_efficiency_percent)).toFixed(1) : "0.0"}%
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">Total Spanned Fabric Len:</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold font-sans">% of Cutting Scrap:</span>
                   <span className="font-mono font-bold text-slate-700">
-                    {formData.marker_length_inch && formData.lay ? (Number(formData.marker_length_inch) * Number(formData.lay)).toLocaleString() : "0"} Inches
+                    {formData.cutting_scrap_weight_kg && formData.fabric_used_kg && Number(formData.fabric_used_kg) > 0 ? ((Number(formData.cutting_scrap_weight_kg) / Number(formData.fabric_used_kg)) * 100).toFixed(2) : "0.00"}%
                   </span>
                 </div>
               </div>
@@ -693,22 +706,22 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               )}
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-4">
               <button
                 type="button"
                 onClick={() => triggerSubmit('draft')}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-sans"
+                className="px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl transition-all font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-sans shadow-xs"
               >
-                <Save size={13} className="text-slate-400" /> Save Draft
+                <Save size={14} className="text-slate-500" /> Save Draft
               </button>
               <button
                 type="button"
                 onClick={() => triggerSubmit('submitted')}
                 disabled={isSubmitting}
-                className="px-5 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm font-sans"
+                className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl transition-all font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md font-sans"
               >
-                <Send size={13} /> Commit & Submit Cut Entry
+                <Send size={14} className="stroke-[2.5]" /> Commit & Submit Cut Entry
               </button>
             </div>
           </div>
@@ -768,9 +781,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
             <button
               onClick={handleBulkSubmit}
               disabled={isBulkSubmitting || !bulkText.trim()}
-              className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg transition flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-sm font-sans"
+              className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold rounded-xl transition flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-md font-sans"
             >
-              <ClipboardPaste size={14} /> Run Bulk Integrity Checks & Save
+              <ClipboardPaste size={14} className="stroke-[2.5]" /> Run Bulk Integrity Checks & Save
             </button>
           </div>
 
