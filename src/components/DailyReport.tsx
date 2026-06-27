@@ -266,7 +266,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
       csvRows.push([
         e.job_no,
         e.cut_no,
-        e.shift,
+        e.shift === "A" ? "Day" : e.shift === "B" ? "Night" : e.shift,
         e.machine_id,
         e.buyer,
         e.fabric_type,
