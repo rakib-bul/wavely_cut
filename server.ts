@@ -407,23 +407,6 @@ app.post("/api/entries", async (req, res) => {
   }
 
   try {
-    // 1. Check for duplicate entry on Supabase
-    const { data: dbMatches, error: matchError } = await supabase
-      .from("cutting_entries")
-      .select("id")
-      .ilike("cut_no", data.cut_no.trim())
-      .ilike("job_no", data.job_no.trim())
-      .ilike("buyer", data.buyer.trim())
-      .ilike("color", data.color.trim());
-
-    if (matchError) {
-      return res.status(500).json({ error: matchError.message });
-    }
-
-    if (dbMatches && dbMatches.length > 0) {
-      return res.status(409).json({ error: `An entry with Cut No: ${data.cut_no} for Job No: ${data.job_no} already exists.` });
-    }
-
     // 2. Resolve creator profile UUID
     let profId: string | null = null;
     const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
@@ -526,20 +509,6 @@ app.post("/api/entries/bulk", async (req, res) => {
     }
 
     try {
-      // Duplicate detection in Supabase
-      const { data: duplicateMatches } = await supabase
-        .from("cutting_entries")
-        .select("id")
-        .eq("cut_no", item.cut_no.trim())
-        .eq("job_no", item.job_no.trim())
-        .eq("buyer", item.buyer.trim())
-        .limit(1);
-
-      if (duplicateMatches && duplicateMatches.length > 0) {
-        errors.push(`Row ${item.cut_no}: Already exists in system.`);
-        continue;
-      }
-
       // Map machine ID
       let finalMachineIdToUse = item.machine_id;
       if (finalMachineIdToUse.startsWith("machine-") && supMachines.length > 0) {
