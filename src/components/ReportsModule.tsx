@@ -187,7 +187,7 @@ export default function ReportsModule({
       "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
       "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
       "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
-      "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Fabric Used (Inch)",
+      "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
       "Scarp% as per Marker", "% of cutting scrap"
     ];
 
@@ -253,6 +253,7 @@ export default function ReportsModule({
     const total_spreading_scrap = target.reduce((acc, c) => acc + (c.remnant_weight_kg || 0), 0);
     const total_marker_scrap_kg = target.reduce((acc, c) => acc + (c.actual_marker_scrap_kg || 0), 0);
     const total_length = target.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
+    const total_used_fabric_inch_val = target.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
 
     // Derived fields
     const total_spread = Math.max(0, total_used - total_remnants_issued); // Spread fabric
@@ -302,7 +303,7 @@ export default function ReportsModule({
       total_cutting_scrap: total_cutting_scrap.toFixed(1),
       total_cutting_scrap_percent: cutting_scrap_percent.toFixed(1),
       total_length: total_length.toLocaleString(),
-      total_used_fabric_inch: total_length.toLocaleString()
+      total_used_fabric_inch: total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 })
     };
   }, [filteredEntries]);
 
@@ -501,7 +502,7 @@ export default function ReportsModule({
           <ul className="space-y-2.5 text-slate-500 dark:text-slate-400 font-medium">
             <li className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5"><span>ETE Efficiency Gap:</span> <strong className="font-mono text-rose-600">{reportMetrics.efficiency_gap}%</strong></li>
             <li className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5"><span>Total lay length:</span> <strong className="font-mono text-slate-800 dark:text-slate-200">{reportMetrics.total_length} Inches</strong></li>
-            <li className="flex justify-between"><span>Total Spread fabric:</span> <strong className="font-mono text-slate-800 dark:text-slate-200">{reportMetrics.total_used_fabric_inch} Inches</strong></li>
+            <li className="flex justify-between"><span>Total Used Fabric (Inch):</span> <strong className="font-mono text-slate-800 dark:text-slate-200">{reportMetrics.total_used_fabric_inch} Inches</strong></li>
           </ul>
         </div>
       </div>
@@ -559,7 +560,7 @@ export default function ReportsModule({
                 <th className="p-4 text-right whitespace-nowrap">Marker Length Inch</th>
                 <th className="p-4 text-right whitespace-nowrap">Marker Efficiency %</th>
                 <th className="p-4 text-right whitespace-nowrap">Total Marker Len (In)</th>
-                <th className="p-4 text-right whitespace-nowrap">Total Fabric Used (In)</th>
+                <th className="p-4 text-right whitespace-nowrap">Total Used Fabric (Inch)</th>
                 <th className="p-4 text-right whitespace-nowrap">Scrap% per Marker</th>
                 <th className="p-4 text-right whitespace-nowrap">% of Cutting Scrap</th>
                 <th className="p-4 text-center whitespace-nowrap">Status</th>

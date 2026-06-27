@@ -460,7 +460,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
             <div className="bg-slate-50/55 dark:bg-[#0B1220]/50 border border-slate-200 dark:border-slate-800/60 p-5 rounded-2xl flex items-center justify-between hover:shadow-xs transition-all">
               <div>
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Total Fabric Used (Inch)
+                  Total Used Fabric (Inch)
                 </span>
                 <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white">
@@ -501,7 +501,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                     <th className="p-4 text-center">Cuts (Lots)</th>
                     <th className="p-4 text-right">Total Lay (Layers)</th>
                     <th className="p-4 text-right">Cutting Qty (Ratio × Lay)</th>
-                    <th className="p-4 text-right">Total Lay × Length × Eff %</th>
+                    <th className="p-4 text-right">Total Used Fabric (Inch)</th>
                     <th className="p-4 text-right">Fabric Processed</th>
                     <th className="p-4 pr-5 text-right">Production Share</th>
                   </tr>
