@@ -9,7 +9,8 @@ import {
   TrendingUp,
   Hash,
   Activity,
-  Award
+  Award,
+  FileSpreadsheet
 } from "lucide-react";
 import { CuttingEntry, Machine } from "../types";
 
@@ -172,11 +173,138 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
     }
   };
 
+  const handleExportCSV = () => {
+    if (dayEntries.length === 0) return;
+
+    const csvRows: string[][] = [];
+
+    // Helper to escape values
+    const escape = (val: any) => {
+      if (val === null || val === undefined) return "";
+      const str = String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // 1. Header & Title Section
+    csvRows.push(["DAILY OPERATIONAL REPORT", "WAVELY CUT PLATFORM"]);
+    csvRows.push(["Selected Date", selectedDate]);
+    csvRows.push(["Report Exported At", new Date().toLocaleString()]);
+    csvRows.push(["Developer", "Rakib Hasan"]);
+    csvRows.push([]); // Empty row
+
+    // 2. Summary Statistics KPI Section
+    csvRows.push(["SUMMARY STATISTICS"]);
+    csvRows.push(["Metric", "Value", "Unit"]);
+    csvRows.push(["Total Cutting Lots", String(stats.totalCuttingLots), "Lots"]);
+    csvRows.push(["Total Lay Layers", String(stats.totalLay), "Layers"]);
+    csvRows.push(["Total Cutting Quantity", String(stats.totalCuttingQty), "Pcs"]);
+    csvRows.push(["Total Fabric Weight Used", stats.totalFabricUsedKg.toFixed(2), "KG"]);
+    csvRows.push(["Total Processed Length", stats.totalCalculatedMetric.toFixed(2), "Inches"]);
+    csvRows.push(["Average Layers per Lot", (stats.totalLay / (stats.totalCuttingLots || 1)).toFixed(2), "Layers/Lot"]);
+    csvRows.push([]); // Empty row
+
+    // 3. Machine Performance Breakdown
+    csvRows.push(["MACHINE PRODUCTION BREAKDOWN"]);
+    csvRows.push([
+      "Machine Name",
+      "Machine Type",
+      "Cuts (Lots)",
+      "Total Lay (Layers)",
+      "Cutting Qty (Pcs)",
+      "Fabric Weight Used (KG)",
+      "Effective Inches Processed",
+      "Production Share (%)"
+    ]);
+
+    machineProduction.forEach(m => {
+      const sharePercent = stats.totalCuttingQty > 0 
+        ? Math.round((m.cuttingQtySum / stats.totalCuttingQty) * 100) 
+        : 0;
+
+      csvRows.push([
+        m.machineName,
+        m.machineType,
+        String(m.cutsCount),
+        String(m.laySum),
+        String(m.cuttingQtySum),
+        m.fabricUsedSum.toFixed(2),
+        m.calculatedMetricSum.toFixed(2),
+        `${sharePercent}%`
+      ]);
+    });
+    csvRows.push([]); // Empty row
+
+    // 4. Detailed Entry Ledger
+    csvRows.push(["DETAILED OPERATIONAL RECORD LEDGER"]);
+    csvRows.push([
+      "Job/Order No",
+      "Cut No",
+      "Shift",
+      "Machine ID",
+      "Buyer",
+      "Fabric Type",
+      "Color",
+      "Item",
+      "Table No",
+      "Lay (Layers)",
+      "Ratio",
+      "Cutting Qty (Pcs)",
+      "Fabric Used (KG)",
+      "Remnant Weight (KG)",
+      "Scrap Weight (KG)",
+      "Marker Length (Inch)",
+      "Marker Efficiency (%)",
+      "Status",
+      "Remarks"
+    ]);
+
+    dayEntries.forEach(e => {
+      const cuttingQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+      csvRows.push([
+        e.job_no,
+        e.cut_no,
+        e.shift,
+        e.machine_id,
+        e.buyer,
+        e.fabric_type,
+        e.color,
+        e.item,
+        e.table_no,
+        String(e.lay),
+        String(e.ratio),
+        String(cuttingQty),
+        String(e.fabric_used_kg),
+        String(e.remnant_weight_kg),
+        String(e.cutting_scrap_weight_kg),
+        String(e.marker_length_inch),
+        String(e.marker_efficiency_percent),
+        e.status,
+        e.remarks
+      ]);
+    });
+
+    // Generate CSV string
+    const csvContent = csvRows.map(row => row.map(escape).join(",")).join("\n");
+
+    // Add BOM for Microsoft Excel UTF-8 compatibility
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `WavelyCut_Daily_Report_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl p-6 shadow-sm font-sans" id="daily-report-card">
       
       {/* Header and Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-200 dark:border-slate-800 pb-5">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
@@ -191,29 +319,41 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
           </p>
         </div>
 
-        {/* Date Selector Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrevDay}
-            className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-xs"
-            title="Previous Logged Date"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-white dark:bg-[#0B1220] border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
-          />
+        {/* Date Selector & Export Actions Controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handlePrevDay}
+              className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-xs h-10"
+              title="Previous Logged Date"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-white dark:bg-[#0B1220] border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs h-10"
+            />
+
+            <button
+              onClick={handleNextDay}
+              className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-xs h-10"
+              title="Next Logged Date"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
 
           <button
-            onClick={handleNextDay}
-            className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-xs"
-            title="Next Logged Date"
+            onClick={handleExportCSV}
+            disabled={dayEntries.length === 0}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer shadow-sm shadow-emerald-600/15 transition-all shrink-0 h-10"
+            title="Download formatted daily CSV report (compatible with Excel)"
           >
-            <ChevronRight size={16} />
+            <FileSpreadsheet size={15} />
+            <span>Export Report (Excel/CSV)</span>
           </button>
         </div>
       </div>

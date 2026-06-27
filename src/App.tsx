@@ -705,7 +705,7 @@ export default function App() {
   const getTabTitle = () => {
     switch (activeTab) {
       case "dashboard":
-        return "Industrial Analytics Dashboard";
+        return "Cutting Dashboard";
       case "data_entry":
         return "Cutting Records Entry";
       case "reports":
@@ -715,7 +715,7 @@ export default function App() {
       case "admin":
         return "IAM & Machine Admin";
       default:
-        return "Industrial Analytics Dashboard";
+        return "Cutting Dashboard";
     }
   };
 
