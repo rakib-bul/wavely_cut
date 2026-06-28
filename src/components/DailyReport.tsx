@@ -455,7 +455,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               <th class="ledger-header">Job/Order No</th>
               <th class="ledger-header">Cut No</th>
               <th class="ledger-header">Shift</th>
-              <th class="ledger-header">Machine ID</th>
+              <th class="ledger-header">Machine Name</th>
               <th class="ledger-header">Buyer</th>
               <th class="ledger-header">Fabric Type</th>
               <th class="ledger-header">Color</th>
@@ -476,12 +476,13 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
           <tbody>
             ${dayEntries.map((e, idx) => {
               const cuttingQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+              const machineName = machines.find(m => m.id === e.machine_id)?.machine_name || e.machine_id;
               return `
                 <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
                   <td class="align-center">${e.job_no}</td>
                   <td class="align-center">${e.cut_no}</td>
                   <td class="align-center">${e.shift === "A" ? "Day" : e.shift === "B" ? "Night" : e.shift}</td>
-                  <td class="align-left">${e.machine_id}</td>
+                  <td class="align-left">${machineName}</td>
                   <td class="align-left">${e.buyer}</td>
                   <td class="align-left">${e.fabric_type}</td>
                   <td class="align-left">${e.color}</td>
