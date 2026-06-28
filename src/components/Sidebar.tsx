@@ -9,7 +9,10 @@ import {
   UserSquare2, 
   Fingerprint,
   LogOut,
-  Sparkles
+  Sparkles,
+  Code2,
+  Phone,
+  Mail
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -153,6 +156,25 @@ export default function Sidebar({
           >
             <LogOut size={16} />
           </button>
+        </div>
+      </div>
+
+      {/* Developer Info Section */}
+      <div className="px-5 pb-5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 dark:text-slate-500 font-sans">
+        <div className="flex items-center gap-1.5 font-bold text-slate-600 dark:text-slate-400 mb-1.5">
+          <Code2 size={13} className="text-blue-500" />
+          <span>Developer Support</span>
+        </div>
+        <div className="bg-slate-50/70 dark:bg-slate-950/20 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-1 shadow-2xs">
+          <div className="font-extrabold text-slate-800 dark:text-slate-200 text-[12px]">Rakib Hasan</div>
+          <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Phone size={11} className="text-slate-400 shrink-0" />
+            <a href="tel:+8801783924660" className="font-medium">+8801783924660</a>
+          </div>
+          <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Mail size={11} className="text-slate-400 shrink-0" />
+            <a href="mailto:hrakib182@gmail.com" className="font-medium truncate">hrakib182@gmail.com</a>
+          </div>
         </div>
       </div>
 
