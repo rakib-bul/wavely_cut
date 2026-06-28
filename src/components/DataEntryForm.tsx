@@ -146,16 +146,12 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     setSubmitSuccess(null);
   };
 
-  // Keyboard Hotkeys listener (Alt + S, Alt + D, Alt + C)
+  // Keyboard Hotkeys listener (Alt + S, Alt + C)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
         triggerSubmit('submitted');
-      }
-      if (e.altKey && e.key.toLowerCase() === "d") {
-        e.preventDefault();
-        triggerSubmit('draft');
       }
       if (e.altKey && e.key.toLowerCase() === "c") {
         e.preventDefault();
@@ -421,7 +417,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           {/* Hotkey Guide Indicator */}
           <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-lg text-[11px] text-slate-800 font-medium">
             <span className="flex items-center gap-2">
-              <Keyboard size={13} className="text-slate-500" /> Operators Speed Mode: Use <kbd className="bg-white/80 px-1 py-0.5 rounded border border-slate-200 text-[10px] font-mono font-bold">Alt+S</kbd> to submit, <kbd className="bg-white/80 px-1 py-0.5 rounded border border-slate-200 text-[10px] font-mono font-bold">Alt+D</kbd> for drafts
+              <Keyboard size={13} className="text-slate-500" /> Operators Speed Mode: Use <kbd className="bg-white/80 px-1 py-0.5 rounded border border-slate-200 text-[10px] font-mono font-bold">Alt+S</kbd> to submit
             </span>
             <button 
               onClick={() => setShowHotkeys(!showHotkeys)}
@@ -432,9 +428,8 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           </div>
 
           {showHotkeys && (
-            <div className="bg-white border border-slate-200 p-3.5 rounded-xl grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-500">
+            <div className="bg-white border border-slate-200 p-3.5 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-500">
               <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono font-bold">Alt + S</kbd> : Submit for Approval</div>
-              <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono font-bold">Alt + D</kbd> : Save to Local Draft Pool</div>
               <div><kbd className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono font-bold">Alt + C</kbd> : Clean Form Fields</div>
             </div>
           )}
@@ -504,7 +499,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 <div className="space-y-2">
                   <select
                     name="buyer_select"
-                    value={formData.buyer !== "" && !buyers.some(b => b.name.toUpperCase() === formData.buyer.toUpperCase()) ? "custom" : formData.buyer}
+                    value={formData.buyer ? (buyers.some(b => b.name.toUpperCase() === formData.buyer.toUpperCase()) ? formData.buyer : "custom") : ""}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "custom") {
@@ -569,7 +564,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 <div className="space-y-2">
                   <select
                     name="item_select"
-                    value={formData.item !== "" && !PREDEFINED_ITEMS.includes(formData.item) ? "custom" : formData.item}
+                    value={formData.item ? (PREDEFINED_ITEMS.includes(formData.item) ? formData.item : "custom") : ""}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "custom") {
@@ -656,7 +651,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 <div className="space-y-2">
                   <select
                     name="fabric_type_select"
-                    value={formData.fabric_type !== "" && !PREDEFINED_FABRICS.includes(formData.fabric_type) ? "custom" : formData.fabric_type}
+                    value={formData.fabric_type ? (PREDEFINED_FABRICS.includes(formData.fabric_type) ? formData.fabric_type : "custom") : ""}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "custom") {
@@ -829,27 +824,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               >
                 Clear Fields
               </button>
-              
-              {hasDraft && (
-                <button
-                  type="button"
-                  onClick={loadLastDraft}
-                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border border-amber-500/15 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-colors font-sans"
-                >
-                  <RefreshCw size={12} className="animate-spin-hover" /> Restore Draft
-                </button>
-              )}
             </div>
 
             <div className="flex items-center space-x-4">
-              <button
-                type="button"
-                onClick={() => triggerSubmit('draft')}
-                disabled={isSubmitting}
-                className="px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl transition-all font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 font-sans shadow-xs"
-              >
-                <Save size={14} className="text-slate-500" /> Save Draft
-              </button>
               <button
                 type="button"
                 onClick={() => triggerSubmit('submitted')}
