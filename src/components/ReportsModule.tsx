@@ -53,7 +53,7 @@ export default function ReportsModule({
   const [filterFabricType, setFilterFabricType] = useState("");
   const [filterShift, setFilterShift] = useState("");
   const [filterOperator, setFilterOperator] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterColor, setFilterColor] = useState("");
 
   // --- Search Query ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,7 +76,7 @@ export default function ReportsModule({
     setFilterFabricType("");
     setFilterShift("");
     setFilterOperator("");
-    setFilterStatus("");
+    setFilterColor("");
     setSearchQuery("");
   };
 
@@ -100,6 +100,11 @@ export default function ReportsModule({
   }, [entries]);
 
   const uniqueShifts = ["A", "B"];
+
+  const uniqueColors = useMemo(() => {
+    const set = new Set(entries.map(e => e.color || ""));
+    return Array.from(set).filter(Boolean).sort();
+  }, [entries]);
 
   // --- Apply Filters, Sorting & Search ---
   const filteredEntries = useMemo(() => {
@@ -142,8 +147,8 @@ export default function ReportsModule({
     if (filterOperator) {
       result = result.filter(e => e.created_by.toLowerCase() === filterOperator.toLowerCase());
     }
-    if (filterStatus) {
-      result = result.filter(e => e.status === filterStatus);
+    if (filterColor) {
+      result = result.filter(e => e.color === filterColor);
     }
 
     // Sort
@@ -166,7 +171,7 @@ export default function ReportsModule({
     });
 
     return result;
-  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterJobNo, filterMachine, filterFabricType, filterShift, filterOperator, filterStatus, sortField, sortDirection]);
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterJobNo, filterMachine, filterFabricType, filterShift, filterOperator, filterColor, sortField, sortDirection]);
 
   // --- Page Sliced entries ---
   const paginatedEntries = useMemo(() => {
@@ -196,7 +201,7 @@ export default function ReportsModule({
     const total_remnants_issued = target.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
     const total_cutting_scrap = target.reduce((acc, c) => acc + (c.cutting_scrap_weight_kg || 0), 0);
     const total_spreading_scrap = target.reduce((acc, c) => acc + (c.remnant_weight_kg || 0), 0);
-    const total_marker_scrap_kg = target.reduce((acc, c) => acc + (c.actual_marker_scrap_kg || 0), 0);
+    const total_marker_scrap_kg = total_cutting_scrap;
     const total_length = target.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
     const total_used_fabric_inch_val = target.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
 
@@ -300,6 +305,190 @@ export default function ReportsModule({
       };
     });
 
+    // Group filtered entries by Month and then by Date
+    const groups: { [month: string]: { [date: string]: CuttingEntry[] } } = {};
+    filteredEntries.forEach(entry => {
+      const dateStr = entry.entry_date || "Unknown Date";
+      const monthStr = dateStr.includes("-") ? dateStr.substring(0, 7) : "Unknown Month";
+      if (!groups[monthStr]) {
+        groups[monthStr] = {};
+      }
+      if (!groups[monthStr][dateStr]) {
+        groups[monthStr][dateStr] = [];
+      }
+      groups[monthStr][dateStr].push(entry);
+    });
+
+    const sortedMonths = Object.keys(groups).sort();
+
+    const calculateMetrics = (target: CuttingEntry[]) => {
+      const approved = target.filter(e => e.status === 'approved');
+      const calcTarget = approved.length > 0 ? approved : target;
+
+      const total_used = calcTarget.reduce((acc, c) => acc + (c.fabric_used_kg || 0), 0);
+      const total_remnants_issued = calcTarget.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
+      const total_cutting_scrap = calcTarget.reduce((acc, c) => acc + (c.cutting_scrap_weight_kg || 0), 0);
+      const total_spreading_scrap = calcTarget.reduce((acc, c) => acc + (c.remnant_weight_kg || 0), 0);
+      const total_marker_scrap_kg = total_cutting_scrap;
+      const total_length = calcTarget.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
+      const total_used_fabric_inch_val = calcTarget.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
+
+      const total_spread = Math.max(0, total_used - total_remnants_issued);
+      const remnants_issued_percent = total_used > 0 ? (total_remnants_issued / total_used) * 100 : 0;
+      const remnants_used = total_remnants_issued * 0.45;
+      const remnants_real_scrap = total_remnants_issued - remnants_used;
+      const remnants_scrap_percent = total_remnants_issued > 0 ? (remnants_real_scrap / total_remnants_issued) * 100 : 0;
+      const remnants_utilization_percent = total_remnants_issued > 0 ? (remnants_used / total_remnants_issued) * 100 : 0;
+
+      const cutting_scrap_percent = total_used > 0 ? (total_cutting_scrap / total_used) * 100 : 0;
+      const spreading_scrap_percent = total_used > 0 ? (total_spreading_scrap / total_used) * 100 : 0;
+      const actual_marker_scrap_percent = total_used > 0 ? (total_marker_scrap_kg / total_used) * 100 : 0;
+
+      let totalWeightedTheoreticalEff = 0;
+      let totalWeightedEteEff = 0;
+      calcTarget.forEach(e => {
+        totalWeightedTheoreticalEff += (e.marker_efficiency_percent || 0) * (e.fabric_used_kg || 0);
+        totalWeightedEteEff += (e.actual_physical_marker_efficiency_ete || 0) * (e.fabric_used_kg || 0);
+      });
+
+      const marker_provided_efficiency_weighted = total_used > 0 ? totalWeightedTheoreticalEff / total_used : 0;
+      const actual_ete_efficiency_weighted = total_used > 0 ? totalWeightedEteEff / total_used : 0;
+      const efficiency_gap = marker_provided_efficiency_weighted - actual_ete_efficiency_weighted;
+
+      return {
+        total_used: total_used.toFixed(1),
+        total_spread: total_spread.toFixed(1),
+        actual_marker_scrap_kg: total_marker_scrap_kg.toFixed(1),
+        actual_physical_ete_efficiency: actual_ete_efficiency_weighted.toFixed(1) + "%",
+        marker_provided_efficiency_weighted: marker_provided_efficiency_weighted.toFixed(1) + "%",
+        efficiency_gap: efficiency_gap.toFixed(1) + "%",
+        spreading_scrap_kg: total_spreading_scrap.toFixed(1),
+        actual_marker_scrap_percent: actual_marker_scrap_percent.toFixed(1) + "%",
+        spreading_scrap_percent: spreading_scrap_percent.toFixed(1) + "%",
+        remnants_fabric_issued: total_remnants_issued.toFixed(1),
+        remnants_fabric_used: remnants_used.toFixed(1),
+        remnants_scrap: remnants_real_scrap.toFixed(1),
+        remnants_issued_percent: remnants_issued_percent.toFixed(1) + "%",
+        remnants_scrap_percent: remnants_scrap_percent.toFixed(1) + "%",
+        remnants_utilization: remnants_utilization_percent.toFixed(1) + "%",
+        total_cutting_scrap: total_cutting_scrap.toFixed(1),
+        total_cutting_scrap_percent: cutting_scrap_percent.toFixed(1) + "%",
+        total_length: total_length.toLocaleString(),
+        total_used_fabric_inch: total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 })
+      };
+    };
+
+    const formatMonthName = (yearMonth: string) => {
+      if (yearMonth === "Unknown Month") return yearMonth;
+      const [year, month] = yearMonth.split("-");
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      const idx = parseInt(month, 10) - 1;
+      return idx >= 0 && idx < 12 ? `${monthNames[idx]} ${year}` : yearMonth;
+    };
+
+    let summaryRowsHtml = "";
+
+    sortedMonths.forEach(month => {
+      const dateMap = groups[month];
+      const sortedDates = Object.keys(dateMap).sort();
+
+      sortedDates.forEach(date => {
+        const dateEntries = dateMap[date];
+        const m = calculateMetrics(dateEntries);
+        summaryRowsHtml += `
+          <tr>
+            <td style="text-align: center; font-weight: normal; background-color: #FFFFFF;">${date}</td>
+            <td class="cell-default">${m.total_used}</td>
+            <td class="cell-green">${m.total_spread}</td>
+            <td class="cell-default">${m.actual_marker_scrap_kg}</td>
+            <td class="cell-green">${m.actual_physical_ete_efficiency}</td>
+            <td class="cell-default">${m.marker_provided_efficiency_weighted}</td>
+            <td class="cell-green">${m.efficiency_gap}</td>
+
+            <td class="cell-default">${m.spreading_scrap_kg}</td>
+            <td class="cell-green">${m.actual_marker_scrap_percent}</td>
+            <td class="cell-green">${m.spreading_scrap_percent}</td>
+
+            <td class="cell-default">${m.remnants_fabric_issued}</td>
+            <td class="cell-green">${m.remnants_fabric_used}</td>
+            <td class="cell-default">${m.remnants_scrap}</td>
+            <td class="cell-green">${m.remnants_issued_percent}</td>
+            <td class="cell-green">${m.remnants_scrap_percent}</td>
+            <td class="cell-green">${m.remnants_utilization}</td>
+
+            <td class="cell-default">${m.total_cutting_scrap}</td>
+            <td class="cell-green">${m.total_cutting_scrap_percent}</td>
+            <td class="cell-default">${m.total_length}</td>
+            <td class="cell-blue">${m.total_used_fabric_inch}</td>
+          </tr>
+        `;
+      });
+
+      const monthEntries: CuttingEntry[] = [];
+      sortedDates.forEach(date => {
+        monthEntries.push(...dateMap[date]);
+      });
+      const mMonth = calculateMetrics(monthEntries);
+      summaryRowsHtml += `
+        <tr style="font-weight: bold; background-color: #D9E1F2;">
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${formatMonthName(month)} Total</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.total_used}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.total_spread}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.actual_marker_scrap_kg}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.actual_physical_ete_efficiency}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.marker_provided_efficiency_weighted}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.efficiency_gap}</td>
+
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.spreading_scrap_kg}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.actual_marker_scrap_percent}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.spreading_scrap_percent}</td>
+
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.remnants_fabric_issued}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.remnants_fabric_used}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.remnants_scrap}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.remnants_issued_percent}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.remnants_scrap_percent}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.remnants_utilization}</td>
+
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.total_cutting_scrap}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.total_cutting_scrap_percent}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.total_length}</td>
+          <td style="text-align: center; font-weight: bold; background-color: #D9E1F2;">${mMonth.total_used_fabric_inch}</td>
+        </tr>
+      `;
+    });
+
+    summaryRowsHtml += `
+      <tr style="font-weight: bold; background-color: #BDD7EE;">
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">Overall Total</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_used}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_spread}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.actual_marker_scrap_kg}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.actual_physical_ete_efficiency}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.marker_provided_efficiency_weighted}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.efficiency_gap}%</td>
+
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.spreading_scrap_kg}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.actual_marker_scrap_percent}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.spreading_scrap_percent}%</td>
+
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_fabric_issued}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_fabric_used}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_scrap}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_issued_percent}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_scrap_percent}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_utilization}%</td>
+
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_cutting_scrap}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_cutting_scrap_percent}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_length}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_used_fabric_inch}</td>
+      </tr>
+    `;
+
     const html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
@@ -360,100 +549,45 @@ export default function ReportsModule({
         </table>
 
         <table>
-          <tr><td colspan="2" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
+          <tr><td colspan="20" class="section-header">DATE-WISE MONTHLY OVERALL FABRIC METRICS SUMMARY</td></tr>
         </table>
 
         <table>
           <thead>
             <tr>
-              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: left; font-size: 11pt; padding: 8px 12px;">Metric Name</th>
-              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; width: 180px; padding: 8px 12px;">Value</th>
+              <th style="background-color: #1F4E78; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" rowspan="2">Period / Date</th>
+              <th style="background-color: #7F7F7F; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">General & Efficiency</th>
+              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="3">Edge / Spreading Scrap</th>
+              <th style="background-color: #375623; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">Remnants Analytics</th>
+              <th style="background-color: #7030A0; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="4">Cutting & Lengths</th>
+            </tr>
+            <tr>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Used in KG</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Spread in KG</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker Scrap (KG)</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Marker Provided Eff%(Wtd)</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Efficiency Gap</th>
+
+              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap (KG)</th>
+              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker Scrap %</th>
+              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap%</th>
+
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric issued (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Used (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric(Issued ) %</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap%</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Utilization %</th>
+
+              <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap</th>
+              <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap %</th>
+              <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Length (Inch)</th>
+              <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Used Fabric (Inch)</th>
             </tr>
           </thead>
           <tbody>
-            <!-- Group 1: General (Gray) -->
-            <tr>
-              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Total Fabric Used in KG</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.total_used}</td>
-            </tr>
-            <tr>
-              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Total Fabric Spread in KG</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.total_spread}</td>
-            </tr>
-            <tr>
-              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Actual Marker Scrap (KG)</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.actual_marker_scrap_kg}</td>
-            </tr>
-            <tr>
-              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.actual_physical_ete_efficiency}%</td>
-            </tr>
-            <tr>
-              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Marker Provided Eff%(Wtd)</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.marker_provided_efficiency_weighted}%</td>
-            </tr>
-            <tr>
-              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Efficiency Gap</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.efficiency_gap}%</td>
-            </tr>
-
-            <!-- Group 2: Edge/Spreading (Blue) -->
-            <tr>
-              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Edge/Spreading Scrap (KG)</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.spreading_scrap_kg}</td>
-            </tr>
-            <tr>
-              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Actual Marker Scrap %</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.actual_marker_scrap_percent}%</td>
-            </tr>
-            <tr>
-              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Edge/Spreading Scrap%</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.spreading_scrap_percent}%</td>
-            </tr>
-
-            <!-- Group 3: Remnants (Green) -->
-            <tr>
-              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric issued (KG)</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.remnants_fabric_issued}</td>
-            </tr>
-            <tr>
-              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric Used (KG)</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_fabric_used}</td>
-            </tr>
-            <tr>
-              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Scrap (KG)</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.remnants_scrap}</td>
-            </tr>
-            <tr>
-              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric(Issued ) %</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_issued_percent}%</td>
-            </tr>
-            <tr>
-              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Scrap%</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_scrap_percent}%</td>
-            </tr>
-            <tr>
-              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric Utilization %</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_utilization}%</td>
-            </tr>
-
-            <!-- Group 4: Cutting & Lengths (Lavender) -->
-            <tr>
-              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Cutting Scrap</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.total_cutting_scrap}</td>
-            </tr>
-            <tr>
-              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Cutting Scrap %</td>
-              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.total_cutting_scrap_percent}%</td>
-            </tr>
-            <tr>
-              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Length (Inch)</td>
-              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.total_length}</td>
-            </tr>
-            <tr>
-              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Used Fabric (Inch)</td>
-              <td class="cell-blue" style="padding: 6px 12px;">${reportMetrics.total_used_fabric_inch}</td>
-            </tr>
+            ${summaryRowsHtml}
           </tbody>
         </table>
 
@@ -603,16 +737,14 @@ export default function ReportsModule({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Approval Status</label>
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Color</label>
             <select
-              value={filterStatus}
-              onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+              value={filterColor}
+              onChange={e => { setFilterColor(e.target.value); setCurrentPage(1); }}
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
-              <option value="">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="submitted">Submitted</option>
-              <option value="approved">Approved</option>
+              <option value="">All Colors</option>
+              {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 

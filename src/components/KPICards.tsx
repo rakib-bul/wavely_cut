@@ -35,7 +35,7 @@ export default function KPICards({ metrics }: KPICardsProps) {
       statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
     },
     {
-      title: "Actual Fabric Spread",
+      title: "Total Fabric Spread",
       amount: metrics.total_fabric_spread.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
       unit: "KG",
       desc: "Fabric laid after subtracting remnant/roll-end waste",

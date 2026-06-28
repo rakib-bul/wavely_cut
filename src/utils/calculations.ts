@@ -35,9 +35,9 @@ export function calculateFields(entry: Omit<CuttingEntry, 'total_length_inch' | 
     : 0;
 
   // 6. Actual Marker Scrap (KG)
-  // Leftover fabric inside layout, calculated on net fabric after deducting remnants and spreading scrap
+  // Actual Marker Scrap (KG) = Cutting Scrap (KG)
   const net_fabric_kg = Math.max(0, fabric_used_kg - remnant_weight_kg - spreading_scrap_kg);
-  const actual_marker_scrap_kg = parseFloat((net_fabric_kg * ((100 - marker_efficiency_percent) / 100)).toFixed(3));
+  const actual_marker_scrap_kg = cutting_scrap_weight_kg;
 
   // 7. Actual Marker Scrap %
   const actual_marker_scrap_percent = fabric_used_kg > 0
