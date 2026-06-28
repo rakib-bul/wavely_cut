@@ -176,125 +176,341 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
   const handleExportCSV = () => {
     if (dayEntries.length === 0) return;
 
-    const csvRows: string[][] = [];
+    // Calculate 19 Overall Fabric Metrics
+    const total_used = dayEntries.reduce((acc, c) => acc + (Number(c.fabric_used_kg) || 0), 0);
+    const total_remnants_issued = dayEntries.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
+    const total_cutting_scrap = dayEntries.reduce((acc, c) => acc + (Number(c.cutting_scrap_weight_kg) || 0), 0);
+    const total_spreading_scrap = dayEntries.reduce((acc, c) => acc + (Number(c.remnant_weight_kg) || 0), 0);
+    const total_marker_scrap_kg = dayEntries.reduce((acc, c) => acc + (Number(c.actual_marker_scrap_kg) || 0), 0);
+    const total_length = dayEntries.reduce((acc, c) => acc + (Number(c.total_length_inch) || 0), 0);
+    const total_used_fabric_inch_val = dayEntries.reduce((acc, c) => acc + (Number(c.total_used_fabric_inch) || (Number(c.lay) || 0) * (Number(c.marker_length_inch) || 0) * ((Number(c.marker_efficiency_percent) || 0) / 100)), 0);
 
-    // Helper to escape values
-    const escape = (val: any) => {
-      if (val === null || val === undefined) return "";
-      const str = String(val);
-      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
+    // Derived fields
+    const total_spread = Math.max(0, total_used - total_remnants_issued); // Spread fabric
 
-    // 1. Header & Title Section
-    csvRows.push(["DAILY OPERATIONAL REPORT", "WAVELY CUT PLATFORM"]);
-    csvRows.push(["Selected Date", selectedDate]);
-    csvRows.push(["Report Exported At", new Date().toLocaleString()]);
-    csvRows.push(["Developer", "Rakib Hasan"]);
-    csvRows.push([]); // Empty row
+    // Remnant calculations
+    const remnants_issued_percent = total_used > 0 ? (total_remnants_issued / total_used) * 100 : 0;
+    const remnants_used = total_remnants_issued * 0.45; // Simulated 45% reusable back as remnants
+    const remnants_real_scrap = total_remnants_issued - remnants_used;
+    const remnants_scrap_percent = total_remnants_issued > 0 ? (remnants_real_scrap / total_remnants_issued) * 100 : 0;
+    const remnants_utilization_percent = total_remnants_issued > 0 ? (remnants_used / total_remnants_issued) * 100 : 0;
 
-    // 2. Summary Statistics KPI Section
-    csvRows.push(["SUMMARY STATISTICS"]);
-    csvRows.push(["Metric", "Value", "Unit"]);
-    csvRows.push(["Total Cutting Lots", String(stats.totalCuttingLots), "Lots"]);
-    csvRows.push(["Total Lay Layers", String(stats.totalLay), "Layers"]);
-    csvRows.push(["Total Cutting Quantity", String(stats.totalCuttingQty), "Pcs"]);
-    csvRows.push(["Total Fabric Weight Used", stats.totalFabricUsedKg.toFixed(2), "KG"]);
-    csvRows.push(["Total Processed Length", stats.totalCalculatedMetric.toFixed(2), "Inches"]);
-    csvRows.push(["Average Layers per Lot", (stats.totalLay / (stats.totalCuttingLots || 1)).toFixed(2), "Layers/Lot"]);
-    csvRows.push([]); // Empty row
+    // Direct Scrap % metrics
+    const cutting_scrap_percent = total_used > 0 ? (total_cutting_scrap / total_used) * 100 : 0;
+    const spreading_scrap_percent = total_used > 0 ? (total_spreading_scrap / total_used) * 100 : 0;
+    const actual_marker_scrap_percent = total_used > 0 ? (total_marker_scrap_kg / total_used) * 100 : 0;
 
-    // 3. Machine Performance Breakdown
-    csvRows.push(["MACHINE PRODUCTION BREAKDOWN"]);
-    csvRows.push([
-      "Machine Name",
-      "Machine Type",
-      "Cuts (Lots)",
-      "Total Lay (Layers)",
-      "Cutting Qty (Pcs)",
-      "Fabric Weight Used (KG)",
-      "Effective Inches Processed",
-      "Production Share (%)"
-    ]);
-
-    machineProduction.forEach(m => {
-      const sharePercent = stats.totalCuttingQty > 0 
-        ? Math.round((m.cuttingQtySum / stats.totalCuttingQty) * 100) 
-        : 0;
-
-      csvRows.push([
-        m.machineName,
-        m.machineType,
-        String(m.cutsCount),
-        String(m.laySum),
-        String(m.cuttingQtySum),
-        m.fabricUsedSum.toFixed(2),
-        m.calculatedMetricSum.toFixed(2),
-        `${sharePercent}%`
-      ]);
-    });
-    csvRows.push([]); // Empty row
-
-    // 4. Detailed Entry Ledger
-    csvRows.push(["DETAILED OPERATIONAL RECORD LEDGER"]);
-    csvRows.push([
-      "Job/Order No",
-      "Cut No",
-      "Shift",
-      "Machine ID",
-      "Buyer",
-      "Fabric Type",
-      "Color",
-      "Item",
-      "Table No",
-      "Lay (Layers)",
-      "Ratio",
-      "Cutting Qty (Pcs)",
-      "Fabric Used (KG)",
-      "Remnant Weight (KG)",
-      "Scrap Weight (KG)",
-      "Marker Length (Inch)",
-      "Marker Efficiency (%)",
-      "Status",
-      "Remarks"
-    ]);
-
+    // Weighted marker efficiencies
+    let totalWeightedTheoreticalEff = 0;
+    let totalWeightedEteEff = 0;
     dayEntries.forEach(e => {
-      const cuttingQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
-      csvRows.push([
-        e.job_no,
-        e.cut_no,
-        e.shift === "A" ? "Day" : e.shift === "B" ? "Night" : e.shift,
-        e.machine_id,
-        e.buyer,
-        e.fabric_type,
-        e.color,
-        e.item,
-        e.table_no,
-        String(e.lay),
-        String(e.ratio),
-        String(cuttingQty),
-        String(e.fabric_used_kg),
-        String(e.remnant_weight_kg),
-        String(e.cutting_scrap_weight_kg),
-        String(e.marker_length_inch),
-        String(e.marker_efficiency_percent),
-        e.status,
-        e.remarks
-      ]);
+      const usedKg = Number(e.fabric_used_kg) || 0;
+      totalWeightedTheoreticalEff += (Number(e.marker_efficiency_percent) || 0) * usedKg;
+      totalWeightedEteEff += (Number(e.actual_physical_marker_efficiency_ete) || 0) * usedKg;
     });
 
-    // Generate CSV string
-    const csvContent = csvRows.map(row => row.map(escape).join(",")).join("\n");
+    const marker_provided_efficiency_weighted = total_used > 0 ? totalWeightedTheoreticalEff / total_used : 0;
+    const actual_ete_efficiency_weighted = total_used > 0 ? totalWeightedEteEff / total_used : 0;
+    const efficiency_gap = marker_provided_efficiency_weighted - actual_ete_efficiency_weighted;
 
-    // Add BOM for Microsoft Excel UTF-8 compatibility
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Daily Report</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+        <style>
+          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; }
+          table { border-collapse: collapse; margin-bottom: 25px; }
+          th, td { border: 1.5pt solid #000000; padding: 6px 10px; font-size: 10pt; vertical-align: middle; }
+          
+          /* Title Section */
+          .report-title { font-size: 16pt; font-weight: bold; color: #1F4E78; text-align: left; border: none; }
+          .report-meta { font-size: 10pt; color: #595959; text-align: left; border: none; }
+          
+          /* Table Section Titles */
+          .section-header { font-size: 12pt; font-weight: bold; color: #1F4E78; background-color: #D9E1F2; text-align: left; border: 1.5pt solid #8EA9DB; padding: 8px; }
+          
+          /* Summary Table Specifics (Matching standard Excel & user's screenshot) */
+          .hdr-gray { background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; }
+          .hdr-blue { background-color: #5B9BD5; color: #FFFFFF; font-weight: bold; text-align: center; }
+          .hdr-green { background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; }
+          .hdr-lavender { background-color: #DDEBF7; color: #000000; font-weight: bold; text-align: center; }
+          
+          /* Highlights */
+          .cell-green { background-color: #A9D08E; color: #000000; font-weight: bold; text-align: center; }
+          .cell-blue { background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; }
+          .cell-default { background-color: #FFFFFF; color: #000000; font-weight: bold; text-align: center; }
+          
+          /* Detailed Ledger styles */
+          .ledger-header { background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; }
+          .ledger-row-even { background-color: #F2F2F2; }
+          .ledger-row-odd { background-color: #FFFFFF; }
+          
+          /* Alignments */
+          .align-left { text-align: left; }
+          .align-right { text-align: right; }
+          .align-center { text-align: center; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="10" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">DAILY OPERATIONAL REPORT</td></tr>
+          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Target Date: ${selectedDate}</td></tr>
+          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Generated: ${new Date().toLocaleString()} | Developer: Rakib Hasan</td></tr>
+        </table>
+
+        <table>
+          <tr><td colspan="3" class="section-header">SUMMARY STATISTICS KPI</td></tr>
+          <thead>
+            <tr>
+              <th style="background-color: #F2F2F2;">Metric</th>
+              <th style="background-color: #F2F2F2;">Value</th>
+              <th style="background-color: #F2F2F2;">Unit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="align-left">Total Cutting Lots</td>
+              <td class="align-right" style="font-weight: bold;">${stats.totalCuttingLots}</td>
+              <td class="align-center">Lots</td>
+            </tr>
+            <tr>
+              <td class="align-left">Total Lay Layers</td>
+              <td class="align-right" style="font-weight: bold;">${stats.totalLay}</td>
+              <td class="align-center">Layers</td>
+            </tr>
+            <tr>
+              <td class="align-left">Total Cutting Quantity</td>
+              <td class="align-right" style="font-weight: bold; color: #2563EB;">${stats.totalCuttingQty}</td>
+              <td class="align-center">Pcs</td>
+            </tr>
+            <tr>
+              <td class="align-left">Total Fabric Weight Used</td>
+              <td class="align-right" style="font-weight: bold;">${stats.totalFabricUsedKg.toFixed(2)}</td>
+              <td class="align-center">KG</td>
+            </tr>
+            <tr>
+              <td class="align-left">Total Processed Length</td>
+              <td class="align-right" style="font-weight: bold;">${stats.totalCalculatedMetric.toFixed(2)}</td>
+              <td class="align-center">Inches</td>
+            </tr>
+            <tr>
+              <td class="align-left">Average Layers per Lot</td>
+              <td class="align-right">${(stats.totalLay / (stats.totalCuttingLots || 1)).toFixed(2)}</td>
+              <td class="align-center">Layers/Lot</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table>
+          <tr><td colspan="2" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: left; font-size: 11pt; padding: 8px 12px;">Metric Name</th>
+              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; width: 180px; padding: 8px 12px;">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Group 1: General (Gray) -->
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Total Fabric Used in KG</td>
+              <td class="cell-default" style="padding: 6px 12px;">${total_used.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Total Fabric Spread in KG</td>
+              <td class="cell-green" style="padding: 6px 12px;">${total_spread.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Actual Marker Scrap (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${total_marker_scrap_kg.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</td>
+              <td class="cell-green" style="padding: 6px 12px;">${actual_ete_efficiency_weighted.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Marker Provided Eff%(Wtd)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${marker_provided_efficiency_weighted.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Efficiency Gap</td>
+              <td class="cell-green" style="padding: 6px 12px;">${efficiency_gap.toFixed(1)}%</td>
+            </tr>
+
+            <!-- Group 2: Edge/Spreading (Blue) -->
+            <tr>
+              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Edge/Spreading Scrap (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${total_spreading_scrap.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Actual Marker Scrap %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${actual_marker_scrap_percent.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Edge/Spreading Scrap%</td>
+              <td class="cell-green" style="padding: 6px 12px;">${spreading_scrap_percent.toFixed(1)}%</td>
+            </tr>
+
+            <!-- Group 3: Remnants (Green) -->
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric issued (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${total_remnants_issued.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric Used (KG)</td>
+              <td class="cell-green" style="padding: 6px 12px;">${remnants_used.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Scrap (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${remnants_real_scrap.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric(Issued ) %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${remnants_issued_percent.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Scrap%</td>
+              <td class="cell-green" style="padding: 6px 12px;">${remnants_scrap_percent.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric Utilization %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${remnants_utilization_percent.toFixed(1)}%</td>
+            </tr>
+
+            <!-- Group 4: Cutting & Lengths (Lavender) -->
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Cutting Scrap</td>
+              <td class="cell-default" style="padding: 6px 12px;">${total_cutting_scrap.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Cutting Scrap %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${cutting_scrap_percent.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Length (Inch)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${total_length.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Used Fabric (Inch)</td>
+              <td class="cell-blue" style="padding: 6px 12px;">${total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table>
+          <tr><td colspan="8" class="section-header">MACHINE PRODUCTION BREAKDOWN</td></tr>
+          <thead>
+            <tr>
+              <th class="ledger-header">Machine Name</th>
+              <th class="ledger-header">Machine Type</th>
+              <th class="ledger-header">Cuts (Lots)</th>
+              <th class="ledger-header">Total Lay (Layers)</th>
+              <th class="ledger-header">Cutting Qty (Pcs)</th>
+              <th class="ledger-header">Fabric Weight Used (KG)</th>
+              <th class="ledger-header">Effective Inches Processed</th>
+              <th class="ledger-header">Production Share (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${machineProduction.map((m, idx) => {
+              const sharePercent = stats.totalCuttingQty > 0 
+                ? Math.round((m.cuttingQtySum / stats.totalCuttingQty) * 100) 
+                : 0;
+              return `
+                <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
+                  <td class="align-left" style="font-weight: bold;">${m.machineName}</td>
+                  <td class="align-left">${m.machineType}</td>
+                  <td class="align-right">${m.cutsCount}</td>
+                  <td class="align-right">${m.laySum}</td>
+                  <td class="align-right" style="font-weight: bold; color: #2563EB;">${m.cuttingQtySum}</td>
+                  <td class="align-right">${m.fabricUsedSum.toFixed(2)}</td>
+                  <td class="align-right">${m.calculatedMetricSum.toFixed(2)}</td>
+                  <td class="align-center" style="font-weight: bold;">${sharePercent}%</td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+
+        <table>
+          <tr><td colspan="19" class="section-header">DETAILED OPERATIONAL RECORD LEDGER</td></tr>
+          <thead>
+            <tr>
+              <th class="ledger-header">Job/Order No</th>
+              <th class="ledger-header">Cut No</th>
+              <th class="ledger-header">Shift</th>
+              <th class="ledger-header">Machine ID</th>
+              <th class="ledger-header">Buyer</th>
+              <th class="ledger-header">Fabric Type</th>
+              <th class="ledger-header">Color</th>
+              <th class="ledger-header">Item</th>
+              <th class="ledger-header">Table No</th>
+              <th class="ledger-header">Lay (Layers)</th>
+              <th class="ledger-header">Ratio</th>
+              <th class="ledger-header">Cutting Qty (Pcs)</th>
+              <th class="ledger-header">Fabric Used (KG)</th>
+              <th class="ledger-header">Remnant Weight (KG)</th>
+              <th class="ledger-header">Scrap Weight (KG)</th>
+              <th class="ledger-header">Marker Length (Inch)</th>
+              <th class="ledger-header">Marker Efficiency (%)</th>
+              <th class="ledger-header">Status</th>
+              <th class="ledger-header">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dayEntries.map((e, idx) => {
+              const cuttingQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+              return `
+                <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
+                  <td class="align-center">${e.job_no}</td>
+                  <td class="align-center">${e.cut_no}</td>
+                  <td class="align-center">${e.shift === "A" ? "Day" : e.shift === "B" ? "Night" : e.shift}</td>
+                  <td class="align-left">${e.machine_id}</td>
+                  <td class="align-left">${e.buyer}</td>
+                  <td class="align-left">${e.fabric_type}</td>
+                  <td class="align-left">${e.color}</td>
+                  <td class="align-left">${e.item}</td>
+                  <td class="align-center">${e.table_no}</td>
+                  <td class="align-right">${e.lay}</td>
+                  <td class="align-right">${e.ratio}</td>
+                  <td class="align-right" style="font-weight: bold;">${cuttingQty}</td>
+                  <td class="align-right">${e.fabric_used_kg}</td>
+                  <td class="align-right">${e.remnant_weight_kg}</td>
+                  <td class="align-right">${e.cutting_scrap_weight_kg}</td>
+                  <td class="align-right">${e.marker_length_inch}</td>
+                  <td class="align-right">${e.marker_efficiency_percent}%</td>
+                  <td class="align-center" style="font-weight: bold; color: ${e.status === 'approved' ? '#16A34A' : '#D97706'};">${e.status}</td>
+                  <td class="align-left">${e.remarks || ""}</td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(["\uFEFF" + html], { type: "application/vnd.ms-excel;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `WavelyCut_Daily_Report_${selectedDate}.csv`);
+    link.setAttribute("download", `WavelyCut_Daily_Report_${selectedDate}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

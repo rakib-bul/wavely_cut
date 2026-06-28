@@ -41,6 +41,22 @@ const PREDEFINED_ITEMS = [
   "Tank Top"
 ];
 
+const PREDEFINED_FABRICS = [
+  "Singel Jersey",
+  "Heavy Jersey",
+  "Fleece",
+  "Slub Jersey",
+  "Mesh",
+  "Waffle",
+  "Terry",
+  "Rib",
+  "Ottoman Jersey",
+  "Interlock",
+  "Viscose",
+  "Lycra",
+  "PK"
+];
+
 export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport }: DataEntryFormProps) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
@@ -74,6 +90,8 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHotkeys, setShowHotkeys] = useState(false);
   const [forceCustomItem, setForceCustomItem] = useState(false);
+  const [forceCustomFabric, setForceCustomFabric] = useState(false);
+  const [forceCustomBuyer, setForceCustomBuyer] = useState(false);
 
   // --- Autosave Draft State ---
   const [hasDraft, setHasDraft] = useState(false);
@@ -91,6 +109,12 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         setHasDraft(true);
         if (parsed.item && !PREDEFINED_ITEMS.includes(parsed.item)) {
           setForceCustomItem(true);
+        }
+        if (parsed.fabric_type && !PREDEFINED_FABRICS.includes(parsed.fabric_type)) {
+          setForceCustomFabric(true);
+        }
+        if (parsed.buyer && !buyers.some(b => b.name.toUpperCase() === parsed.buyer.toUpperCase())) {
+          setForceCustomBuyer(true);
         }
       } catch (e) {
         console.error("Failed to parse autosaved draft", e);
@@ -213,6 +237,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
           machine_id: formData.machine_id
         });
         setForceCustomItem(false);
+        setForceCustomFabric(false);
       } else {
         setValidationError(res.error || "An database submission error occurred.");
       }
@@ -230,6 +255,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     setValidationError(null);
     setSubmitSuccess(null);
     setForceCustomItem(false);
+    setForceCustomFabric(false);
   };
 
   const loadLastDraft = () => {
@@ -246,6 +272,11 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         setForceCustomItem(true);
       } else {
         setForceCustomItem(false);
+      }
+      if (parsed.fabric_type && !PREDEFINED_FABRICS.includes(parsed.fabric_type)) {
+        setForceCustomFabric(true);
+      } else {
+        setForceCustomFabric(false);
       }
     }
   };
@@ -470,19 +501,42 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               {/* 1. Buyer */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Buyer</label>
-                <select
-                  name="buyer"
-                  value={formData.buyer}
-                  onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
-                >
-                  <option value="">-- Choose Buyer --</option>
-                  {buyers.map(b => (
-                    <option key={b.id || b.name} value={b.name}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  <select
+                    name="buyer_select"
+                    value={formData.buyer !== "" && !buyers.some(b => b.name.toUpperCase() === formData.buyer.toUpperCase()) ? "custom" : formData.buyer}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "custom") {
+                        setFormData(prev => ({ ...prev, buyer: "" }));
+                        setForceCustomBuyer(true);
+                      } else {
+                        setFormData(prev => ({ ...prev, buyer: val }));
+                        setForceCustomBuyer(false);
+                      }
+                    }}
+                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
+                  >
+                    <option value="">-- Choose Buyer --</option>
+                    {buyers.map(b => (
+                      <option key={b.id || b.name} value={b.name}>
+                        {b.name}
+                      </option>
+                    ))}
+                    <option value="custom">Custom / Other</option>
+                  </select>
+
+                  {(forceCustomBuyer || (formData.buyer !== "" && !buyers.some(b => b.name.toUpperCase() === formData.buyer.toUpperCase()))) && (
+                    <input
+                      type="text"
+                      name="buyer"
+                      placeholder="Type custom buyer partner"
+                      value={formData.buyer}
+                      onChange={handleInputChange}
+                      className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs animate-fade-in"
+                    />
+                  )}
+                </div>
               </div>
 
               {/* 2. Job no */}
@@ -599,13 +653,40 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               {/* 9. Fabric type */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Fabric type</label>
-                <input
-                  type="text"
-                  name="fabric_type"
-                  value={formData.fabric_type}
-                  onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
-                />
+                <div className="space-y-2">
+                  <select
+                    name="fabric_type_select"
+                    value={formData.fabric_type !== "" && !PREDEFINED_FABRICS.includes(formData.fabric_type) ? "custom" : formData.fabric_type}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "custom") {
+                        setFormData(prev => ({ ...prev, fabric_type: "" }));
+                        setForceCustomFabric(true);
+                      } else {
+                        setFormData(prev => ({ ...prev, fabric_type: val }));
+                        setForceCustomFabric(false);
+                      }
+                    }}
+                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
+                  >
+                    <option value="">-- Choose Fabric --</option>
+                    {PREDEFINED_FABRICS.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                    <option value="custom">Custom / Other</option>
+                  </select>
+
+                  {(forceCustomFabric || (formData.fabric_type !== "" && !PREDEFINED_FABRICS.includes(formData.fabric_type))) && (
+                    <input
+                      type="text"
+                      name="fabric_type"
+                      placeholder="Type custom fabric type"
+                      value={formData.fabric_type}
+                      onChange={handleInputChange}
+                      className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs animate-fade-in"
+                    />
+                  )}
+                </div>
               </div>
 
               {/* 10. Parts(qty) */}

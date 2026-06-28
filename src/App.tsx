@@ -28,7 +28,9 @@ import {
   AlertCircle,
   Key,
   Trash2,
-  Sparkles
+  Sparkles,
+  Download,
+  Upload
 } from "lucide-react";
 
 export default function App() {
@@ -70,6 +72,26 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // --- Auto Sync State & Configurations ---
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("erp_auto_sync_enabled");
+      return saved === "false" ? false : true;
+    } catch {
+      return true;
+    }
+  });
+  const [syncInterval, setSyncInterval] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("erp_sync_interval_sec");
+      return saved ? Number(saved) : 10;
+    } catch {
+      return 10;
+    }
+  });
+  const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
+  const [showSyncMenu, setShowSyncMenu] = useState<boolean>(false);
 
   // --- Selected Edit Modal State ---
   const [editingEntry, setEditingEntry] = useState<CuttingEntry | null>(null);
@@ -179,6 +201,8 @@ export default function App() {
       } catch (profErr) {
         console.warn("Could not fetch profiles list silently:", profErr);
       }
+
+      setLastSyncedTime(new Date());
     } catch (err: any) {
       // For background auto-sync, connection drops are common and transient (especially during local dev server restarts)
       if (isSilent) {
@@ -196,17 +220,20 @@ export default function App() {
     }
   };
 
-  // Refetch when currently logged-in profile shifts, and set up automatic background synchronization
+  // Setup dynamic background auto-sync responsive to toggle and interval configurations
   useEffect(() => {
-    fetchData(false); // Initial load: not silent
+    fetchData(false); // Initial load on profile change
+  }, [currentProfile]);
 
-    // Auto sync silently every 10 seconds with Supabase PostgreSQL database
+  useEffect(() => {
+    if (!isAutoSyncEnabled || syncInterval <= 0 || !currentProfile) return;
+
     const interval = setInterval(() => {
-      fetchData(true); // Background sync: silent
-    }, 10000);
+      fetchData(true); // Background sync silently
+    }, syncInterval * 1000);
 
     return () => clearInterval(interval);
-  }, [currentProfile]);
+  }, [currentProfile, isAutoSyncEnabled, syncInterval]);
 
   // --- SWITCH SIMULATED PROFILE (User Switching) ---
   const handleSwitchProfile = (p: Profile) => {
@@ -499,6 +526,94 @@ export default function App() {
     }
   };
 
+  // --- DOWNLOAD BUYERS CACHE FILE IN BROWSER ---
+  const handleDownloadBuyersCache = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(buyers, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "buyers_cache.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err: any) {
+      alert("Failed to download buyers cache file: " + err.message);
+    }
+  };
+
+  // --- UPLOAD / RESTORE BUYERS CACHE FILE IN BROWSER ---
+  const handleUploadBuyersCache = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        
+        if (!Array.isArray(parsed)) {
+          alert("Invalid cache file format: Expected an array of buyers.");
+          return;
+        }
+
+        // Validate structure and find new buyers
+        const newBuyerNames: string[] = [];
+        parsed.forEach((item: any) => {
+          let name = "";
+          if (typeof item === "string") {
+            name = item.trim().toUpperCase();
+          } else if (item && typeof item === "object" && typeof item.name === "string") {
+            name = item.name.trim().toUpperCase();
+          }
+          if (name && !buyers.some(b => b.name.toUpperCase() === name) && !newBuyerNames.includes(name)) {
+            newBuyerNames.push(name);
+          }
+        });
+
+        if (newBuyerNames.length === 0) {
+          alert("No new buyers to import from the cache file.");
+          return;
+        }
+
+        if (!confirm(`Found ${newBuyerNames.length} new buyer partner(s). Would you like to import them into the database to automatically sync for all users?`)) {
+          return;
+        }
+
+        // Register each new buyer in the backend
+        let successCount = 0;
+        const headers = {
+          "Content-Type": "application/json",
+          "X-User-Role": currentProfile?.role || "user",
+          "X-User-Email": currentProfile?.email || ""
+        };
+
+        for (const name of newBuyerNames) {
+          try {
+            const res = await fetch("/api/buyers", {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+              successCount++;
+            }
+          } catch (itemErr) {
+            console.error("Failed to register buyer during cache import:", name, itemErr);
+          }
+        }
+
+        alert(`Successfully imported and registered ${successCount} out of ${newBuyerNames.length} new buyer partners!`);
+        await fetchData(); // Sync state with database
+      } catch (err: any) {
+        alert("Failed to read or parse the cache file: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    // Reset the input value so user can upload same file again
+    event.target.value = "";
+  };
+
   // --- Categorize Main vs Stripe Cutting Entries ---
   const { mainEntries, stripeEntries } = useMemo(() => {
     const stripeMachineIds = new Set(
@@ -776,14 +891,120 @@ export default function App() {
             <span className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Active Session
             </span>
-            <span 
-              className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs"
-              title="Real-time auto-sync with Supabase PostgreSQL is active"
-            >
-              <RefreshCw size={12} className={`text-emerald-500 ${isSyncing || isLoading ? "animate-spin" : ""}`} />
-              <span className="text-slate-500 dark:text-slate-400 font-bold">Auto-Sync</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            </span>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setShowSyncMenu(!showSyncMenu)}
+                className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                title="Configure live data & buyers synchronization"
+              >
+                <RefreshCw size={12} className={`${isAutoSyncEnabled ? "text-emerald-500" : "text-slate-400"} ${isSyncing || isLoading ? "animate-spin" : ""}`} />
+                <span className="text-slate-700 dark:text-slate-300">Sync Options</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${isAutoSyncEnabled ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+              </button>
+
+              {showSyncMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowSyncMenu(false)} 
+                  />
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-4 z-50 animate-fade-in text-xs text-slate-700 dark:text-slate-300 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <span className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Sync Ledger & Buyers</span>
+                      <button 
+                        onClick={() => {
+                          fetchData(true);
+                          setShowSyncMenu(false);
+                        }}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer flex items-center gap-1"
+                        title="Fetch latest buyers & entries right now"
+                      >
+                        <RefreshCw size={10} className={isSyncing ? "animate-spin" : ""} /> Sync Now
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <p className="font-bold">Background Sync</p>
+                        <p className="text-[10px] text-slate-400">Keep buyers list & logs up to date</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={isAutoSyncEnabled}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setIsAutoSyncEnabled(val);
+                            localStorage.setItem("erp_auto_sync_enabled", String(val));
+                          }}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-9 h-5 bg-slate-200 dark:bg-slate-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500" />
+                      </label>
+                    </div>
+
+                    {isAutoSyncEnabled && (
+                      <div className="space-y-1.5">
+                        <label className="font-bold block text-slate-500 dark:text-slate-400">Polling Interval</label>
+                        <div className="grid grid-cols-4 gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-xl border border-slate-100 dark:border-slate-850">
+                          {[5, 10, 30, 60].map((sec) => (
+                            <button
+                              key={sec}
+                              onClick={() => {
+                                setSyncInterval(sec);
+                                localStorage.setItem("erp_sync_interval_sec", String(sec));
+                              }}
+                              className={`py-1.5 text-center font-extrabold rounded-lg transition-all text-[10px] cursor-pointer ${
+                                syncInterval === sec 
+                                  ? "bg-white dark:bg-slate-850 text-slate-900 dark:text-white shadow-xs border border-slate-200/50 dark:border-slate-700/50" 
+                                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                              }`}
+                            >
+                              {sec}s
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Local Cache File Backup section */}
+                    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                      <p className="font-bold block text-slate-500 dark:text-slate-400">Browser Cache Backup</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={handleDownloadBuyersCache}
+                          className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl font-bold transition-all text-[10px] cursor-pointer"
+                          title="Save current buyers as buyers_cache.json"
+                        >
+                          <Download size={11} className="text-blue-500" />
+                          <span>Export File</span>
+                        </button>
+                        
+                        <label
+                          className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl font-bold transition-all text-[10px] cursor-pointer"
+                          title="Restore buyers cache from a .json file"
+                        >
+                          <Upload size={11} className="text-emerald-500" />
+                          <span>Import File</span>
+                          <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleUploadBuyersCache}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2 font-medium">
+                      <span>Status: {isSyncing ? "Synchronizing..." : "Idle"}</span>
+                      <span>Last: {lastSyncedTime.toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
               className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 py-2 px-3.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
@@ -913,6 +1134,8 @@ export default function App() {
                   rlsDDL={RLS_DDL_STRING}
                   buyers={buyers}
                   onAddBuyer={handleAddBuyer}
+                  onDownloadBuyersCache={handleDownloadBuyersCache}
+                  onUploadBuyersCache={handleUploadBuyersCache}
                 />
               </div>
             )}
@@ -981,17 +1204,20 @@ export default function App() {
 
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Buyer Partner</label>
-                <select 
+                <input 
+                  type="text"
                   value={editingEntry.buyer}
-                  onChange={e => setEditingEntry({ ...editingEntry, buyer: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none cursor-pointer"
+                  onChange={e => setEditingEntry({ ...editingEntry, buyer: e.target.value.toUpperCase() })}
+                  list="edit-buyer-datalist"
+                  placeholder="Type or select buyer..."
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none font-bold text-slate-800 dark:text-slate-150"
                   required
-                >
-                  <option value="">-- Select Buyer --</option>
+                />
+                <datalist id="edit-buyer-datalist">
                   {buyers.map(b => (
-                    <option key={b.id || b.name} value={b.name}>{b.name}</option>
+                    <option key={b.id || b.name} value={b.name} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div>

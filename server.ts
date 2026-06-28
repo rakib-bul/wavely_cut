@@ -27,6 +27,41 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 // In-memory cache for database buyers
 let cachedBuyers: any[] | null = null;
 
+// Helper to auto-sync and register new buyers in the DB buyers table
+async function ensureBuyerExists(buyerName: string) {
+  if (!buyerName) return;
+  const cleanName = buyerName.trim().toUpperCase();
+  if (!cleanName) return;
+
+  try {
+    // Check if buyer already exists in buyers table
+    const { data: existing, error: checkError } = await supabase
+      .from("buyers")
+      .select("id")
+      .ilike("name", cleanName);
+
+    if (checkError) {
+      console.warn("Error checking existing buyer:", checkError.message);
+    }
+
+    if (!existing || existing.length === 0) {
+      // Not found, insert it so it becomes synced for all users automatically
+      const { error: insertError } = await supabase
+        .from("buyers")
+        .insert({ name: cleanName });
+
+      if (insertError) {
+        console.warn("Could not auto-register new buyer:", insertError.message);
+      } else {
+        console.log(`Successfully auto-registered new buyer in DB: ${cleanName}`);
+        cachedBuyers = null; // Invalidate memory cache so next GET fetches from DB
+      }
+    }
+  } catch (err: any) {
+    console.warn("Failed in ensureBuyerExists auto-sync:", err.message || err);
+  }
+}
+
 
 // Helper to add audit log
 async function addAuditLog(
@@ -461,6 +496,11 @@ app.post("/api/entries", async (req, res) => {
       return res.status(500).json({ error: insertErr.message });
     }
 
+    // Auto-register newly entered buyer name in buyers reference table
+    if (data.buyer) {
+      await ensureBuyerExists(data.buyer);
+    }
+
     const responseEntry = {
       ...insertedEntry,
       created_by: user_email,
@@ -563,6 +603,11 @@ app.post("/api/entries/bulk", async (req, res) => {
         continue;
       }
 
+      // Auto-register newly entered buyer name in buyers reference table
+      if (item.buyer) {
+        await ensureBuyerExists(item.buyer);
+      }
+
       const responseEntry = {
         ...insertedEntry,
         created_by: user_email,
@@ -658,6 +703,11 @@ app.put("/api/entries/:id", async (req, res) => {
 
     if (updateErr) {
       return res.status(500).json({ error: updateErr.message });
+    }
+
+    // Auto-register newly entered buyer name in buyers reference table
+    if (data.buyer) {
+      await ensureBuyerExists(data.buyer);
     }
 
     const responseEntry = {

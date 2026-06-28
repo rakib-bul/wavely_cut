@@ -82,11 +82,16 @@ export default function ReportsModule({
 
   // --- Unique buyers & fabric types for dropdown filters ---
   const uniqueBuyers = useMemo(() => {
+    const set = new Set<string>();
     if (buyers && buyers.length > 0) {
-      return buyers.map(b => b.name.toUpperCase().trim());
+      buyers.forEach(b => {
+        if (b.name) set.add(b.name.toUpperCase().trim());
+      });
     }
-    const set = new Set(entries.map(e => e.buyer.toUpperCase().trim()));
-    return Array.from(set).filter(Boolean);
+    entries.forEach(e => {
+      if (e.buyer) set.add(e.buyer.toUpperCase().trim());
+    });
+    return Array.from(set).filter(Boolean).sort();
   }, [entries, buyers]);
 
   const uniqueFabricTypes = useMemo(() => {
@@ -181,66 +186,6 @@ export default function ReportsModule({
     setCurrentPage(1);
   };
 
-  // --- EXPORT TO CSV ---
-  const exportToCSV = () => {
-    const headers = [
-      "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
-      "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
-      "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
-      "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
-      "Scarp% as per Marker", "% of cutting scrap"
-    ];
-
-    const rows = filteredEntries.map(e => {
-      const mc = machines.find(m => m.id === e.machine_id)?.machine_name || "Unknown Machine";
-      const remnantsWeight = parseFloat(e.remarks) || 0;
-      const spreadingScrap = e.remnant_weight_kg || 0;
-      const totalCutQty = (e.lay || 0) * (e.ratio || 0);
-      const totalMarkerLength = (e.lay || 0) * (e.marker_length_inch || 0);
-      const totalFabricUsedInch = (e.lay || 0) * (e.marker_length_inch || 0) * ((e.marker_efficiency_percent || 0) / 100);
-      const scrapPercentAsPerMarker = 100 - (e.marker_efficiency_percent || 0);
-      const percentageOfCuttingScrap = e.fabric_used_kg > 0 ? ((e.cutting_scrap_weight_kg || 0) / e.fabric_used_kg) * 100 : 0;
-
-      return [
-        e.entry_date,
-        e.shift === "A" ? "Day" : e.shift === "B" ? "Night" : e.shift,
-        mc,
-        e.buyer,
-        e.job_no,
-        e.color,
-        e.item,
-        e.cut_no,
-        e.lay,
-        e.ratio,
-        totalCutQty,
-        e.table_no,
-        e.fabric_type,
-        e.parts,
-        e.fabric_used_kg,
-        remnantsWeight,
-        spreadingScrap,
-        e.cutting_scrap_weight_kg,
-        e.marker_length_inch,
-        e.marker_efficiency_percent,
-        totalMarkerLength.toFixed(2),
-        totalFabricUsedInch.toFixed(2),
-        scrapPercentAsPerMarker.toFixed(2),
-        percentageOfCuttingScrap.toFixed(2)
-      ];
-    });
-
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(","), ...rows.map(r => r.map(val => `"${val || 0}"`).join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `garments_cutting_ledger_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   // --- DYNAMICALLY COMPILE ALL 19 REGULATORY FABRIC METRICS requested by the prompt ---
   const reportMetrics = useMemo(() => {
     const approved = filteredEntries.filter(e => e.status === 'approved');
@@ -306,6 +251,266 @@ export default function ReportsModule({
       total_used_fabric_inch: total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 })
     };
   }, [filteredEntries]);
+
+  // --- EXPORT TO EXCEL / CSV (WITH BEAUTIFUL STYLES) ---
+  const exportToCSV = () => {
+    const headers = [
+      "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
+      "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
+      "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
+      "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
+      "Scarp% as per Marker", "% of cutting scrap"
+    ];
+
+    const rows = filteredEntries.map(e => {
+      const mc = machines.find(m => m.id === e.machine_id)?.machine_name || "Unknown Machine";
+      const remnantsWeight = parseFloat(e.remarks) || 0;
+      const spreadingScrap = e.remnant_weight_kg || 0;
+      const totalCutQty = (e.lay || 0) * (e.ratio || 0);
+      const totalMarkerLength = (e.lay || 0) * (e.marker_length_inch || 0);
+      const totalFabricUsedInch = (e.lay || 0) * (e.marker_length_inch || 0) * ((e.marker_efficiency_percent || 0) / 100);
+      const scrapPercentAsPerMarker = 100 - (e.marker_efficiency_percent || 0);
+      const percentageOfCuttingScrap = e.fabric_used_kg > 0 ? ((e.cutting_scrap_weight_kg || 0) / e.fabric_used_kg) * 100 : 0;
+
+      return {
+        date: e.entry_date,
+        shift: e.shift === "A" ? "Day" : e.shift === "B" ? "Night" : e.shift,
+        machine: mc,
+        buyer: e.buyer,
+        job: e.job_no,
+        color: e.color,
+        item: e.item,
+        cutNo: e.cut_no,
+        lay: e.lay,
+        ratio: e.ratio,
+        totalCutQty: totalCutQty,
+        tableNo: e.table_no,
+        fabricType: e.fabric_type,
+        parts: e.parts,
+        fabricUsedKg: e.fabric_used_kg,
+        remnantsWeight: remnantsWeight,
+        spreadingScrap: spreadingScrap,
+        cuttingScrap: e.cutting_scrap_weight_kg,
+        markerLengthInch: e.marker_length_inch,
+        markerEfficiency: e.marker_efficiency_percent,
+        totalMarkerLength: totalMarkerLength,
+        totalFabricUsedInch: totalFabricUsedInch,
+        scrapPercentAsPerMarker: scrapPercentAsPerMarker,
+        percentageOfCuttingScrap: percentageOfCuttingScrap
+      };
+    });
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Cutting Ledger</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+        <style>
+          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; }
+          table { border-collapse: collapse; margin-bottom: 25px; }
+          th, td { border: 1.5pt solid #000000; padding: 6px 10px; font-size: 10pt; vertical-align: middle; }
+          
+          /* Title Section */
+          .report-title { font-size: 16pt; font-weight: bold; color: #1F4E78; text-align: left; border: none; }
+          .report-meta { font-size: 10pt; color: #595959; text-align: left; border: none; }
+          
+          /* Table Section Titles */
+          .section-header { font-size: 12pt; font-weight: bold; color: #1F4E78; background-color: #D9E1F2; text-align: left; border: 1.5pt solid #8EA9DB; padding: 8px; }
+          
+          /* Summary Table Specifics (Matching standard Excel & user's screenshot) */
+          .hdr-gray { background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; }
+          .hdr-blue { background-color: #5B9BD5; color: #FFFFFF; font-weight: bold; text-align: center; }
+          .hdr-green { background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; }
+          .hdr-lavender { background-color: #DDEBF7; color: #000000; font-weight: bold; text-align: center; }
+          
+          /* Highlights */
+          .cell-green { background-color: #A9D08E; color: #000000; font-weight: bold; text-align: center; }
+          .cell-blue { background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; }
+          .cell-default { background-color: #FFFFFF; color: #000000; font-weight: bold; text-align: center; }
+          
+          /* Detailed Ledger styles */
+          .ledger-header { background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; }
+          .ledger-row-even { background-color: #F2F2F2; }
+          .ledger-row-odd { background-color: #FFFFFF; }
+          
+          /* Alignments */
+          .align-left { text-align: left; }
+          .align-right { text-align: right; }
+          .align-center { text-align: center; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="10" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">GARMENTS CUTTING LEDGER REPORT</td></tr>
+          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
+        </table>
+
+        <table>
+          <tr><td colspan="2" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: left; font-size: 11pt; padding: 8px 12px;">Metric Name</th>
+              <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; width: 180px; padding: 8px 12px;">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Group 1: General (Gray) -->
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Total Fabric Used in KG</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.total_used}</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Total Fabric Spread in KG</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.total_spread}</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Actual Marker Scrap (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.actual_marker_scrap_kg}</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.actual_physical_ete_efficiency}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Marker Provided Eff%(Wtd)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.marker_provided_efficiency_weighted}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-gray" style="text-align: left; padding: 6px 12px;">Efficiency Gap</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.efficiency_gap}%</td>
+            </tr>
+
+            <!-- Group 2: Edge/Spreading (Blue) -->
+            <tr>
+              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Edge/Spreading Scrap (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.spreading_scrap_kg}</td>
+            </tr>
+            <tr>
+              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Actual Marker Scrap %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.actual_marker_scrap_percent}%</td>
+            </tr>
+            <tr>
+              <td style="text-align: left; padding: 6px 12px; font-weight: bold; background-color: #BDD7EE; color: #000000;">Edge/Spreading Scrap%</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.spreading_scrap_percent}%</td>
+            </tr>
+
+            <!-- Group 3: Remnants (Green) -->
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric issued (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.remnants_fabric_issued}</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric Used (KG)</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_fabric_used}</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Scrap (KG)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.remnants_scrap}</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric(Issued ) %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_issued_percent}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Scrap%</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_scrap_percent}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-green" style="text-align: left; padding: 6px 12px;">Remnants Fabric Utilization %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.remnants_utilization}%</td>
+            </tr>
+
+            <!-- Group 4: Cutting & Lengths (Lavender) -->
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Cutting Scrap</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.total_cutting_scrap}</td>
+            </tr>
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Cutting Scrap %</td>
+              <td class="cell-green" style="padding: 6px 12px;">${reportMetrics.total_cutting_scrap_percent}%</td>
+            </tr>
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Length (Inch)</td>
+              <td class="cell-default" style="padding: 6px 12px;">${reportMetrics.total_length}</td>
+            </tr>
+            <tr>
+              <td class="hdr-lavender" style="text-align: left; padding: 6px 12px;">Total Used Fabric (Inch)</td>
+              <td class="cell-blue" style="padding: 6px 12px;">${reportMetrics.total_used_fabric_inch}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table>
+          <tr><td colspan="24" class="section-header">DETAILED LEDGER RECORDS</td></tr>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              ${headers.map(h => `<th class="ledger-header">${h}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r, idx) => `
+              <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
+                <td class="align-center">${r.date}</td>
+                <td class="align-center">${r.shift}</td>
+                <td class="align-left">${r.machine}</td>
+                <td class="align-left">${r.buyer}</td>
+                <td class="align-center">${r.job}</td>
+                <td class="align-left">${r.color}</td>
+                <td class="align-left">${r.item}</td>
+                <td class="align-center">${r.cutNo}</td>
+                <td class="align-right">${r.lay}</td>
+                <td class="align-right">${r.ratio}</td>
+                <td class="align-right">${r.totalCutQty}</td>
+                <td class="align-center">${r.tableNo}</td>
+                <td class="align-left">${r.fabricType}</td>
+                <td class="align-left">${r.parts}</td>
+                <td class="align-right">${Number(r.fabricUsedKg).toFixed(2)}</td>
+                <td class="align-right">${Number(r.remnantsWeight).toFixed(2)}</td>
+                <td class="align-right">${Number(r.spreadingScrap).toFixed(2)}</td>
+                <td class="align-right">${Number(r.cuttingScrap).toFixed(2)}</td>
+                <td class="align-right">${Number(r.markerLengthInch).toFixed(2)}</td>
+                <td class="align-right">${Number(r.markerEfficiency).toFixed(2)}%</td>
+                <td class="align-right">${Number(r.totalMarkerLength).toFixed(2)}</td>
+                <td class="align-right">${Number(r.totalFabricUsedInch).toFixed(2)}</td>
+                <td class="align-right">${Number(r.scrapPercentAsPerMarker).toFixed(2)}%</td>
+                <td class="align-right">${Number(r.percentageOfCuttingScrap).toFixed(2)}%</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(["\uFEFF" + html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `garments_cutting_ledger_${new Date().toISOString().slice(0,10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6 font-sans">

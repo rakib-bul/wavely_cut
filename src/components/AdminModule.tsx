@@ -12,7 +12,9 @@ import {
   Lock,
   Flame,
   Globe,
-  Settings2
+  Settings2,
+  Download,
+  Upload
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -26,6 +28,8 @@ interface AdminModuleProps {
   rlsDDL: string;
   buyers?: Buyer[];
   onAddBuyer?: (name: string) => void;
+  onDownloadBuyersCache?: () => void;
+  onUploadBuyersCache?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export default function AdminModule({
@@ -37,7 +41,9 @@ export default function AdminModule({
   schemaDDL,
   rlsDDL,
   buyers = [],
-  onAddBuyer
+  onAddBuyer,
+  onDownloadBuyersCache,
+  onUploadBuyersCache
 }: AdminModuleProps) {
   // --- Admin Views State ---
   const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'logs' | 'ddl'>('iam');
@@ -288,6 +294,39 @@ export default function AdminModule({
             >
               <Plus size={14} className="stroke-[2.5]" /> Add Buyer Partner
             </button>
+
+            {/* Backup Cache file card section */}
+            {(onDownloadBuyersCache || onUploadBuyersCache) && (
+              <div className="border-t border-slate-200/60 dark:border-slate-800 pt-4 space-y-3">
+                <h4 className="font-sans font-extrabold text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Browser Cache Backup</h4>
+                <p className="text-[10px] text-slate-550 dark:text-slate-450 leading-relaxed">
+                  Export your active buyers list as a JSON file backup, or upload a previously saved backup file to restore cache and sync.
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {onDownloadBuyersCache && (
+                    <button
+                      onClick={onDownloadBuyersCache}
+                      className="w-full py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300/40 dark:border-slate-700/40 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer text-xs"
+                    >
+                      <Download size={13} className="text-blue-500" /> Export Backup File
+                    </button>
+                  )}
+                  {onUploadBuyersCache && (
+                    <label
+                      className="w-full py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300/40 dark:border-slate-700/40 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer text-xs"
+                    >
+                      <Upload size={13} className="text-emerald-500" /> Import Backup File
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={onUploadBuyersCache}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Buyers List Grid */}
