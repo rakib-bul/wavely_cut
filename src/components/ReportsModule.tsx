@@ -277,7 +277,7 @@ export default function ReportsModule({
     const total_remnants_issued = target.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
     const total_cutting_scrap = target.reduce((acc, c) => acc + (c.cutting_scrap_weight_kg || 0), 0);
     const total_spreading_scrap = target.reduce((acc, c) => acc + (c.remnant_weight_kg || 0), 0);
-    const total_marker_scrap_kg = total_cutting_scrap;
+    const total_marker_scrap_kg = total_remnants_issued;
     const total_length = target.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
     const total_used_fabric_inch_val = target.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
 
@@ -405,7 +405,7 @@ export default function ReportsModule({
       const total_remnants_issued = calcTarget.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
       const total_cutting_scrap = calcTarget.reduce((acc, c) => acc + (c.cutting_scrap_weight_kg || 0), 0);
       const total_spreading_scrap = calcTarget.reduce((acc, c) => acc + (c.remnant_weight_kg || 0), 0);
-      const total_marker_scrap_kg = total_cutting_scrap;
+      const total_marker_scrap_kg = total_remnants_issued;
       const total_length = calcTarget.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
       const total_used_fabric_inch_val = calcTarget.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
 
@@ -640,13 +640,13 @@ export default function ReportsModule({
             <tr>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Used in KG</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Spread in KG</th>
-              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker Scrap (KG)</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants (KG)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Marker Provided Eff%(Wtd)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Efficiency Gap</th>
 
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap (KG)</th>
-              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker Scrap %</th>
+              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants %</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap%</th>
 
               <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric issued (KG)</th>
@@ -740,7 +740,7 @@ export default function ReportsModule({
         </div>
 
         {/* Filters Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-6 2k:grid-cols-8 gap-4 text-xs">
           
           {/* Calendar Date range */}
           <div className="space-y-1.5 col-span-1 md:col-span-2 lg:col-span-1">
@@ -789,7 +789,7 @@ export default function ReportsModule({
 
           {/* Fabric Type & Shift */}
           <div className="space-y-1.5">
-            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Fabric Quality</label>
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Fabric Type</label>
             <select
               value={filterFabricType}
               onChange={e => { setFilterFabricType(e.target.value); setCurrentPage(1); }}
@@ -874,7 +874,7 @@ export default function ReportsModule({
             <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_spread} KG</span>
           </div>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Marker Scrap</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants</span>
             <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.actual_marker_scrap_kg} KG <span className="text-xs text-rose-500 font-black">({reportMetrics.actual_marker_scrap_percent}%)</span></span>
           </div>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">

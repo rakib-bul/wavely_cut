@@ -954,7 +954,7 @@ export default function App() {
       />
 
       {/* 2. Main Terminal Content Canvas */}
-      <main className="flex-1 flex flex-col min-h-screen max-w-7xl mx-auto px-6 pb-12 overflow-y-auto space-y-6">
+      <main className="flex-1 flex flex-col min-h-screen w-full max-w-7xl 3xl:max-w-[1800px] 2k:max-w-[2400px] 4k:max-w-[3600px] mx-auto px-6 pb-12 overflow-y-auto space-y-6">
         
         {/* Dynamic header summary banner - Sticky and Blurred */}
         <header className="sticky top-0 z-40 flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 px-6 -mx-6 bg-[#F5F7FB]/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 gap-4 mb-2">

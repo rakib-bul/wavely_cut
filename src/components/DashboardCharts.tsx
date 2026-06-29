@@ -94,8 +94,8 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
   return (
     <div className="space-y-6 font-sans">
       
-      {/* Chart Row 1: Usage Trend & Machine Performance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Chart Rows: Usage, Machine, Buyer & Fabric Analytics (Flexible grid responsive to 2K/4K high-res monitors) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 3xl:grid-cols-4 gap-6">
         
         {/* Daily Usage BarChart */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
@@ -166,11 +166,6 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
           </div>
         </div>
  
-      </div>
- 
-      {/* Chart Row 2: Buyer Distribution & Fabric Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* Buyer Distribution pie chart */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
           <div className="mb-4">

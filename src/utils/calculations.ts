@@ -34,18 +34,17 @@ export function calculateFields(entry: Omit<CuttingEntry, 'total_length_inch' | 
     ? parseFloat(((cutting_scrap_weight_kg / fabric_used_kg) * 100).toFixed(2))
     : 0;
 
-  // 6. Actual Marker Scrap (KG)
-  // Actual Marker Scrap (KG) = Cutting Scrap (KG)
+  // 6. Actual Marker Scrap (KG) (Replaced by Remnants)
   const net_fabric_kg = Math.max(0, fabric_used_kg - remnant_weight_kg - spreading_scrap_kg);
-  const actual_marker_scrap_kg = cutting_scrap_weight_kg;
+  const actual_marker_scrap_kg = remnant_weight_kg;
 
-  // 7. Actual Marker Scrap %
+  // 7. Actual Marker Scrap % (Replaced by Remnants %)
   const actual_marker_scrap_percent = fabric_used_kg > 0
     ? parseFloat(((actual_marker_scrap_kg / fabric_used_kg) * 100).toFixed(2))
     : 0;
 
   // 8. Actual Pattern Garment Weight (usable weight of final pattern cutouts)
-  const actual_garment_weight_kg = Math.max(0, net_fabric_kg - actual_marker_scrap_kg - cutting_scrap_weight_kg);
+  const actual_garment_weight_kg = Math.max(0, net_fabric_kg - cutting_scrap_weight_kg);
 
   // 9. Actual Physical Marker Efficiency (ETE - End to End)
   // Ratio of useful garment weight to total fabric processed

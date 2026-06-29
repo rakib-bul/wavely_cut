@@ -373,13 +373,13 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
             <tr>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Used in KG</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Spread in KG</th>
-              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker Scrap (KG)</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants (KG)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Marker Provided Eff%(Wtd)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Efficiency Gap</th>
 
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap (KG)</th>
-              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker Scrap %</th>
+              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants %</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap%</th>
 
               <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric issued (KG)</th>
@@ -781,7 +781,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                     <span className={`font-mono font-extrabold ${stats.efficiency_gap > 3 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{stats.efficiency_gap.toFixed(1)}%</span>
                   </div>
                   <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Actual Marker Scrap Wt:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Remnants Weight:</span>
                     <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.total_marker_scrap_kg.toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase">KG</span></span>
                   </div>
                 </div>
@@ -811,7 +811,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                     <span className="font-mono font-extrabold text-rose-500">{stats.cutting_scrap_percent.toFixed(1)}%</span>
                   </div>
                   <div className="flex justify-between items-center text-xs font-medium border-t border-dashed border-slate-200 dark:border-slate-800 pt-2.5">
-                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Actual Marker Scrap %:</span>
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Remnants %:</span>
                     <span className="font-mono font-extrabold text-rose-500">{stats.actual_marker_scrap_percent.toFixed(1)}%</span>
                   </div>
                 </div>

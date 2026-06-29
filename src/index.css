@@ -7,6 +7,10 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --breakpoint-3xl: 1920px;
+  --breakpoint-2k: 2560px;
+  --breakpoint-4k: 3840px;
 }
 
 body {
