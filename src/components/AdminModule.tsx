@@ -30,6 +30,8 @@ interface AdminModuleProps {
   onAddBuyer?: (name: string) => void;
   onDownloadBuyersCache?: () => void;
   onUploadBuyersCache?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  jobNoDigits?: number;
+  onUpdateJobNoDigits?: (digits: number) => void;
 }
 
 export default function AdminModule({
@@ -43,10 +45,31 @@ export default function AdminModule({
   buyers = [],
   onAddBuyer,
   onDownloadBuyersCache,
-  onUploadBuyersCache
+  onUploadBuyersCache,
+  jobNoDigits = 7,
+  onUpdateJobNoDigits
 }: AdminModuleProps) {
   // --- Admin Views State ---
-  const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'logs' | 'ddl'>('iam');
+  const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'settings' | 'logs' | 'ddl'>('iam');
+
+  const [localDigits, setLocalDigits] = useState(jobNoDigits);
+  const [isSaving, setIsSaving] = useState(false);
+
+  React.useEffect(() => {
+    setLocalDigits(jobNoDigits);
+  }, [jobNoDigits]);
+
+  const handleSaveSettings = async () => {
+    if (!onUpdateJobNoDigits) return;
+    setIsSaving(true);
+    try {
+      await onUpdateJobNoDigits(localDigits);
+    } catch (err: any) {
+      alert("Error persisting settings: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // New Machine state
   const [newMacName, setNewMacName] = useState("");
@@ -113,6 +136,16 @@ export default function AdminModule({
             }`}
           >
             <Settings2 size={13} /> Buyers
+          </button>
+          <button
+            onClick={() => setActiveAdminTab('settings')}
+            className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeAdminTab === 'settings' 
+                ? 'bg-white dark:bg-slate-900 shadow-xs text-[#2563EB] border border-slate-200 dark:border-slate-800 font-extrabold' 
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Settings size={13} /> Job Digits Control
           </button>
           <button
             onClick={() => setActiveAdminTab('logs')}
@@ -469,6 +502,69 @@ export default function AdminModule({
               />
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* VIEW S: SYSTEM SETTINGS */}
+      {activeAdminTab === 'settings' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-850">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Settings size={16} className="text-[#2563EB]" /> Job Number Digit Control
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-6 font-medium">
+              Configure the exact length of the Job Order No required for cutting entry submissions system-wide.
+              Increasing or decreasing this setting will dynamically enforce validation checks for all new entries, updates, and bulk imports.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-150 dark:border-slate-800 shadow-xs max-w-md">
+              <div className="flex-1">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Required Digits</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setLocalDigits(prev => Math.max(1, prev - 1))}
+                    disabled={localDigits <= 1}
+                    className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 transition-all font-black disabled:opacity-40 disabled:cursor-not-allowed text-lg"
+                  >
+                    -
+                  </button>
+                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100 w-12 text-center">
+                    {localDigits}
+                  </span>
+                  <button
+                    onClick={() => setLocalDigits(prev => Math.min(20, prev + 1))}
+                    disabled={localDigits >= 20}
+                    className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 transition-all font-black disabled:opacity-40 disabled:cursor-not-allowed text-lg"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 w-full border-t sm:border-t-0 sm:border-l border-slate-150 dark:border-slate-800 pt-4 sm:pt-0 sm:pl-6">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Format Example</span>
+                <span className="font-mono text-xs font-extrabold text-[#2563EB] tracking-widest block bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-850">
+                  {"9".repeat(localDigits)}
+                </span>
+                <span className="text-[9px] text-slate-400 mt-1 block">Exactly {localDigits} numeric characters only.</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4">
+              <button
+                onClick={handleSaveSettings}
+                disabled={isSaving}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isSaving ? "Saving Configuration..." : "Save Configuration"}
+              </button>
+              {localDigits !== jobNoDigits && (
+                <span className="text-xs text-amber-500 font-semibold animate-pulse">
+                  You have unsaved adjustments.
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}

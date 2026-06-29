@@ -56,6 +56,7 @@ export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
 
   // --- Core Entity States ---
+  const [jobNoDigits, setJobNoDigits] = useState<number>(7);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>(() => {
     try {
@@ -200,6 +201,16 @@ export default function App() {
         setProfiles(profData);
       } catch (profErr) {
         console.warn("Could not fetch profiles list silently:", profErr);
+      }
+
+      // 5. Fetch system settings
+      try {
+        const settingsData = await safeFetchJson("/api/settings", { headers });
+        if (settingsData && typeof settingsData.job_no_digits === "number") {
+          setJobNoDigits(settingsData.job_no_digits);
+        }
+      } catch (settingsErr) {
+        console.warn("Could not fetch system settings silently:", settingsErr);
       }
 
       setLastSyncedTime(new Date());
@@ -375,6 +386,16 @@ export default function App() {
     setEditErrorMessage(null);
     setEditSuccessMessage(null);
 
+    const finalStatus = targetStatus || editingEntry.status;
+    if (finalStatus === "submitted" || finalStatus === "approved") {
+      const jobNoStr = String(editingEntry.job_no || "").trim();
+      const digitsPattern = new RegExp(`^\\d{${jobNoDigits}}$`);
+      if (!digitsPattern.test(jobNoStr)) {
+        setEditErrorMessage(`Job Order No must be exactly ${jobNoDigits} digits (numbers only).`);
+        return;
+      }
+    }
+
     try {
       const headers = {
         "Content-Type": "application/json",
@@ -437,6 +458,35 @@ export default function App() {
       };
     } catch (err: any) {
       return { success: false, error: err.message || "Bulk submission fell flat." };
+    }
+  };
+
+  // --- ADMIN: UPDATE REQUIRED JOB NO DIGITS SYSTEM SETTING ---
+  const handleUpdateJobNoDigits = async (digits: number) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ job_no_digits: digits })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Setting update failed.");
+        return;
+      }
+
+      const updated = await res.json();
+      setJobNoDigits(updated.job_no_digits);
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed to update system settings: " + err.message);
     }
   };
 
@@ -1090,6 +1140,7 @@ export default function App() {
                   buyers={buyers}
                   onSubmitEntry={handleSubmitEntry}
                   onWebImport={handleBulkImport}
+                  jobNoDigits={jobNoDigits}
                 />
               </div>
             )}
@@ -1136,6 +1187,8 @@ export default function App() {
                   onAddBuyer={handleAddBuyer}
                   onDownloadBuyersCache={handleDownloadBuyersCache}
                   onUploadBuyersCache={handleUploadBuyersCache}
+                  jobNoDigits={jobNoDigits}
+                  onUpdateJobNoDigits={handleUpdateJobNoDigits}
                 />
               </div>
             )}
@@ -1227,8 +1280,10 @@ export default function App() {
                   value={editingEntry.job_no}
                   onChange={e => setEditingEntry({ ...editingEntry, job_no: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  placeholder={`Exactly ${jobNoDigits} digits`}
                   required
                 />
+                <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">Must be exactly {jobNoDigits} numeric digits.</span>
               </div>
 
               <div>

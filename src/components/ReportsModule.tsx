@@ -80,31 +80,107 @@ export default function ReportsModule({
     setSearchQuery("");
   };
 
-  // --- Unique buyers & fabric types for dropdown filters ---
-  const uniqueBuyers = useMemo(() => {
+  // --- Dynamic Option Calculations based on Other Active Filters ---
+  const getFilteredEntriesForFacet = (excludeFilter: string) => {
+    let result = [...entries];
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(e => 
+        e.buyer.toLowerCase().includes(q) ||
+        e.job_no.toLowerCase().includes(q) ||
+        e.cut_no.toLowerCase().includes(q) ||
+        e.item.toLowerCase().includes(q) ||
+        e.color.toLowerCase().includes(q)
+      );
+    }
+
+    // Date filters (always apply to all facets)
+    if (dateStart) {
+      result = result.filter(e => e.entry_date >= dateStart);
+    }
+    if (dateEnd) {
+      result = result.filter(e => e.entry_date <= dateEnd);
+    }
+
+    // Dropdown filters (apply everything except the current facet's filter)
+    if (excludeFilter !== "buyer" && filterBuyer) {
+      result = result.filter(e => e.buyer.toUpperCase() === filterBuyer.toUpperCase());
+    }
+    if (excludeFilter !== "machine" && filterMachine) {
+      result = result.filter(e => e.machine_id === filterMachine);
+    }
+    if (excludeFilter !== "fabricType" && filterFabricType) {
+      result = result.filter(e => e.fabric_type === filterFabricType);
+    }
+    if (excludeFilter !== "shift" && filterShift) {
+      result = result.filter(e => e.shift === filterShift);
+    }
+    if (excludeFilter !== "operator" && filterOperator) {
+      result = result.filter(e => e.created_by.toLowerCase() === filterOperator.toLowerCase());
+    }
+    if (excludeFilter !== "color" && filterColor) {
+      result = result.filter(e => e.color === filterColor);
+    }
+
+    return result;
+  };
+
+  const dynamicMachines = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("machine");
+    const activeMachineIds = new Set(matchingEntries.map(e => e.machine_id));
+    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterBuyer || filterFabricType || filterShift || filterOperator || filterColor);
+    if (!hasOtherActiveFilters) {
+      return machines;
+    }
+    return machines.filter(m => activeMachineIds.has(m.id));
+  }, [entries, machines, searchQuery, dateStart, dateEnd, filterBuyer, filterFabricType, filterShift, filterOperator, filterColor]);
+
+  const dynamicBuyers = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("buyer");
     const set = new Set<string>();
-    if (buyers && buyers.length > 0) {
+    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterMachine || filterFabricType || filterShift || filterOperator || filterColor);
+    
+    if (!hasOtherActiveFilters && buyers && buyers.length > 0) {
       buyers.forEach(b => {
         if (b.name) set.add(b.name.toUpperCase().trim());
       });
     }
-    entries.forEach(e => {
+    matchingEntries.forEach(e => {
       if (e.buyer) set.add(e.buyer.toUpperCase().trim());
     });
     return Array.from(set).filter(Boolean).sort();
-  }, [entries, buyers]);
+  }, [entries, buyers, searchQuery, dateStart, dateEnd, filterMachine, filterFabricType, filterShift, filterOperator, filterColor]);
 
-  const uniqueFabricTypes = useMemo(() => {
-    const set = new Set(entries.map(e => e.fabric_type || ""));
-    return Array.from(set).filter(Boolean);
-  }, [entries]);
-
-  const uniqueShifts = ["A", "B"];
-
-  const uniqueColors = useMemo(() => {
-    const set = new Set(entries.map(e => e.color || ""));
+  const dynamicFabricTypes = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("fabricType");
+    const set = new Set(matchingEntries.map(e => e.fabric_type || ""));
     return Array.from(set).filter(Boolean).sort();
-  }, [entries]);
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterShift, filterOperator, filterColor]);
+
+  const dynamicShifts = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("shift");
+    const set = new Set(matchingEntries.map(e => e.shift || ""));
+    const list = Array.from(set).filter(Boolean).sort();
+    return list.length > 0 ? list : ["A", "B"];
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterOperator, filterColor]);
+
+  const dynamicColors = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("color");
+    const set = new Set(matchingEntries.map(e => e.color || ""));
+    return Array.from(set).filter(Boolean).sort();
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterOperator]);
+
+  const dynamicOperators = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("operator");
+    const activeOperatorEmails = new Set(matchingEntries.map(e => e.created_by.toLowerCase().trim()));
+    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterBuyer || filterMachine || filterFabricType || filterShift || filterColor);
+    if (!hasOtherActiveFilters) {
+      return profiles.filter(p => p.role === 'operator');
+    }
+    return profiles.filter(p => p.role === 'operator' && activeOperatorEmails.has(p.email.toLowerCase().trim()));
+  }, [entries, profiles, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterColor]);
 
   // --- Apply Filters, Sorting & Search ---
   const filteredEntries = useMemo(() => {
@@ -695,7 +771,7 @@ export default function ReportsModule({
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
               <option value="">All Machines</option>
-              {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
+              {dynamicMachines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
             </select>
           </div>
 
@@ -707,7 +783,7 @@ export default function ReportsModule({
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
               <option value="">All Buyers</option>
-              {uniqueBuyers.map(b => <option key={b} value={b}>{b}</option>)}
+              {dynamicBuyers.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
 
@@ -720,7 +796,7 @@ export default function ReportsModule({
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
               <option value="">All Fabrics</option>
-              {uniqueFabricTypes.map(f => <option key={f} value={f}>{f}</option>)}
+              {dynamicFabricTypes.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
 
@@ -732,7 +808,7 @@ export default function ReportsModule({
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
               <option value="">All Shifts</option>
-              {uniqueShifts.map(s => <option key={s} value={s}>{s === "A" ? "Day" : s === "B" ? "Night" : s} Shift</option>)}
+              {dynamicShifts.map(s => <option key={s} value={s}>{s === "A" ? "Day" : s === "B" ? "Night" : s} Shift</option>)}
             </select>
           </div>
 
@@ -744,7 +820,7 @@ export default function ReportsModule({
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
               <option value="">All Colors</option>
-              {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+              {dynamicColors.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
@@ -757,7 +833,7 @@ export default function ReportsModule({
               className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
             >
               <option value="">All Operators</option>
-              {profiles.filter(p => p.role === 'operator').map(op => (
+              {dynamicOperators.map(op => (
                 <option key={op.email} value={op.email}>{op.full_name}</option>
               ))}
             </select>

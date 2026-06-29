@@ -23,6 +23,7 @@ interface DataEntryFormProps {
   buyers?: Buyer[];
   onSubmitEntry: (entry: Omit<CuttingEntry, 'id' | 'created_by' | 'created_at' | 'updated_at'> & { id?: string; status: 'draft' | 'submitted' }) => Promise<{ success: boolean; error?: string }>;
   onWebImport: (entries: any[]) => Promise<{ success: boolean; count?: number; errors?: string[] }>;
+  jobNoDigits?: number;
 }
 
 const PREDEFINED_ITEMS = [
@@ -54,10 +55,11 @@ const PREDEFINED_FABRICS = [
   "Interlock",
   "Viscose",
   "Lycra",
-  "PK"
+  "PK",
+  "RFD/Wash"
 ];
 
-export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport }: DataEntryFormProps) {
+export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport, jobNoDigits = 7 }: DataEntryFormProps) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
 
@@ -171,6 +173,13 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     if (status === 'submitted') {
       if (!formData.buyer.trim()) return setValidationError("Buyer Name is required.");
       if (!formData.job_no.trim()) return setValidationError("Job Order No is required.");
+      
+      const jobNoStr = formData.job_no.trim();
+      const digitsPattern = new RegExp(`^\\d{${jobNoDigits}}$`);
+      if (!digitsPattern.test(jobNoStr)) {
+        return setValidationError(`Job Order No must be exactly ${jobNoDigits} digits (numbers only).`);
+      }
+
       if (!formData.cut_no.trim()) return setValidationError("Cutting Number (Cut No) is required.");
       if (!formData.color.trim()) return setValidationError("Fabric Color is required.");
       if (!formData.item.trim()) return setValidationError("Garment Item name is required.");
@@ -542,8 +551,10 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   name="job_no"
                   value={formData.job_no}
                   onChange={handleInputChange}
+                  placeholder={`e.g. ${"1234567890".substring(0, jobNoDigits)}`}
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-medium">Must be exactly {jobNoDigits} numeric digits.</p>
               </div>
 
               {/* 3. color */}

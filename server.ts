@@ -24,6 +24,42 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
+// System Settings persistence
+const SETTINGS_FILE_PATH = path.join(process.cwd(), "settings.json");
+let systemSettings = {
+  job_no_digits: 7
+};
+
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      const content = fs.readFileSync(SETTINGS_FILE_PATH, "utf-8");
+      systemSettings = JSON.parse(content);
+      console.log("Loaded system settings:", systemSettings);
+    } else {
+      fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(systemSettings, null, 2), "utf-8");
+      console.log("Created default system settings:", systemSettings);
+    }
+  } catch (err: any) {
+    console.error("Error loading system settings:", err.message);
+  }
+}
+
+function saveSettings(settings: any) {
+  try {
+    fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(settings, null, 2), "utf-8");
+    systemSettings = settings;
+    console.log("Saved system settings:", systemSettings);
+    return true;
+  } catch (err: any) {
+    console.error("Error saving system settings:", err.message);
+    return false;
+  }
+}
+
+// Call loadSettings on startup
+loadSettings();
+
 // In-memory cache for database buyers
 let cachedBuyers: any[] | null = null;
 
@@ -448,6 +484,17 @@ app.post("/api/entries", async (req, res) => {
     return res.status(400).json({ error: "Missing required core fields" });
   }
 
+  // Validate job_no digits pattern if submitted/approved
+  const finalStatus = data.status === "submitted" ? "approved" : (data.status || "draft");
+  if (finalStatus === "approved") {
+    const jobNoStr = String(data.job_no || "").trim();
+    const requiredLength = systemSettings.job_no_digits;
+    const digitsPattern = new RegExp(`^\\d{${requiredLength}}$`);
+    if (!digitsPattern.test(jobNoStr)) {
+      return res.status(400).json({ error: `Job Order No must be exactly ${requiredLength} digits (numbers only).` });
+    }
+  }
+
   try {
     // 2. Resolve creator profile UUID
     let profId: string | null = null;
@@ -459,8 +506,6 @@ app.post("/api/entries", async (req, res) => {
     // Compute lay, ratio and calculate remaining fields
     const layNum = Number(data.lay) || 1;
     const ratioNum = Number(data.ratio) || 1;
-
-    const finalStatus = data.status === "submitted" ? "approved" : (data.status || "draft");
     const dataToInsert = {
       entry_date: data.entry_date,
       shift: sanitizeShift(data.shift),
@@ -552,6 +597,15 @@ app.post("/api/entries/bulk", async (req, res) => {
   for (const item of entries) {
     if (!item.entry_date || !item.shift || !item.machine_id || !item.buyer || !item.job_no || !item.cut_no) {
       errors.push(`Row ${item.cut_no || 'Unknown'}: Missing mandatory fields.`);
+      continue;
+    }
+
+    // Validate job_no digits pattern
+    const jobNoStr = String(item.job_no || "").trim();
+    const requiredLength = systemSettings.job_no_digits;
+    const digitsPattern = new RegExp(`^\\d{${requiredLength}}$`);
+    if (!digitsPattern.test(jobNoStr)) {
+      errors.push(`Row ${item.cut_no || 'Unknown'}: Job Order No '${jobNoStr}' must be exactly ${requiredLength} digits (numbers only).`);
       continue;
     }
 
@@ -670,6 +724,17 @@ app.put("/api/entries/:id", async (req, res) => {
     const editorProfile = (profiles || []).find(p => p.email.toLowerCase() === user_email.toLowerCase());
     const editorId = editorProfile ? editorProfile.id : null;
     const finalStatus = data.status === "submitted" ? "approved" : data.status;
+
+    // Validate job_no digits pattern if submitted/approved
+    if (finalStatus === "approved") {
+      const jobNoStr = String(data.job_no || "").trim();
+      const requiredLength = systemSettings.job_no_digits;
+      const digitsPattern = new RegExp(`^\\d{${requiredLength}}$`);
+      if (!digitsPattern.test(jobNoStr)) {
+        return res.status(400).json({ error: `Job Order No must be exactly ${requiredLength} digits (numbers only).` });
+      }
+    }
+
     const approvedBy = finalStatus === "approved" ? (existingEntry.approved_by || editorId) : null;
 
     // Update inside Supabase
@@ -912,6 +977,52 @@ app.put("/api/profiles/:id/role", async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+
+// ==========================================
+// 6. SYSTEM SETTINGS API
+// ==========================================
+
+app.get("/api/settings", async (req, res) => {
+  const user_email = req.headers["x-user-email"] as string;
+  if (!user_email) {
+    return res.status(401).json({ error: "Unauthorized. Session required to read system settings." });
+  }
+  return res.json(systemSettings);
+});
+
+app.post("/api/settings", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role !== "admin") {
+    return res.status(403).json({ error: "Only Admins can modify system configurations." });
+  }
+
+  const { job_no_digits } = req.body;
+  if (job_no_digits === undefined || typeof job_no_digits !== "number" || job_no_digits <= 0 || job_no_digits > 20) {
+    return res.status(400).json({ error: "Job No digits must be a positive integer between 1 and 20." });
+  }
+
+  const old_value = { ...systemSettings };
+  const success = saveSettings({ job_no_digits });
+
+  if (!success) {
+    return res.status(500).json({ error: "Failed to persist new system settings." });
+  }
+
+  // Audit log setting change
+  await addAuditLog(
+    user_email,
+    "edit",
+    "system_settings",
+    "00000000-0000-0000-0000-000000000000",
+    old_value,
+    systemSettings
+  );
+
+  return res.json(systemSettings);
 });
 
 
