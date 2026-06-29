@@ -1025,6 +1025,87 @@ app.post("/api/settings", async (req, res) => {
   return res.json(systemSettings);
 });
 
+app.post("/api/admin/create-user", async (req, res) => {
+  const admin_role = req.headers["x-user-role"] as UserRole;
+  const admin_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (admin_role !== "admin") {
+    return res.status(403).json({ error: "Only Admins can directly register new users." });
+  }
+
+  const { email, password, full_name, role, department } = req.body;
+  if (!email || !password || !full_name || !role) {
+    return res.status(400).json({ error: "Email, password, full name, and role are required." });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const userName = full_name.trim();
+  const userRole = role;
+  const userDept = department?.trim() || "Cutting Deck 1";
+
+  try {
+    // Check if profile/user already exists
+    const { data: existingUser } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (existingUser) {
+      return res.status(400).json({ error: "A user with this email already exists." });
+    }
+
+    // Register with Supabase Auth admin API (auto-confirmed)
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password: password,
+      email_confirm: true
+    });
+
+    if (authError) {
+      throw authError;
+    }
+
+    const userId = authData.user?.id || "00000000-0000-0000-0000-000000000000";
+    
+    const newProfile = {
+      id: userId,
+      full_name: userName,
+      email: normalizedEmail,
+      role: userRole,
+      department: userDept
+    };
+
+    // Insert into profiles
+    const { error: dbError } = await supabase
+      .from("profiles")
+      .insert(newProfile);
+
+    if (dbError) {
+      console.warn("Could not insert profile in Supabase table, cleaning auth user...", dbError.message);
+      // Try to clean up auth user if DB insertion failed to avoid orphaned records
+      await supabase.auth.admin.deleteUser(userId).catch(() => {});
+      return res.status(400).json({ error: dbError.message });
+    }
+
+    // Log administrative action
+    await addAuditLog(
+      admin_email,
+      "create",
+      "profiles",
+      userId,
+      null,
+      { email: normalizedEmail, full_name: userName, role: userRole, department: userDept }
+    );
+
+    return res.json({ profile: newProfile, message: "User account created successfully by admin" });
+
+  } catch (err: any) {
+    console.error("Supabase Admin direct user creation error:", err.message);
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 
 // ==========================================
 // STATIC FILES & VITE HMR HANDLER

@@ -576,6 +576,33 @@ export default function App() {
     }
   };
 
+  // --- ADMIN: DIRECT NEW USER REGISTRATION ACTION ---
+  const handleAdminCreateUser = async (user: { email: string; password: string; full_name: string; role: UserRole; department: string }) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(user)
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        return { success: false, error: body.error || "Direct registration of operator account failed." };
+      }
+
+      await fetchData();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "An unexpected error occurred during admin registration." };
+    }
+  };
+
   // --- DOWNLOAD BUYERS CACHE FILE IN BROWSER ---
   const handleDownloadBuyersCache = () => {
     try {
@@ -1189,6 +1216,7 @@ export default function App() {
                   onUploadBuyersCache={handleUploadBuyersCache}
                   jobNoDigits={jobNoDigits}
                   onUpdateJobNoDigits={handleUpdateJobNoDigits}
+                  onAddUser={handleAdminCreateUser}
                 />
               </div>
             )}

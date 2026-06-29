@@ -14,7 +14,8 @@ import {
   Globe,
   Settings2,
   Download,
-  Upload
+  Upload,
+  UserPlus
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -32,6 +33,7 @@ interface AdminModuleProps {
   onUploadBuyersCache?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   jobNoDigits?: number;
   onUpdateJobNoDigits?: (digits: number) => void;
+  onAddUser?: (user: { email: string; password: string; full_name: string; role: UserRole; department: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function AdminModule({
@@ -47,7 +49,8 @@ export default function AdminModule({
   onDownloadBuyersCache,
   onUploadBuyersCache,
   jobNoDigits = 7,
-  onUpdateJobNoDigits
+  onUpdateJobNoDigits,
+  onAddUser
 }: AdminModuleProps) {
   // --- Admin Views State ---
   const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'settings' | 'logs' | 'ddl'>('iam');
@@ -55,9 +58,57 @@ export default function AdminModule({
   const [localDigits, setLocalDigits] = useState(jobNoDigits);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Direct User Creation States
+  const [newUserFullName, setNewUserFullName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState<UserRole>("operator");
+  const [newUserDept, setNewUserDept] = useState("Cutting Deck 1");
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [userCreationError, setUserCreationError] = useState<string | null>(null);
+  const [userCreationSuccess, setUserCreationSuccess] = useState<string | null>(null);
+
   React.useEffect(() => {
     setLocalDigits(jobNoDigits);
   }, [jobNoDigits]);
+
+  const handleCreateUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAddUser) return;
+    if (!newUserFullName.trim() || !newUserEmail.trim() || !newUserPassword.trim() || !newUserDept.trim()) {
+      setUserCreationError("All fields are required to register a new user.");
+      return;
+    }
+
+    setIsCreatingUser(true);
+    setUserCreationError(null);
+    setUserCreationSuccess(null);
+
+    try {
+      const result = await onAddUser({
+        email: newUserEmail.trim(),
+        password: newUserPassword,
+        full_name: newUserFullName.trim(),
+        role: newUserRole,
+        department: newUserDept.trim()
+      });
+
+      if (result.success) {
+        setUserCreationSuccess(`Successfully registered operator account for: ${newUserFullName.trim()}`);
+        setNewUserFullName("");
+        setNewUserEmail("");
+        setNewUserPassword("");
+        setNewUserRole("operator");
+        setNewUserDept("Cutting Deck 1");
+      } else {
+        setUserCreationError(result.error || "Failed to register user account.");
+      }
+    } catch (err: any) {
+      setUserCreationError(err.message || "An unexpected error occurred.");
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     if (!onUpdateJobNoDigits) return;
@@ -172,51 +223,154 @@ export default function AdminModule({
 
       {/* VIEW A: IAM PROFILES MANAGEMENT */}
       {activeAdminTab === 'iam' && (
-        <div className="space-y-4">
-          <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-            <h3 className="font-sans font-extrabold text-[11px] uppercase tracking-wider text-slate-850 dark:text-slate-200 mb-1 flex items-center gap-1.5">
-              <Users size={13} className="text-[#2563EB]" /> Identity Access Level Matrix
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+          
+          {/* Direct Create User Card Column 1 */}
+          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 text-xs h-fit col-span-1 shadow-xs">
+            <h3 className="font-sans font-extrabold text-[11px] uppercase tracking-wider text-slate-850 dark:text-slate-200 flex items-center gap-1.5">
+              <UserPlus size={13} className="text-[#2563EB]" /> Register New Staff Member
             </h3>
-            <p className="text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-              Manage factory clearance levels and job scope authorizations securely. The role updates instantly apply Row Level Security (RLS) query restrictions.
-            </p>
+
+            {userCreationError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-250 dark:border-rose-900 rounded-xl text-rose-600 dark:text-rose-400 font-medium">
+                {userCreationError}
+              </div>
+            )}
+
+            {userCreationSuccess && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250 dark:border-emerald-900 rounded-xl text-emerald-600 dark:text-emerald-400 font-medium">
+                {userCreationSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateUserSubmit} className="space-y-3.5">
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Verified Operator Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newUserFullName}
+                  onChange={e => setNewUserFullName(e.target.value)}
+                  placeholder="e.g. JOHN DOE"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl py-2.5 px-3.5 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-slate-800 dark:text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Email Reference</label>
+                <input
+                  type="email"
+                  required
+                  value={newUserEmail}
+                  onChange={e => setNewUserEmail(e.target.value)}
+                  placeholder="e.g. john@factory.com"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl py-2.5 px-3.5 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-slate-800 dark:text-slate-200 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Password Access Code</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newUserPassword}
+                  onChange={e => setNewUserPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl py-2.5 px-3.5 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-slate-800 dark:text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Department / Shift Station</label>
+                <input
+                  type="text"
+                  required
+                  value={newUserDept}
+                  onChange={e => setNewUserDept(e.target.value)}
+                  placeholder="e.g. Cutting Deck 1"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl py-2.5 px-3.5 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-slate-800 dark:text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Assigned Role Check</label>
+                <select
+                  value={newUserRole}
+                  onChange={e => setNewUserRole(e.target.value as UserRole)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl py-2.5 px-3.5 focus:ring-2 focus:ring-blue-500 transition outline-none cursor-pointer font-bold shadow-xs text-slate-800 dark:text-slate-200"
+                >
+                  <option value="operator">OPERATOR</option>
+                  <option value="supervisor">OFFICER</option>
+                  <option value="manager">MANAGER</option>
+                  <option value="admin">ADMIN</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isCreatingUser}
+                className="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md mt-2"
+              >
+                {isCreatingUser ? (
+                  <span>Registering...</span>
+                ) : (
+                  <>
+                    <Plus size={14} className="stroke-[2.5]" /> Create Account
+                  </>
+                )}
+              </button>
+            </form>
           </div>
 
-          <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs bg-white dark:bg-transparent shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
-                    <th className="p-4 pl-5">Verified Operator Name</th>
-                    <th className="p-4">Email Reference</th>
-                    <th className="p-4">Department Branch</th>
-                    <th className="p-4 text-right pr-5">Assigned Role Check</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
-                  {profiles.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition">
-                      <td className="p-4 font-extrabold text-slate-800 dark:text-slate-200 pl-5">{p.full_name}</td>
-                      <td className="p-4 font-mono text-slate-500">{p.email}</td>
-                      <td className="p-4 text-slate-500 dark:text-slate-400 font-medium">{p.department}</td>
-                      <td className="p-4 text-right pr-5">
-                        <select
-                          value={p.role}
-                          onChange={(e) => onUpdateRole(p.id, e.target.value as UserRole)}
-                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 px-3 font-mono text-[11px] font-bold text-slate-750 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none transition cursor-pointer shadow-xs"
-                        >
-                          <option value="operator">OPERATOR</option>
-                          <option value="supervisor">OFFICER</option>
-                          <option value="manager">MANAGER</option>
-                          <option value="admin">ADMIN</option>
-                        </select>
-                      </td>
+          {/* List and Details Column 2 & 3 */}
+          <div className="col-span-2 space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+              <h3 className="font-sans font-extrabold text-[11px] uppercase tracking-wider text-slate-850 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+                <Users size={13} className="text-[#2563EB]" /> Identity Access Level Matrix
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Manage factory clearance levels and job scope authorizations securely. The role updates instantly apply Row Level Security (RLS) query restrictions.
+              </p>
+            </div>
+
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs bg-white dark:bg-transparent shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
+                      <th className="p-4 pl-5">Verified Operator Name</th>
+                      <th className="p-4">Email Reference</th>
+                      <th className="p-4">Department Branch</th>
+                      <th className="p-4 text-right pr-5">Assigned Role Check</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                    {profiles.map(p => (
+                      <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition">
+                        <td className="p-4 font-extrabold text-slate-800 dark:text-slate-200 pl-5">{p.full_name}</td>
+                        <td className="p-4 font-mono text-slate-500">{p.email}</td>
+                        <td className="p-4 text-slate-500 dark:text-slate-400 font-medium">{p.department}</td>
+                        <td className="p-4 text-right pr-5">
+                          <select
+                            value={p.role}
+                            onChange={(e) => onUpdateRole(p.id, e.target.value as UserRole)}
+                            className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 px-3 font-mono text-[11px] font-bold text-slate-750 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none transition cursor-pointer shadow-xs"
+                          >
+                            <option value="operator">OPERATOR</option>
+                            <option value="supervisor">OFFICER</option>
+                            <option value="manager">MANAGER</option>
+                            <option value="admin">ADMIN</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
+
         </div>
       )}
 
