@@ -111,6 +111,57 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
 
   const efficiency_gap = parseFloat((avg_maker_efficiency_provided - avg_ete_efficiency).toFixed(1));
 
+  // --- Date-wise Calculations ---
+  const dates = targetEntries.map(e => e.entry_date).filter(Boolean);
+  const uniqueSortedDates = Array.from(new Set(dates)).sort();
+  const latestDateStr = uniqueSortedDates.length > 0 ? uniqueSortedDates[uniqueSortedDates.length - 1] : new Date().toISOString().slice(0, 10);
+  
+  const latestIndex = uniqueSortedDates.indexOf(latestDateStr);
+  const yesterdayDateStr = latestIndex > 0 ? uniqueSortedDates[latestIndex - 1] : null;
+  const currentMonthYear = latestDateStr.slice(0, 7); // "YYYY-MM"
+
+  // Filter entries
+  const todayEntries = targetEntries.filter(e => e.entry_date === latestDateStr);
+  const yesterdayEntries = yesterdayDateStr ? targetEntries.filter(e => e.entry_date === yesterdayDateStr) : [];
+  const monthEntries = targetEntries.filter(e => e.entry_date && e.entry_date.startsWith(currentMonthYear));
+
+  // Today metrics
+  const today_fabric_used = todayEntries.reduce((acc, c) => acc + (c.fabric_used_kg || 0), 0);
+  const today_cut_qty = todayEntries.reduce((acc, c) => acc + ((Number(c.lay) || 0) * (Number(c.ratio) || 0)), 0);
+
+  // Yesterday metrics
+  const yesterday_cut_qty = yesterdayEntries.reduce((acc, c) => acc + ((Number(c.lay) || 0) * (Number(c.ratio) || 0)), 0);
+
+  // Daily Trend calculation (Today vs Yesterday)
+  let daily_trend_percent = 0;
+  if (yesterday_cut_qty > 0) {
+    daily_trend_percent = parseFloat((((today_cut_qty - yesterday_cut_qty) / yesterday_cut_qty) * 100).toFixed(1));
+  } else if (today_cut_qty > 0) {
+    daily_trend_percent = 100;
+  }
+
+  // Monthly metrics
+  const month_cut_qty = monthEntries.reduce((acc, c) => acc + ((Number(c.lay) || 0) * (Number(c.ratio) || 0)), 0);
+  const month_fabric_used = monthEntries.reduce((acc, c) => acc + (c.fabric_used_kg || 0), 0);
+
+  // Daily Average Cut Qty
+  const total_days = uniqueSortedDates.length || 1;
+  const total_overall_cut_qty = targetEntries.reduce((acc, c) => acc + ((Number(c.lay) || 0) * (Number(c.ratio) || 0)), 0);
+  const daily_avg_cut_qty = parseFloat((total_overall_cut_qty / total_days).toFixed(0));
+
+  // Recent 7-day average ETE efficiency
+  const last7Dates = uniqueSortedDates.slice(-7);
+  const recent7DayEntries = targetEntries.filter(e => last7Dates.includes(e.entry_date));
+  const recent_ete_efficiency = recent7DayEntries.length > 0
+    ? parseFloat((recent7DayEntries.reduce((acc, c) => acc + (c.actual_physical_marker_efficiency_ete || 0), 0) / recent7DayEntries.length).toFixed(1))
+    : 0;
+
+  // Overall sums requested for extra KPI cards
+  const total_cutting_lots = targetEntries.length;
+  const total_lay_layers = targetEntries.reduce((sum, e) => sum + (Number(e.lay) || 0), 0);
+  const total_cutting_qty = targetEntries.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
+  const total_used_fabric_inch = targetEntries.reduce((acc, c) => acc + (Number(c.total_used_fabric_inch) || (Number(c.lay) || 0) * (Number(c.marker_length_inch) || 0) * ((Number(c.marker_efficiency_percent) || 0) / 100)), 0);
+
   return {
     total_fabric_used: parseFloat(total_fabric_used.toFixed(1)),
     total_fabric_spread: parseFloat(total_fabric_spread.toFixed(1)),
@@ -120,6 +171,21 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     avg_maker_efficiency_provided,
     avg_ete_efficiency,
     remnant_utilization,
-    efficiency_gap
+    efficiency_gap,
+    // New Datewise KPIs
+    latestDateStr,
+    today_fabric_used: parseFloat(today_fabric_used.toFixed(1)),
+    today_cut_qty,
+    yesterday_cut_qty,
+    daily_trend_percent,
+    month_cut_qty,
+    month_fabric_used: parseFloat(month_fabric_used.toFixed(1)),
+    daily_avg_cut_qty,
+    recent_ete_efficiency,
+    // Overall totals for new KPI cards
+    total_cutting_lots,
+    total_lay_layers,
+    total_cutting_qty,
+    total_used_fabric_inch
   };
 }

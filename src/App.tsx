@@ -1125,19 +1125,67 @@ export default function App() {
 
             {/* TAB 1: OPERATIONS DASHBOARD */}
             {activeTab === "dashboard" && (
-              <div className="space-y-6 animate-fade-in">
-                <DailyReport entries={mainEntries} machines={machines} />
-                <KPICards metrics={compiledMainKPIs} />
-                <DashboardCharts entries={mainEntries} machines={machines} />
+              <div className="space-y-12 animate-fade-in">
+                {/* --- SECTION 1: DAILY OPERATIONS & ANALYTICS --- */}
+                <div className="space-y-6">
+                  <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                      Daily Operations & Shop-Floor Reports
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Real-time interactive shift report logs, supervisor metrics, and daily throughput trends.
+                    </p>
+                  </div>
+                  <DailyReport entries={mainEntries} machines={machines} />
+                  <KPICards metrics={compiledMainKPIs} group="daily" />
+                </div>
+
+                {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
+                <div className="space-y-6">
+                  <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                      Cumulative & Monthly Production Analytics
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      CAD-to-physical efficiency mapping, total scrap margins, buyer yields, and knit quality trends.
+                    </p>
+                  </div>
+                  <KPICards metrics={compiledMainKPIs} group="monthly" />
+                  <DashboardCharts entries={mainEntries} machines={machines} />
+                </div>
               </div>
             )}
 
             {/* TAB 1.5: STRIPE CUTTING DASHBOARD */}
             {activeTab === "stripe_dashboard" && (
-              <div className="space-y-6 animate-fade-in">
-                <DailyReport entries={stripeEntries} machines={machines} />
-                <KPICards metrics={compiledStripeKPIs} />
-                <DashboardCharts entries={stripeEntries} machines={machines} />
+              <div className="space-y-12 animate-fade-in">
+                {/* --- SECTION 1: DAILY OPERATIONS & ANALYTICS --- */}
+                <div className="space-y-6">
+                  <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                      Daily Stripe Operations & Reports
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Daily logs, lay plies, and physical piece yields specifically for isolated stripe tables.
+                    </p>
+                  </div>
+                  <DailyReport entries={stripeEntries} machines={machines} />
+                  <KPICards metrics={compiledStripeKPIs} group="daily" />
+                </div>
+
+                {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
+                <div className="space-y-6">
+                  <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                      Cumulative & Monthly Stripe Performance
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Stripe fabric efficiency trends, cumulative scrap statistics, and buyer roll-end allocations.
+                    </p>
+                  </div>
+                  <KPICards metrics={compiledStripeKPIs} group="monthly" />
+                  <DashboardCharts entries={stripeEntries} machines={machines} />
+                </div>
 
                 {/* Dedicated Stripe Cutting Ledger */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl p-6 shadow-sm">
