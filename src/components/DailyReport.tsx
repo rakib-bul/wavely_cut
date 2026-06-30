@@ -68,7 +68,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
     const total_remnants_issued = dayEntries.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
     const total_cutting_scrap = dayEntries.reduce((acc, c) => acc + (Number(c.cutting_scrap_weight_kg) || 0), 0);
     const total_spreading_scrap = dayEntries.reduce((acc, c) => acc + (Number(c.remnant_weight_kg) || 0), 0);
-    const total_marker_scrap_kg = dayEntries.reduce((acc, c) => acc + (Number(c.actual_marker_scrap_kg) || 0), 0);
+    const total_marker_scrap_kg = total_cutting_scrap;
     const total_length = dayEntries.reduce((acc, c) => acc + (Number(c.total_length_inch) || 0), 0);
     const total_used_fabric_inch_val = dayEntries.reduce((acc, c) => acc + (Number(c.total_used_fabric_inch) || (Number(c.lay) || 0) * (Number(c.marker_length_inch) || 0) * ((Number(c.marker_efficiency_percent) || 0) / 100)), 0);
 
@@ -99,7 +99,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
     });
 
     const marker_provided_efficiency_weighted = total_used > 0 ? totalWeightedTheoreticalEff / total_used : 0;
-    const actual_ete_efficiency_weighted = total_used > 0 ? totalWeightedEteEff / total_used : 0;
+    const actual_ete_efficiency_weighted = total_used > 0 ? (1 - (total_marker_scrap_kg / total_used)) * 100 : 0;
     const efficiency_gap = marker_provided_efficiency_weighted - actual_ete_efficiency_weighted;
 
     const avg_layers_per_lot = totalLay / (totalCuttingLots || 1);
@@ -358,8 +358,8 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
           </tbody>
         </table>
 
-        <table>
-          <tr><td colspan="19" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
+         <table>
+          <tr><td colspan="13" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
         </table>
 
         <table>
@@ -367,27 +367,19 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
             <tr>
               <th style="background-color: #7F7F7F; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">General & Efficiency</th>
               <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="3">Edge / Spreading Scrap</th>
-              <th style="background-color: #375623; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">Remnants Analytics</th>
               <th style="background-color: #7030A0; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="4">Cutting & Lengths</th>
             </tr>
             <tr>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Used in KG</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Fabric Spread in KG</th>
-              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants (KG)</th>
+              <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker/ Cutting Scrap (KG)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Physical Marker Efficiency (ETE)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Marker Provided Eff%(Wtd)</th>
               <th style="background-color: #D9D9D9; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Efficiency Gap</th>
 
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap (KG)</th>
-              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants %</th>
+              <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker/ Cutting Scrap %</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap%</th>
-
-              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric issued (KG)</th>
-              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Used (KG)</th>
-              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap (KG)</th>
-              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric(Issued ) %</th>
-              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap%</th>
-              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Utilization %</th>
 
               <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap</th>
               <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap %</th>
@@ -399,21 +391,14 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
             <tr>
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_used.toFixed(1)}</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${total_spread.toFixed(1)}</td>
-              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_marker_scrap_kg.toFixed(1)}</td>
+              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_cutting_scrap.toFixed(1)}</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${actual_ete_efficiency_weighted.toFixed(1)}%</td>
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${marker_provided_efficiency_weighted.toFixed(1)}%</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${efficiency_gap.toFixed(1)}%</td>
 
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_spreading_scrap.toFixed(1)}</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${actual_marker_scrap_percent.toFixed(1)}%</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${cutting_scrap_percent.toFixed(1)}%</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${spreading_scrap_percent.toFixed(1)}%</td>
-
-              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_remnants_issued.toFixed(1)}</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_used.toFixed(1)}</td>
-              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${remnants_real_scrap.toFixed(1)}</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_issued_percent.toFixed(1)}%</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_scrap_percent.toFixed(1)}%</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_utilization_percent.toFixed(1)}%</td>
 
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_cutting_scrap.toFixed(1)}</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${cutting_scrap_percent.toFixed(1)}%</td>
@@ -475,7 +460,6 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               <th class="ledger-header">Ratio</th>
               <th class="ledger-header">Cutting Qty (Pcs)</th>
               <th class="ledger-header">Fabric Used (KG)</th>
-              <th class="ledger-header">Remnant Weight (KG)</th>
               <th class="ledger-header">Scrap Weight (KG)</th>
               <th class="ledger-header">Marker Length (Inch)</th>
               <th class="ledger-header">Marker Efficiency (%)</th>
@@ -502,7 +486,6 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                   <td class="align-right">${e.ratio}</td>
                   <td class="align-right" style="font-weight: bold;">${cuttingQty}</td>
                   <td class="align-right">${e.fabric_used_kg}</td>
-                  <td class="align-right">${e.remnant_weight_kg}</td>
                   <td class="align-right">${e.cutting_scrap_weight_kg}</td>
                   <td class="align-right">${e.marker_length_inch}</td>
                   <td class="align-right">${e.marker_efficiency_percent}%</td>
@@ -717,7 +700,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               
               {/* Group 1: General Production Metrics */}
               <div className="bg-slate-50/40 dark:bg-slate-900/10 border border-slate-200/50 dark:border-slate-800/60 p-5 rounded-2xl space-y-3.5 hover:shadow-xs transition-all">
@@ -780,10 +763,6 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                     <span className="text-slate-500 dark:text-slate-400 font-semibold">Efficiency Gap:</span>
                     <span className={`font-mono font-extrabold ${stats.efficiency_gap > 3 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{stats.efficiency_gap.toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Remnants Weight:</span>
-                    <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.total_marker_scrap_kg.toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase">KG</span></span>
-                  </div>
                 </div>
               </div>
 
@@ -806,51 +785,12 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                     <span className="text-slate-500 dark:text-slate-400">Total Cutting Scrap:</span>
                     <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.total_cutting_scrap.toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase">KG</span></span>
                   </div>
-                  <div className="flex justify-between items-center text-xs font-medium">
+                  <div className="flex justify-between items-center text-xs font-medium border-t border-dashed border-slate-200 dark:border-slate-800 pt-2.5">
                     <span className="text-slate-500 dark:text-slate-400">Total Cutting Scrap %:</span>
                     <span className="font-mono font-extrabold text-rose-500">{stats.cutting_scrap_percent.toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between items-center text-xs font-medium border-t border-dashed border-slate-200 dark:border-slate-800 pt-2.5">
-                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Remnants %:</span>
-                    <span className="font-mono font-extrabold text-rose-500">{stats.actual_marker_scrap_percent.toFixed(1)}%</span>
-                  </div>
                 </div>
               </div>
-
-              {/* Group 4: Remnants Analytics */}
-              <div className="bg-slate-50/40 dark:bg-slate-900/10 border border-slate-200/50 dark:border-slate-800/60 p-5 rounded-2xl space-y-3.5 hover:shadow-xs transition-all">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-extrabold text-xs uppercase border-b border-slate-150 dark:border-slate-800/50 pb-2.5">
-                  <TrendingUp size={14} className="text-indigo-500" />
-                  <span>Remnants & Re-use</span>
-                </div>
-                <div className="space-y-3 font-sans">
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Remnants Issued:</span>
-                    <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.total_remnants_issued.toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase">KG</span></span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Remnants Re-used:</span>
-                    <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{stats.remnants_used.toFixed(1)} <span className="text-[10px] font-bold uppercase">KG</span></span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Remnants Real Scrap:</span>
-                    <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.remnants_real_scrap.toFixed(1)} <span className="text-[10px] text-slate-400 font-bold uppercase">KG</span></span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Remnants (Issued) %:</span>
-                    <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.remnants_issued_percent.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Remnants Scrap %:</span>
-                    <span className="font-mono font-extrabold text-rose-500">{stats.remnants_scrap_percent.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-medium border-t border-dashed border-slate-200 dark:border-slate-800 pt-2.5">
-                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Remnants Utilization %:</span>
-                    <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{stats.remnants_utilization_percent.toFixed(1)}%</span>
-                  </div>
-                </div>
-              </div>
-
             </div>
           </div>
 

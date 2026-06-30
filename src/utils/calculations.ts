@@ -47,9 +47,9 @@ export function calculateFields(entry: Omit<CuttingEntry, 'total_length_inch' | 
   const actual_garment_weight_kg = Math.max(0, net_fabric_kg - cutting_scrap_weight_kg);
 
   // 9. Actual Physical Marker Efficiency (ETE - End to End)
-  // Ratio of useful garment weight to total fabric processed
+  // ETE = 1 - Actual Marker/ Cutting Scrap (KG) divided by Total Fabric Used in KG (in %)
   const actual_physical_marker_efficiency_ete = fabric_used_kg > 0
-    ? parseFloat(((actual_garment_weight_kg / fabric_used_kg) * 100).toFixed(2))
+    ? parseFloat(((1 - (cutting_scrap_weight_kg / fabric_used_kg)) * 100).toFixed(2))
     : 0;
 
   // 10. Efficiency Gap
