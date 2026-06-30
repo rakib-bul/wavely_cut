@@ -8,7 +8,7 @@ import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole } from "./types";
-import { compileDashboardKPIs } from "./utils/calculations";
+import { compileDashboardKPIs, calculateFields } from "./utils/calculations";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -703,10 +703,11 @@ export default function App() {
     const stripe: CuttingEntry[] = [];
 
     entries.forEach(e => {
-      if (stripeMachineIds.has(e.machine_id)) {
-        stripe.push(e);
+      const calculated = calculateFields(e);
+      if (stripeMachineIds.has(calculated.machine_id)) {
+        stripe.push(calculated);
       } else {
-        main.push(e);
+        main.push(calculated);
       }
     });
 
