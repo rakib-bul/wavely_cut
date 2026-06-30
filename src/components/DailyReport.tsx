@@ -359,7 +359,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
         </table>
 
          <table>
-          <tr><td colspan="13" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
+          <tr><td colspan="19" class="section-header">OVERALL FABRIC METRICS SUMMARY</td></tr>
         </table>
 
         <table>
@@ -367,6 +367,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
             <tr>
               <th style="background-color: #7F7F7F; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">General & Efficiency</th>
               <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="3">Edge / Spreading Scrap</th>
+              <th style="background-color: #375623; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">Remnants Analytics</th>
               <th style="background-color: #7030A0; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="4">Cutting & Lengths</th>
             </tr>
             <tr>
@@ -380,6 +381,13 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap (KG)</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker/ Cutting Scrap %</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap%</th>
+
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric issued (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Used (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric(Issued ) %</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap%</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Utilization %</th>
 
               <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap</th>
               <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap %</th>
@@ -399,6 +407,13 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_spreading_scrap.toFixed(1)}</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${cutting_scrap_percent.toFixed(1)}%</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${spreading_scrap_percent.toFixed(1)}%</td>
+
+              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_remnants_issued.toFixed(1)}</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_used.toFixed(1)}</td>
+              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${remnants_real_scrap.toFixed(1)}</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_issued_percent.toFixed(1)}%</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_scrap_percent.toFixed(1)}%</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_utilization_percent.toFixed(1)}%</td>
 
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_cutting_scrap.toFixed(1)}</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${cutting_scrap_percent.toFixed(1)}%</td>
@@ -460,6 +475,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               <th class="ledger-header">Ratio</th>
               <th class="ledger-header">Cutting Qty (Pcs)</th>
               <th class="ledger-header">Fabric Used (KG)</th>
+              <th class="ledger-header">Remnant Weight (KG)</th>
               <th class="ledger-header">Scrap Weight (KG)</th>
               <th class="ledger-header">Marker Length (Inch)</th>
               <th class="ledger-header">Marker Efficiency (%)</th>
@@ -486,6 +502,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                   <td class="align-right">${e.ratio}</td>
                   <td class="align-right" style="font-weight: bold;">${cuttingQty}</td>
                   <td class="align-right">${e.fabric_used_kg}</td>
+                  <td class="align-right">${e.remnant_weight_kg}</td>
                   <td class="align-right">${e.cutting_scrap_weight_kg}</td>
                   <td class="align-right">${e.marker_length_inch}</td>
                   <td class="align-right">${e.marker_efficiency_percent}%</td>

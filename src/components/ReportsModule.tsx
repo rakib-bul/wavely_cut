@@ -338,7 +338,7 @@ export default function ReportsModule({
     const headers = [
       "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
       "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
-      "Fabric Weight Used (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
+      "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
       "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
       "Scarp% as per Marker", "% of cutting scrap"
     ];
@@ -488,6 +488,13 @@ export default function ReportsModule({
             <td class="cell-green">${m.actual_marker_scrap_percent}</td>
             <td class="cell-green">${m.spreading_scrap_percent}</td>
 
+            <td class="cell-default">${m.remnants_fabric_issued}</td>
+            <td class="cell-green">${m.remnants_fabric_used}</td>
+            <td class="cell-default">${m.remnants_scrap}</td>
+            <td class="cell-green">${m.remnants_issued_percent}</td>
+            <td class="cell-green">${m.remnants_scrap_percent}</td>
+            <td class="cell-green">${m.remnants_utilization}</td>
+
             <td class="cell-default">${m.total_cutting_scrap}</td>
             <td class="cell-green">${m.total_cutting_scrap_percent}</td>
             <td class="cell-default">${m.total_length}</td>
@@ -618,7 +625,7 @@ export default function ReportsModule({
         </table>
 
         <table>
-          <tr><td colspan="14" class="section-header">DATE-WISE MONTHLY OVERALL FABRIC METRICS SUMMARY</td></tr>
+          <tr><td colspan="20" class="section-header">DATE-WISE MONTHLY OVERALL FABRIC METRICS SUMMARY</td></tr>
         </table>
 
         <table>
@@ -627,6 +634,7 @@ export default function ReportsModule({
               <th style="background-color: #1F4E78; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" rowspan="2">Period / Date</th>
               <th style="background-color: #7F7F7F; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">General & Efficiency</th>
               <th style="background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="3">Edge / Spreading Scrap</th>
+              <th style="background-color: #375623; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="6">Remnants Analytics</th>
               <th style="background-color: #7030A0; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 10pt; padding: 6px 12px;" colspan="4">Cutting & Lengths</th>
             </tr>
             <tr>
@@ -640,6 +648,13 @@ export default function ReportsModule({
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap (KG)</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Actual Marker/ Cutting Scrap %</th>
               <th style="background-color: #BDD7EE; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Edge/Spreading Scrap%</th>
+
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric issued (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Used (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap (KG)</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric(Issued ) %</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Scrap%</th>
+              <th style="background-color: #E2EFDA; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Remnants Fabric Utilization %</th>
 
               <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap</th>
               <th style="background-color: #E1D5E7; color: #000000; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 12px;">Total Cutting Scrap %</th>
@@ -680,6 +695,7 @@ export default function ReportsModule({
                 <td class="align-left">${r.fabricType}</td>
                 <td class="align-left">${r.parts}</td>
                 <td class="align-right">${Number(r.fabricUsedKg).toFixed(2)}</td>
+                <td class="align-right">${Number(r.remnantsWeight).toFixed(2)}</td>
                 <td class="align-right">${Number(r.spreadingScrap).toFixed(2)}</td>
                 <td class="align-right">${Number(r.cuttingScrap).toFixed(2)}</td>
                 <td class="align-right">${Number(r.markerLengthInch).toFixed(2)}</td>
