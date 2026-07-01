@@ -305,7 +305,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/machines", async (req, res) => {
   try {
-    res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=300");
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     const { data: supabaseMachines, error: sbError } = await supabase
       .from("machines")
       .select("*")
@@ -380,7 +380,7 @@ app.post("/api/machines", async (req, res) => {
 
 app.get("/api/buyers", async (req, res) => {
   try {
-    res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=300");
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     // If we have cached buyers, return them immediately
     if (cachedBuyers !== null) {
       return res.json(cachedBuyers);
@@ -449,7 +449,7 @@ app.get("/api/entries", async (req, res) => {
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
   try {
-    res.setHeader("Cache-Control", "public, s-maxage=5, stale-while-revalidate=60");
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     let query = supabase.from("cutting_entries").select("*");
     
     if (user_role === "operator") {
@@ -913,7 +913,7 @@ app.get("/api/logs", async (req, res) => {
   }
 
   try {
-    res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=120");
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     const { data: logs, error } = await supabase
       .from("audit_logs")
       .select("*")
@@ -940,7 +940,7 @@ app.get("/api/profiles", async (req, res) => {
   }
 
   try {
-    res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=300");
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     const { data: profiles, error } = await supabase
       .from("profiles")
       .select("*")
@@ -1051,7 +1051,7 @@ app.get("/api/settings", async (req, res) => {
   if (!user_email) {
     return res.status(401).json({ error: "Unauthorized. Session required to read system settings." });
   }
-  res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600");
+  res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
   return res.json(systemSettings);
 });
 
