@@ -134,10 +134,19 @@ export default function Sidebar({
         {/* User Card */}
         <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center space-x-2.5 min-w-0">
-            {/* Minimal Initial Avatar */}
-            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xs font-black shrink-0 uppercase">
-              {currentProfile.full_name.slice(0, 2)}
-            </div>
+            {/* Minimal Initial Avatar or Custom Profile Image */}
+            {currentProfile.avatar_url ? (
+              <img 
+                src={currentProfile.avatar_url} 
+                alt={currentProfile.full_name} 
+                referrerPolicy="no-referrer"
+                className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xs font-black shrink-0 uppercase">
+                {currentProfile.full_name.slice(0, 2)}
+              </div>
+            )}
             <div className="min-w-0">
               <span className="text-xs font-black text-slate-900 dark:text-white block truncate leading-tight">
                 {currentProfile.full_name}

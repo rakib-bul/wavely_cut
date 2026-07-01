@@ -585,6 +585,38 @@ export default function App() {
     }
   };
 
+  // --- ADMIN: UPDATE USER PROFILE PICTURE ---
+  const handleUpdateUserAvatar = async (id: string, newAvatarUrl: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch(`/api/profiles/${id}/avatar`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ avatar_url: newAvatarUrl })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Profile picture update denied.");
+        return;
+      }
+
+      // If updating avatar on current active profile, apply change to active state!
+      if (id === currentProfile.id) {
+        setCurrentProfile(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed updating user profile picture: " + err.message);
+    }
+  };
+
   // --- ADMIN: HARDWARE MACHINE CREATE ACTION ---
   const handleAddMachine = async (name: string, type: string) => {
     try {
@@ -1319,6 +1351,7 @@ export default function App() {
                   machines={machines}
                   auditLogs={auditLogs}
                   onUpdateRole={handleUpdateUserRole}
+                  onUpdateAvatar={handleUpdateUserAvatar}
                   onAddMachine={handleAddMachine}
                   schemaDDL={SCHEMA_DDL_STRING}
                   rlsDDL={RLS_DDL_STRING}

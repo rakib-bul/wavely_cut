@@ -6,6 +6,7 @@ export interface Profile {
   email: string;
   role: UserRole;
   department: string;
+  avatar_url?: string;
   created_at: string;
 }
 

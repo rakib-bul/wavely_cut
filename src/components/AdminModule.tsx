@@ -16,7 +16,10 @@ import {
   Download,
   Upload,
   UserPlus,
-  Megaphone
+  Megaphone,
+  Camera,
+  ImagePlus,
+  X
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -25,6 +28,7 @@ interface AdminModuleProps {
   machines: Machine[];
   auditLogs: AuditLog[];
   onUpdateRole: (id: string, role: UserRole) => void;
+  onUpdateAvatar?: (id: string, avatarUrl: string) => Promise<void>;
   onAddMachine: (name: string, type: string) => void;
   schemaDDL: string;
   rlsDDL: string;
@@ -46,6 +50,7 @@ export default function AdminModule({
   machines,
   auditLogs,
   onUpdateRole,
+  onUpdateAvatar,
   onAddMachine,
   schemaDDL,
   rlsDDL,
@@ -79,6 +84,13 @@ export default function AdminModule({
   React.useEffect(() => {
     setLocalContent(whatsNewContent);
   }, [whatsNewContent]);
+
+  // Profile picture editor states
+  const [selectedProfileForAvatar, setSelectedProfileForAvatar] = useState<Profile | null>(null);
+  const [avatarInputType, setAvatarInputType] = useState<'url' | 'file'>('url');
+  const [avatarUrlInputValue, setAvatarUrlInputValue] = useState('');
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   // Direct User Creation States
   const [newUserFullName, setNewUserFullName] = useState("");
@@ -370,7 +382,44 @@ export default function AdminModule({
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
                     {profiles.map(p => (
                       <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition">
-                        <td className="p-4 font-extrabold text-slate-800 dark:text-slate-200 pl-5">{p.full_name}</td>
+                        <td className="p-4 pl-5">
+                          <div className="flex items-center gap-3">
+                            {/* Profile Picture / Avatar representation */}
+                            <div className="relative group/avatar cursor-pointer shrink-0" onClick={() => setSelectedProfileForAvatar(p)}>
+                              {p.avatar_url ? (
+                                <img
+                                  src={p.avatar_url}
+                                  alt={p.full_name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-800 shadow-sm"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xs font-black uppercase border border-slate-200/80 dark:border-slate-800">
+                                  {p.full_name.slice(0, 2)}
+                                </div>
+                              )}
+                              {/* Hover Edit Overlay overlay button */}
+                              <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center text-white opacity-0 group-hover/avatar:opacity-100 transition duration-200">
+                                <Camera size={13} className="stroke-[2.5]" />
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="font-extrabold text-slate-850 dark:text-slate-200 flex items-center gap-1.5">
+                                <span>{p.full_name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedProfileForAvatar(p)}
+                                  title="Edit Photo"
+                                  className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer p-0.5 rounded"
+                                >
+                                  <ImagePlus size={11} />
+                                </button>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono block mt-0.5">ID: {p.id.substring(0, 8)}...</span>
+                            </div>
+                          </div>
+                        </td>
                         <td className="p-4 font-mono text-slate-500">{p.email}</td>
                         <td className="p-4 text-slate-500 dark:text-slate-400 font-medium">{p.department}</td>
                         <td className="p-4 text-right pr-5">
@@ -843,6 +892,253 @@ export default function AdminModule({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- PROFILE AVATAR EDITOR MODAL --- */}
+      {selectedProfileForAvatar && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full text-xs space-y-6 shadow-2xl relative animate-fade-in">
+            
+            <button
+              onClick={() => {
+                setSelectedProfileForAvatar(null);
+                setAvatarUrlInputValue('');
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1.5 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="space-y-1.5 pr-8">
+              <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest block font-sans">
+                Admin Management Tool
+              </span>
+              <h3 className="font-display font-extrabold text-base text-slate-900 dark:text-slate-100 tracking-tight leading-none">
+                Update Profile Picture
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Configure avatar image for <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileForAvatar.full_name}</span> ({selectedProfileForAvatar.email}).
+              </p>
+            </div>
+
+            {/* Quick Preview Area */}
+            <div className="flex flex-col items-center justify-center py-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-150 dark:border-slate-800 gap-3">
+              <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Live Preview</div>
+              <div className="relative">
+                {avatarUrlInputValue || selectedProfileForAvatar.avatar_url ? (
+                  <img
+                    src={avatarUrlInputValue || selectedProfileForAvatar.avatar_url}
+                    alt="Preview"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://placehold.co/150x150/e2e8f0/475569?text=Invalid+Image";
+                    }}
+                    className="w-24 h-24 rounded-full object-cover border-2 border-blue-500 shadow-md"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 flex items-center justify-center text-3xl font-black uppercase border-2 border-slate-200 dark:border-slate-800">
+                    {selectedProfileForAvatar.full_name.slice(0, 2)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Selector Tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/80 dark:border-slate-850">
+              <button
+                type="button"
+                onClick={() => setAvatarInputType('url')}
+                className={`flex-1 py-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                  avatarInputType === 'url'
+                    ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
+              >
+                Direct Web URL
+              </button>
+              <button
+                type="button"
+                onClick={() => setAvatarInputType('file')}
+                className={`flex-1 py-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                  avatarInputType === 'file'
+                    ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
+              >
+                Local Image Upload
+              </button>
+            </div>
+
+            {/* Inputs Block */}
+            {avatarInputType === 'url' ? (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                  Web Image Destination Link
+                </label>
+                <input
+                  type="url"
+                  value={avatarUrlInputValue}
+                  onChange={(e) => setAvatarUrlInputValue(e.target.value)}
+                  placeholder="Paste URL (e.g. https://images.unsplash.com/...)"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2.5 px-3.5 font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-xs text-slate-800 dark:text-slate-100 font-mono"
+                />
+                <span className="text-[10px] text-slate-400 block leading-relaxed font-medium">
+                  Provide an absolute HTTP/HTTPS URL path pointing directly to an image asset.
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                  Select or Drop Image
+                </label>
+                
+                {/* Drag & Drop Area */}
+                <div
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragActive(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragActive(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragActive(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      const file = e.dataTransfer.files[0];
+                      if (!file.type.startsWith('image/')) {
+                        alert('Only image files are allowed.');
+                        return;
+                      }
+                      if (file.size > 2 * 1024 * 1024) {
+                        alert('File exceeds 2MB limit. Please select a smaller image.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        if (event.target?.result && typeof event.target.result === 'string') {
+                          setAvatarUrlInputValue(event.target.result);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className={`w-full border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center transition gap-2 ${
+                    dragActive
+                      ? 'border-blue-500 bg-blue-50/40 dark:bg-blue-950/10'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-950/20'
+                  }`}
+                >
+                  <Upload size={24} className="text-slate-400 dark:text-slate-500 mb-1" />
+                  <p className="font-bold text-slate-700 dark:text-slate-300">
+                    Drag and drop your image file here
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                    Supports JPG, PNG, WEBP, GIF (Max size 2MB)
+                  </p>
+                  
+                  <label className="mt-2 px-4 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-black cursor-pointer shadow-xs transition">
+                    Browse File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          if (file.size > 2 * 1024 * 1024) {
+                            alert('File exceeds 2MB limit. Please select a smaller image.');
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target?.result && typeof event.target.result === 'string') {
+                              setAvatarUrlInputValue(event.target.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Footer actions */}
+            <div className="pt-4 border-t border-slate-150 dark:border-slate-800 flex flex-wrap items-center justify-end gap-2">
+              {selectedProfileForAvatar.avatar_url && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!onUpdateAvatar) return;
+                    if (!confirm("Remove profile picture for this user?")) return;
+                    setIsSavingAvatar(true);
+                    try {
+                      await onUpdateAvatar(selectedProfileForAvatar.id, "");
+                      setSelectedProfileForAvatar(null);
+                      setAvatarUrlInputValue('');
+                    } catch (err: any) {
+                      alert("Failed to remove avatar: " + err.message);
+                    } finally {
+                      setIsSavingAvatar(false);
+                    }
+                  }}
+                  disabled={isSavingAvatar}
+                  className="px-4 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-rose-200 dark:border-rose-950/50 hover:border-rose-300 text-rose-600 dark:text-rose-400 rounded-xl transition font-bold text-[11px] flex items-center gap-1 shadow-sm cursor-pointer mr-auto"
+                >
+                  Remove Picture
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProfileForAvatar(null);
+                  setAvatarUrlInputValue('');
+                }}
+                className="px-4 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-300 rounded-xl transition font-bold text-[11px] cursor-pointer"
+              >
+                Cancel
+              </button>
+              
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!onUpdateAvatar) return;
+                  if (!avatarUrlInputValue.trim() && avatarUrlInputValue !== selectedProfileForAvatar.avatar_url) {
+                    alert("Please specify a valid picture source.");
+                    return;
+                  }
+                  setIsSavingAvatar(true);
+                  try {
+                    await onUpdateAvatar(selectedProfileForAvatar.id, avatarUrlInputValue.trim());
+                    setSelectedProfileForAvatar(null);
+                    setAvatarUrlInputValue('');
+                  } catch (err: any) {
+                    alert("Error saving profile picture: " + err.message);
+                  } finally {
+                    setIsSavingAvatar(false);
+                  }
+                }}
+                disabled={isSavingAvatar || (!avatarUrlInputValue.trim() && avatarUrlInputValue !== selectedProfileForAvatar.avatar_url)}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl transition font-bold text-[11px] shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSavingAvatar ? "Saving..." : "Apply Picture"}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

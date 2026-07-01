@@ -990,6 +990,51 @@ app.put("/api/profiles/:id/role", async (req, res) => {
   }
 });
 
+app.put("/api/profiles/:id/avatar", async (req, res) => {
+  const { id } = req.params;
+  const { avatar_url } = req.body;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role !== "admin") {
+    return res.status(403).json({ error: "Only Admins can modify profile pictures." });
+  }
+
+  try {
+    const { data: currentProfile, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !currentProfile) {
+      return res.status(404).json({ error: "Profile not found." });
+    }
+
+    const { data: updatedProfile, error: updateErr } = await supabase
+      .from("profiles")
+      .update({ avatar_url })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      if (updateErr.message.includes("column") || updateErr.code === "42703") {
+        return res.status(400).json({
+          error: "Database column 'avatar_url' is missing. Please run 'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;' in your Supabase SQL editor to enable profile pictures."
+        });
+      }
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    await addAuditLog(user_email, "edit", "avatar", id, currentProfile, updatedProfile);
+    
+    return res.json(updatedProfile);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ==========================================
 // 6. SYSTEM SETTINGS API
