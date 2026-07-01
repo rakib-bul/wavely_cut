@@ -30,7 +30,9 @@ import {
   Trash2,
   Sparkles,
   Download,
-  Upload
+  Upload,
+  Megaphone,
+  Bell
 } from "lucide-react";
 
 export default function App() {
@@ -57,6 +59,10 @@ export default function App() {
 
   // --- Core Entity States ---
   const [jobNoDigits, setJobNoDigits] = useState<number>(7);
+  const [whatsNewTitle, setWhatsNewTitle] = useState<string>("");
+  const [whatsNewContent, setWhatsNewContent] = useState<string>("");
+  const [whatsNewUpdatedAt, setWhatsNewUpdatedAt] = useState<string>("");
+  const [showWhatsNewModal, setShowWhatsNewModal] = useState<boolean>(false);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>(() => {
     try {
@@ -206,8 +212,27 @@ export default function App() {
       // 5. Fetch system settings
       try {
         const settingsData = await safeFetchJson("/api/settings", { headers });
-        if (settingsData && typeof settingsData.job_no_digits === "number") {
-          setJobNoDigits(settingsData.job_no_digits);
+        if (settingsData) {
+          if (typeof settingsData.job_no_digits === "number") {
+            setJobNoDigits(settingsData.job_no_digits);
+          }
+          if (typeof settingsData.whats_new_title === "string") {
+            setWhatsNewTitle(settingsData.whats_new_title);
+          }
+          if (typeof settingsData.whats_new_content === "string") {
+            setWhatsNewContent(settingsData.whats_new_content);
+          }
+          if (typeof settingsData.whats_new_updated_at === "string") {
+            setWhatsNewUpdatedAt(settingsData.whats_new_updated_at);
+
+            // On initial non-silent load, check if we need to show the What's New modal
+            if (!isSilent && settingsData.whats_new_title && settingsData.whats_new_updated_at) {
+              const lastSeen = localStorage.getItem("whats_new_seen_timestamp");
+              if (lastSeen !== settingsData.whats_new_updated_at) {
+                setShowWhatsNewModal(true);
+              }
+            }
+          }
         }
       } catch (settingsErr) {
         console.warn("Could not fetch system settings silently:", settingsErr);
@@ -487,6 +512,44 @@ export default function App() {
       await fetchData();
     } catch (err: any) {
       alert("Failed to update system settings: " + err.message);
+    }
+  };
+
+  // --- ADMIN: UPDATE WHAT'S NEW ANNOUNCEMENT SYSTEM SETTING ---
+  const handleUpdateWhatsNew = async (title: string, content: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const updatedAt = title ? new Date().toISOString() : "";
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          job_no_digits: jobNoDigits,
+          whats_new_title: title,
+          whats_new_content: content,
+          whats_new_updated_at: updatedAt
+        })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Announcement update failed.");
+        return;
+      }
+
+      const updated = await res.json();
+      setWhatsNewTitle(updated.whats_new_title || "");
+      setWhatsNewContent(updated.whats_new_content || "");
+      setWhatsNewUpdatedAt(updated.whats_new_updated_at || "");
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed to update announcement: " + err.message);
     }
   };
 
@@ -1266,6 +1329,10 @@ export default function App() {
                   jobNoDigits={jobNoDigits}
                   onUpdateJobNoDigits={handleUpdateJobNoDigits}
                   onAddUser={handleAdminCreateUser}
+                  whatsNewTitle={whatsNewTitle}
+                  whatsNewContent={whatsNewContent}
+                  whatsNewUpdatedAt={whatsNewUpdatedAt}
+                  onUpdateWhatsNew={handleUpdateWhatsNew}
                 />
               </div>
             )}
@@ -1521,6 +1588,62 @@ export default function App() {
               </div>
 
             </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* --- WHAT'S NEW ANNOUNCEMENT LAUNCHER MODAL --- */}
+      {showWhatsNewModal && whatsNewTitle && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-lg w-full text-xs space-y-6 shadow-2xl animate-fade-in relative overflow-hidden">
+            
+            {/* Background design accents */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 dark:bg-indigo-500/5 rounded-full blur-3xl -ml-12 -mb-12 pointer-events-none" />
+
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm animate-bounce">
+                <Megaphone size={28} />
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest block font-sans">
+                  System Announcement
+                </span>
+                <h3 className="font-display font-extrabold text-lg text-slate-800 dark:text-slate-100 tracking-tight leading-snug">
+                  {whatsNewTitle}
+                </h3>
+              </div>
+            </div>
+
+            <div className="border-t border-b border-slate-100 dark:border-slate-800 py-4 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-3 text-slate-600 dark:text-slate-300 leading-relaxed text-xs">
+                {whatsNewContent.split('\n').map((para, i) => (
+                  <p key={i} className="font-medium">
+                    {para}
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 pt-2">
+              <span className="text-[9px] text-slate-400 font-mono font-semibold">
+                Version Broadcast ID: {whatsNewUpdatedAt ? whatsNewUpdatedAt.substring(0, 10) : "Latest"}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWhatsNewModal(false);
+                  if (whatsNewUpdatedAt) {
+                    localStorage.setItem("whats_new_seen_timestamp", whatsNewUpdatedAt);
+                  }
+                }}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-extrabold text-xs shadow-md shadow-blue-500/10 flex items-center gap-1.5 cursor-pointer"
+              >
+                Got it, thanks!
+              </button>
+            </div>
 
           </div>
         </div>

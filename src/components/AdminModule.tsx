@@ -15,7 +15,8 @@ import {
   Settings2,
   Download,
   Upload,
-  UserPlus
+  UserPlus,
+  Megaphone
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -34,6 +35,10 @@ interface AdminModuleProps {
   jobNoDigits?: number;
   onUpdateJobNoDigits?: (digits: number) => void;
   onAddUser?: (user: { email: string; password: string; full_name: string; role: UserRole; department: string }) => Promise<{ success: boolean; error?: string }>;
+  whatsNewTitle?: string;
+  whatsNewContent?: string;
+  whatsNewUpdatedAt?: string;
+  onUpdateWhatsNew?: (title: string, content: string) => Promise<void>;
 }
 
 export default function AdminModule({
@@ -50,13 +55,30 @@ export default function AdminModule({
   onUploadBuyersCache,
   jobNoDigits = 7,
   onUpdateJobNoDigits,
-  onAddUser
+  onAddUser,
+  whatsNewTitle = "",
+  whatsNewContent = "",
+  whatsNewUpdatedAt = "",
+  onUpdateWhatsNew
 }: AdminModuleProps) {
   // --- Admin Views State ---
   const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'settings' | 'logs' | 'ddl'>('iam');
 
   const [localDigits, setLocalDigits] = useState(jobNoDigits);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Whats New Editor States
+  const [localTitle, setLocalTitle] = useState(whatsNewTitle);
+  const [localContent, setLocalContent] = useState(whatsNewContent);
+  const [isSavingWhatsNew, setIsSavingWhatsNew] = useState(false);
+
+  React.useEffect(() => {
+    setLocalTitle(whatsNewTitle);
+  }, [whatsNewTitle]);
+
+  React.useEffect(() => {
+    setLocalContent(whatsNewContent);
+  }, [whatsNewContent]);
 
   // Direct User Creation States
   const [newUserFullName, setNewUserFullName] = useState("");
@@ -196,7 +218,7 @@ export default function AdminModule({
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            <Settings size={13} /> Job Digits Control
+            <Settings size={13} /> System Settings
           </button>
           <button
             onClick={() => setActiveAdminTab('logs')}
@@ -718,6 +740,108 @@ export default function AdminModule({
                   You have unsaved adjustments.
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* Whats New Announcement Card */}
+          <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-850">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Megaphone size={16} className="text-[#2563EB]" /> "What's New" Launcher Broadcast
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-6 font-medium">
+              Compose a custom announcement to display automatically to all users upon launching the application. Use this to notify staff of feature releases, shift updates, or procedural changes.
+            </p>
+
+            <div className="space-y-4 max-w-2xl bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-150 dark:border-slate-800 shadow-xs">
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Announcement Title</label>
+                <input
+                  type="text"
+                  value={localTitle}
+                  onChange={e => setLocalTitle(e.target.value)}
+                  placeholder="e.g. Version 2.0 - Auto-calculations & Stripe Fabric Support"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2.5 px-3.5 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-slate-850 dark:text-slate-100 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Announcement Content / Release Notes</label>
+                <textarea
+                  value={localContent}
+                  onChange={e => setLocalContent(e.target.value)}
+                  rows={5}
+                  placeholder="Write the release notes or announcements here..."
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2.5 px-3.5 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs text-slate-800 dark:text-slate-200 text-xs font-sans"
+                />
+              </div>
+
+              {/* Status Indicator */}
+              <div className="flex items-center gap-2 pt-2 text-xs font-semibold">
+                <span className="text-slate-400">Status:</span>
+                {whatsNewTitle ? (
+                  <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black">
+                    🟢 Active Broadcast
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-slate-500 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black">
+                    ⚪ Inactive
+                  </span>
+                )}
+                {whatsNewUpdatedAt && (
+                  <span className="text-[10px] text-slate-400 font-mono font-medium ml-auto">
+                    Published: {new Date(whatsNewUpdatedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-150 dark:border-slate-800 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={async () => {
+                    if (!onUpdateWhatsNew) return;
+                    setIsSavingWhatsNew(true);
+                    try {
+                      await onUpdateWhatsNew(localTitle, localContent);
+                    } catch (err: any) {
+                      alert("Error updating announcement: " + err.message);
+                    } finally {
+                      setIsSavingWhatsNew(false);
+                    }
+                  }}
+                  disabled={isSavingWhatsNew || (!localTitle.trim() && (localTitle !== whatsNewTitle || localContent !== whatsNewContent))}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-40"
+                >
+                  {isSavingWhatsNew ? "Publishing..." : "Publish Announcement"}
+                </button>
+
+                {whatsNewTitle && (
+                  <button
+                    onClick={async () => {
+                      if (!onUpdateWhatsNew) return;
+                      if (!confirm("Are you sure you want to clear and disable the active launcher announcement?")) return;
+                      setIsSavingWhatsNew(true);
+                      try {
+                        await onUpdateWhatsNew("", "");
+                        setLocalTitle("");
+                        setLocalContent("");
+                      } catch (err: any) {
+                        alert("Error clearing announcement: " + err.message);
+                      } finally {
+                        setIsSavingWhatsNew(false);
+                      }
+                    }}
+                    disabled={isSavingWhatsNew}
+                    className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    Clear Announcement
+                  </button>
+                )}
+
+                {(localTitle !== whatsNewTitle || localContent !== whatsNewContent) && (
+                  <span className="text-[11px] text-amber-500 font-bold animate-pulse ml-auto">
+                    Unpublished changes detected
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -35,7 +35,10 @@ const supabase = createClient(
 // System Settings persistence
 const SETTINGS_FILE_PATH = path.join(process.cwd(), "settings.json");
 let systemSettings = {
-  job_no_digits: 7
+  job_no_digits: 7,
+  whats_new_title: "",
+  whats_new_content: "",
+  whats_new_updated_at: ""
 };
 
 function loadSettings() {
@@ -1008,13 +1011,18 @@ app.post("/api/settings", async (req, res) => {
     return res.status(403).json({ error: "Only Admins can modify system configurations." });
   }
 
-  const { job_no_digits } = req.body;
+  const { job_no_digits, whats_new_title, whats_new_content, whats_new_updated_at } = req.body;
   if (job_no_digits === undefined || typeof job_no_digits !== "number" || job_no_digits <= 0 || job_no_digits > 20) {
     return res.status(400).json({ error: "Job No digits must be a positive integer between 1 and 20." });
   }
 
   const old_value = { ...systemSettings };
-  const success = saveSettings({ job_no_digits });
+  const success = saveSettings({
+    job_no_digits,
+    whats_new_title: typeof whats_new_title === "string" ? whats_new_title : (systemSettings.whats_new_title || ""),
+    whats_new_content: typeof whats_new_content === "string" ? whats_new_content : (systemSettings.whats_new_content || ""),
+    whats_new_updated_at: typeof whats_new_updated_at === "string" ? whats_new_updated_at : (systemSettings.whats_new_updated_at || "")
+  });
 
   if (!success) {
     return res.status(500).json({ error: "Failed to persist new system settings." });
