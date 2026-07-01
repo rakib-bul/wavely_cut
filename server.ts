@@ -1192,8 +1192,30 @@ if (process.env.VERCEL) {
   });
 } else {
   const distPath = path.join(process.cwd(), "dist");
-  app.use(express.static(distPath));
+  
+  // Configure express.static with optimal browser caching options
+  app.use(express.static(distPath, {
+    maxAge: "1d",
+    setHeaders: (res, filePath) => {
+      // Vite production builds place compiled JS/CSS in the dist/assets folder with content hashes.
+      // Since these are fully immutable, we can safely cache them forever (1 year).
+      if (filePath.includes(path.join("dist", "assets")) || filePath.includes("/assets/")) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (filePath.endsWith(".html")) {
+        // Main index.html or other HTML entrypoints must never cache indefinitely to ensure
+        // client browsers fetch new releases when the app updates.
+        res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+      } else {
+        // Other non-hashed root assets (like manifest.json, favicon.ico, images in /public)
+        // are cached for 1 day with revalidation required afterwards.
+        res.setHeader("Cache-Control", "public, max-age=86400, must-revalidate");
+      }
+    }
+  }));
+
   app.get("*", (req, res) => {
+    // Send index.html with headers ensuring it is revalidated on every request
+    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
     res.sendFile(path.join(distPath, "index.html"));
   });
   
