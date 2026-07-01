@@ -1,7 +1,7 @@
 -- ====================================================================
 -- PRODUCTION-READY GARMENTS CUTTING MANAGEMENT SYSTEM SCHEMA
 -- TARGET DATABASE: PostgreSQL (Supabase / Cloud SQL)
--- AUTHOR: AI Studio Build
+-- AUTHOR: Rakib Hasan
 -- TIMESTAMP: 2026-06-23
 -- ====================================================================
 

@@ -1,7 +1,7 @@
 export const SCHEMA_DDL_STRING = `-- ====================================================================
 -- PRODUCTION-READY GARMENTS CUTTING MANAGEMENT SYSTEM SCHEMA
 -- TARGET DATABASE: PostgreSQL (Supabase / Cloud SQL)
--- AUTHOR: AI Studio Build
+-- AUTHOR: Platform
 -- TIMESTAMP: 2026-06-23
 -- ====================================================================
 
@@ -92,7 +92,7 @@ ON CONFLICT (name) DO NOTHING;
 export const RLS_DDL_STRING = `-- ====================================================================
 -- SUPABASE ROW LEVEL SECURITY (RLS) POLICIES
 -- TARGET DATABASE: PostgreSQL
--- AUTHOR: AI Studio Build
+-- AUTHOR: Platform
 -- TIMESTAMP: 2026-06-23
 -- ====================================================================
 

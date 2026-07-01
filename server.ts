@@ -14,15 +14,23 @@ const PORT = 3000;
 app.use(express.json());
 
 // Initialize Supabase Client
-const supabaseUrl = "https://qkcbxpafpykmktisyioy.supabase.co";
-const supabaseServiceKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY2J4cGFmcHlrbWt0aXN5aW95Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE5NzMyNSwiZXhwIjoyMDk3NzczMzI1fQ.-2bMfw9d1hkbAVNWBrOwBKA5WRNNcU2XRXXvM1u4gBQ";
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn("⚠️ SECURITY WARNING: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing in the environment (.env file). Set them to connect to your database.");
+}
+
+const supabase = createClient(
+  supabaseUrl || "https://placeholder-project.supabase.co",
+  supabaseServiceKey || "placeholder-service-key-missing-in-env",
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
   }
-});
+);
 
 // System Settings persistence
 const SETTINGS_FILE_PATH = path.join(process.cwd(), "settings.json");

@@ -1,7 +1,7 @@
 -- ====================================================================
 -- SUPABASE ROW LEVEL SECURITY (RLS) POLICIES
 -- TARGET DATABASE: PostgreSQL
--- AUTHOR: AI Studio Build
+-- AUTHOR: Rakib Hasan
 -- TIMESTAMP: 2026-06-23
 -- ====================================================================
 
