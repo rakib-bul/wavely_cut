@@ -601,8 +601,15 @@ export default function App() {
       });
 
       if (!res.ok) {
-        const body = await res.json();
-        alert(body.error || "Profile picture update denied.");
+        const text = await res.text();
+        let errorMessage = "Profile picture update denied.";
+        try {
+          const body = JSON.parse(text);
+          errorMessage = body.error || errorMessage;
+        } catch (_) {
+          errorMessage = `Server Error (${res.status}): ${text.substring(0, 200) || res.statusText}`;
+        }
+        alert(errorMessage);
         return;
       }
 

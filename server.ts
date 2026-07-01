@@ -11,7 +11,8 @@ import { createClient } from "@supabase/supabase-js";
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
