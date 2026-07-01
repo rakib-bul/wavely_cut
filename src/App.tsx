@@ -55,15 +55,36 @@ export default function App() {
     }
   });
 
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_profiles");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // --- Core Entity States ---
-  const [jobNoDigits, setJobNoDigits] = useState<number>(7);
-  const [whatsNewTitle, setWhatsNewTitle] = useState<string>("");
-  const [whatsNewContent, setWhatsNewContent] = useState<string>("");
-  const [whatsNewUpdatedAt, setWhatsNewUpdatedAt] = useState<string>("");
+  const [jobNoDigits, setJobNoDigits] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_job_no_digits");
+      return saved ? Number(saved) : 7;
+    } catch {
+      return 7;
+    }
+  });
+  const [whatsNewTitle, setWhatsNewTitle] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_title") || "");
+  const [whatsNewContent, setWhatsNewContent] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_content") || "");
+  const [whatsNewUpdatedAt, setWhatsNewUpdatedAt] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_updated_at") || "");
   const [showWhatsNewModal, setShowWhatsNewModal] = useState<boolean>(false);
-  const [machines, setMachines] = useState<Machine[]>([]);
+  const [machines, setMachines] = useState<Machine[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_machines");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [buyers, setBuyers] = useState<Buyer[]>(() => {
     try {
       const saved = localStorage.getItem("erp_cached_buyers");
@@ -72,11 +93,33 @@ export default function App() {
       return [];
     }
   });
-  const [entries, setEntries] = useState<CuttingEntry[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [entries, setEntries] = useState<CuttingEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_entries");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_audit_logs");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // --- Loading / Network feedback ---
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    try {
+      // If we have cached entries already, render immediately and sync silently in the background
+      const saved = localStorage.getItem("erp_cached_entries");
+      return !saved;
+    } catch {
+      return true;
+    }
+  });
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -92,9 +135,9 @@ export default function App() {
   const [syncInterval, setSyncInterval] = useState<number>(() => {
     try {
       const saved = localStorage.getItem("erp_sync_interval_sec");
-      return saved ? Number(saved) : 10;
+      return saved ? Number(saved) : 30; // Default optimized from 10s to 30s
     } catch {
-      return 10;
+      return 30;
     }
   });
   const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
@@ -173,6 +216,11 @@ export default function App() {
       // 1. Fetch Machines
       const macData = await safeFetchJson("/api/machines", { headers });
       setMachines(macData);
+      try {
+        localStorage.setItem("erp_cached_machines", JSON.stringify(macData));
+      } catch (e) {
+        console.error("Failed to cache machines locally", e);
+      }
 
       // 1.5 Fetch Buyers
       try {
@@ -190,12 +238,22 @@ export default function App() {
       // 2. Fetch Cutting Entries (Restricted based on active user's role on server)
       const entData = await safeFetchJson("/api/entries", { headers });
       setEntries(entData);
+      try {
+        localStorage.setItem("erp_cached_entries", JSON.stringify(entData));
+      } catch (e) {
+        console.error("Failed to cache entries locally", e);
+      }
 
       // 3. Fetch Audit Logs (Strictly safe; only load if active role is admin)
       if (currentProfile.role === "admin") {
         try {
           const logData = await safeFetchJson("/api/logs", { headers });
           setAuditLogs(logData);
+          try {
+            localStorage.setItem("erp_cached_audit_logs", JSON.stringify(logData));
+          } catch (e) {
+            console.error("Failed to cache audit logs locally", e);
+          }
         } catch (logErr) {
           console.warn("Could not fetch audit logs silently:", logErr);
         }
@@ -205,6 +263,11 @@ export default function App() {
       try {
         const profData = await safeFetchJson("/api/profiles", { headers });
         setProfiles(profData);
+        try {
+          localStorage.setItem("erp_cached_profiles", JSON.stringify(profData));
+        } catch (e) {
+          console.error("Failed to cache profiles locally", e);
+        }
       } catch (profErr) {
         console.warn("Could not fetch profiles list silently:", profErr);
       }
@@ -215,15 +278,27 @@ export default function App() {
         if (settingsData) {
           if (typeof settingsData.job_no_digits === "number") {
             setJobNoDigits(settingsData.job_no_digits);
+            try {
+              localStorage.setItem("erp_cached_job_no_digits", String(settingsData.job_no_digits));
+            } catch (e) {}
           }
           if (typeof settingsData.whats_new_title === "string") {
             setWhatsNewTitle(settingsData.whats_new_title);
+            try {
+              localStorage.setItem("erp_cached_whats_new_title", settingsData.whats_new_title);
+            } catch (e) {}
           }
           if (typeof settingsData.whats_new_content === "string") {
             setWhatsNewContent(settingsData.whats_new_content);
+            try {
+              localStorage.setItem("erp_cached_whats_new_content", settingsData.whats_new_content);
+            } catch (e) {}
           }
           if (typeof settingsData.whats_new_updated_at === "string") {
             setWhatsNewUpdatedAt(settingsData.whats_new_updated_at);
+            try {
+              localStorage.setItem("erp_cached_whats_new_updated_at", settingsData.whats_new_updated_at);
+            } catch (e) {}
 
             // On initial non-silent load, check if we need to show the What's New modal
             if (!isSilent && settingsData.whats_new_title && settingsData.whats_new_updated_at) {
@@ -1231,9 +1306,14 @@ export default function App() {
                 {/* --- SECTION 1: DAILY OPERATIONS & ANALYTICS --- */}
                 <div className="space-y-6">
                   <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
-                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
-                      Daily Operations & Shop-Floor Reports
-                    </h2>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-black tracking-widest text-blue-600 dark:text-blue-400 uppercase">
+                        Active Session
+                      </span>
+                      <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                        Daily Operations & Cutting-Floor Reports
+                      </h2>
+                    </div>
                     <p className="text-xs text-slate-500 mt-1">
                       Real-time interactive shift report logs, supervisor metrics, and daily throughput trends.
                     </p>
