@@ -41,6 +41,8 @@ interface KPICardsProps {
     total_lay_layers?: number;
     total_cutting_qty?: number;
     total_used_fabric_inch?: number;
+    avg_size_ratio?: number;
+    today_avg_size_ratio?: number;
   };
   group?: "daily" | "monthly" | "all";
 }
@@ -181,6 +183,17 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
       statusText: (metrics.recent_ete_efficiency || 0) > 85 ? "High Yield" : "Standard",
       statusColor: (metrics.recent_ete_efficiency || 0) > 85 ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" : "bg-amber-500/15 text-amber-600 border-amber-500/20",
     },
+    {
+      id: "size-ratio",
+      title: "Average Size Ratio",
+      amount: (metrics.avg_size_ratio || 0).toFixed(1),
+      unit: "Ratio",
+      desc: `Mean size/marker ratio per cutting lot. Latest day's average ratio is ${metrics.today_avg_size_ratio || 0}`,
+      icon: Hash,
+      color: "text-indigo-600 bg-indigo-500/10",
+      statusText: "Size Ratio",
+      statusColor: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20",
+    },
     // Cumulative/Overall KPIs
     {
       id: "total-lots",
@@ -206,10 +219,10 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
     },
     {
       id: "total-qty",
-      title: "Cutting Qty (Ratio × Lay)",
+      title: "Total Cut Quantity",
       amount: (metrics.total_cutting_qty || 0).toLocaleString(),
       unit: "Pcs",
-      desc: "Usable cut-out panels",
+      desc: "Cumulative sum of cut garments (Ratio × Lay) across all approved lots",
       icon: Hash,
       color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10",
       statusText: "Total Yield",
@@ -229,9 +242,8 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
   ];
 
   // Group filter logic
-  const dailyKpis = kpis.filter(kpi => 
-    ["today-output", "today-fabric", "daily-trend", "daily-avg", "recent-quality"].includes(kpi.id)
-  );
+  const dailyKeys = ["total-qty", "today-output", "today-fabric", "size-ratio", "daily-trend", "daily-avg", "recent-quality"];
+  const dailyKpis = dailyKeys.map(key => kpis.find(k => k.id === key)).filter((k): k is typeof kpis[0] => !!k);
 
   const monthlyKpis = kpis.filter(kpi => 
     ["gross-fabric", "fabric-spread", "cutting-scrap", "cad-eff", "ete-eff", "eff-gap", "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch"].includes(kpi.id)
@@ -311,7 +323,7 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
             </h3>
           </div>
           <div className="mt-4">
-            {renderCardGrid(monthlyKpis.filter(kpi => ["month-total", "total-lots", "total-layers", "total-qty", "total-used-inch"].includes(kpi.id)))}
+            {renderCardGrid(monthlyKpis.filter(kpi => ["month-total", "total-lots", "total-layers", "total-used-inch"].includes(kpi.id)))}
           </div>
         </div>
       </div>

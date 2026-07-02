@@ -1300,8 +1300,8 @@ export default function App() {
                       Real-time interactive shift report logs, supervisor metrics, and daily throughput trends.
                     </p>
                   </div>
-                  <DailyReport entries={mainEntries} machines={machines} />
                   <KPICards metrics={compiledMainKPIs} group="daily" />
+                  <DailyReport entries={mainEntries} machines={machines} />
                 </div>
 
                 {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
@@ -1333,8 +1333,8 @@ export default function App() {
                       Daily logs, lay plies, and physical piece yields specifically for isolated stripe tables.
                     </p>
                   </div>
-                  <DailyReport entries={stripeEntries} machines={machines} />
                   <KPICards metrics={compiledStripeKPIs} group="daily" />
+                  <DailyReport entries={stripeEntries} machines={machines} />
                 </div>
 
                 {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}

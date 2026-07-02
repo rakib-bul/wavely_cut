@@ -280,6 +280,8 @@ export default function ReportsModule({
     const total_marker_scrap_kg = total_cutting_scrap;
     const total_length = target.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
     const total_used_fabric_inch_val = target.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
+    const total_cutting_qty_val = target.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
+    const avg_size_ratio_val = target.length > 0 ? target.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0) / target.length : 0;
 
     // Derived fields
     const total_spread = Math.max(0, total_used - total_remnants_issued); // Spread fabric
@@ -329,7 +331,9 @@ export default function ReportsModule({
       total_cutting_scrap: total_cutting_scrap.toFixed(1),
       total_cutting_scrap_percent: cutting_scrap_percent.toFixed(1),
       total_length: total_length.toLocaleString(),
-      total_used_fabric_inch: total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 })
+      total_used_fabric_inch: total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 }),
+      total_cutting_qty: total_cutting_qty_val.toLocaleString(),
+      avg_size_ratio: avg_size_ratio_val.toFixed(1)
     };
   }, [filteredEntries]);
 
@@ -858,51 +862,148 @@ export default function ReportsModule({
       </div>
 
       {/* METRICS ACCORDION BREAKDOWN */}
-      <div className="space-y-2.5">
-        <h3 className="font-sans font-extrabold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between">
-          <span>Aggregated Section Performance ({filteredEntries.length} Records)</span>
-          <span className="text-[10px] lowercase text-slate-400 dark:text-slate-500 font-bold">Compiled dynamically from filtered data</span>
-        </h3>
-        
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Used</span>
-            <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_used} KG</span>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-sans font-extrabold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Aggregated Ledger Performance ({filteredEntries.length} Records)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Every calculated physical fabric metric and cutting yield is compiled dynamically.
+            </p>
           </div>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Spread</span>
-            <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_spread} KG</span>
-          </div>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Spreading Scrap</span>
-            <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.spreading_scrap_kg} KG <span className="text-xs text-amber-500 font-black">({reportMetrics.spreading_scrap_percent}%)</span></span>
-          </div>
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Cutting Scrap</span>
-            <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_cutting_scrap} KG <span className="text-xs text-rose-500 font-black">({reportMetrics.total_cutting_scrap_percent}%)</span></span>
-          </div>
-          <div className="bg-blue-50/50 dark:bg-[#0B1220]/50 border border-blue-150 dark:border-blue-900 p-4 rounded-2xl shadow-xs">
-            <span className="text-[10px] text-[#2563EB] block font-black uppercase tracking-wider mb-1">Marker Yield (ETE)</span>
-            <span className="font-mono text-[#2563EB] font-black text-base">{reportMetrics.actual_physical_ete_efficiency}%</span>
-          </div>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg">
+            Contextual Dynamic Scope
+          </span>
         </div>
-      </div>
 
-      {/* Accordion for complex regulatory indicators */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl text-xs grid grid-cols-1 md:grid-cols-2 gap-8 shadow-xs">
-        <div>
-          <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[10px] mb-3 pb-1.5 border-b border-slate-100 dark:border-slate-800">Marker Efficiency Variances</h4>
-          <ul className="space-y-2.5 text-slate-500 dark:text-slate-400 font-medium">
-            <li className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5"><span>CAD Provided Eff (Weighted):</span> <strong className="font-mono text-slate-800 dark:text-slate-200">{reportMetrics.marker_provided_efficiency_weighted}%</strong></li>
-            <li className="flex justify-between"><span>ETE Efficiency Gap:</span> <strong className="font-mono text-rose-600">{reportMetrics.efficiency_gap}%</strong></li>
-          </ul>
+        {/* BENTO SECTION 1: Core Fabric & Production Volumes */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Core Fabric & Production Volumes
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Used</span>
+              <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_used} KG</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Cumulative scale weight</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Spread</span>
+              <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_spread} KG</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Laying phase input weight</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Cut Quantity</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.total_cutting_qty} Pcs</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Pieces cut (Ratio × Lay)</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Avg Size Ratio</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.avg_size_ratio} Ratio</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Mean markers size factor</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Lay Length</span>
+              <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_length} In.</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Lay plies linear inches</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Effective Cut Inches</span>
+              <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_used_fabric_inch} In.</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Lay × Length × Eff %</span>
+            </div>
+          </div>
         </div>
-        <div>
-          <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[10px] mb-3 pb-1.5 border-b border-slate-100 dark:border-slate-800">Linear Sizing Yields</h4>
-          <ul className="space-y-2.5 text-slate-500 dark:text-slate-400 font-medium">
-            <li className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5"><span>Total lay length:</span> <strong className="font-mono text-slate-800 dark:text-slate-200">{reportMetrics.total_length} Inches</strong></li>
-            <li className="flex justify-between"><span>Total Used Fabric (Inch):</span> <strong className="font-mono text-slate-800 dark:text-slate-200">{reportMetrics.total_used_fabric_inch} Inches</strong></li>
-          </ul>
+
+        {/* BENTO SECTION 2: Scrap & Waste Auditing */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Scrap & Waste Auditing
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-rose-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Spreading Scrap</span>
+              <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.spreading_scrap_kg} KG</span>
+              <span className="text-xs text-amber-500 font-black">({reportMetrics.spreading_scrap_percent}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">End bits/laying remnants</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-rose-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Cutting Scrap</span>
+              <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.total_cutting_scrap} KG</span>
+              <span className="text-xs text-rose-500 font-black">({reportMetrics.total_cutting_scrap_percent}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Between panels net waste</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-rose-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Actual Marker Scrap</span>
+              <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.actual_marker_scrap_kg} KG</span>
+              <span className="text-xs text-rose-500 font-black">({reportMetrics.actual_marker_scrap_percent}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Net processed marker waste</span>
+            </div>
+            <div className="bg-amber-50/20 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-800/60 p-4 rounded-2xl shadow-xs hover:border-amber-500/30 transition-all">
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 block font-black uppercase tracking-wider mb-1">Remnant Scrap Rate</span>
+              <span className="font-mono text-amber-600 dark:text-amber-400 font-extrabold text-base">{reportMetrics.remnants_scrap_percent}%</span>
+              <span className="text-xs text-slate-400 font-medium">({reportMetrics.remnants_scrap} KG unused)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Rate of discarded remnant logs</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BENTO SECTION 3: Efficiency & Variance Indicators */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Efficiency & Variance Indicators
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-emerald-50/40 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-800/60 p-4 rounded-2xl shadow-xs hover:border-emerald-500/30 transition-all">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-black uppercase tracking-wider mb-1">Marker Yield (End-to-End)</span>
+              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base">{reportMetrics.actual_physical_ete_efficiency}%</span>
+              <span className="text-[9px] text-slate-400 block mt-1">True usable physical output yield</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-emerald-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Weighted CAD Efficiency</span>
+              <span className="font-mono text-slate-800 dark:text-slate-200 font-extrabold text-base">{reportMetrics.marker_provided_efficiency_weighted}%</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">CAD theoretical marker limit</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-rose-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">ETE Efficiency Gap</span>
+              <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.efficiency_gap}%</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Theoretical vs. physical gap</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BENTO SECTION 4: Remnants Lifecycle Audits */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Remnants Lifecycle Audits
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Fabric Issued</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.remnants_fabric_issued} KG</span>
+              <span className="text-xs text-indigo-500 font-black">({reportMetrics.remnants_issued_percent}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Total weight saved as remnant rolls</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Reused/Recovered</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.remnants_fabric_used} KG</span>
+              <span className="text-xs text-indigo-500 font-black">({reportMetrics.remnants_utilization}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Weight fed back into active laying</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Real Waste</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.remnants_scrap} KG</span>
+              <span className="text-xs text-indigo-500 font-black">({reportMetrics.remnants_scrap_percent}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Irrecoverable remnant scraps</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Cutting Scrap</span>
+              <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_cutting_scrap} KG</span>
+              <span className="text-xs text-rose-500 font-black">({reportMetrics.total_cutting_scrap_percent}%)</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Physical cut scrap volume</span>
+            </div>
+          </div>
         </div>
       </div>
 

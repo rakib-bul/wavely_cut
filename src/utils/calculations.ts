@@ -162,6 +162,16 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   const total_cutting_qty = targetEntries.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
   const total_used_fabric_inch = targetEntries.reduce((acc, c) => acc + (Number(c.total_used_fabric_inch) || (Number(c.lay) || 0) * (Number(c.marker_length_inch) || 0) * ((Number(c.marker_efficiency_percent) || 0) / 100)), 0);
 
+  // Average Size Ratio across all target entries
+  const avg_size_ratio = targetEntries.length > 0
+    ? parseFloat((targetEntries.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0) / targetEntries.length).toFixed(1))
+    : 0;
+
+  // Today's average size ratio
+  const today_avg_size_ratio = todayEntries.length > 0
+    ? parseFloat((todayEntries.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0) / todayEntries.length).toFixed(1))
+    : 0;
+
   return {
     total_fabric_used: parseFloat(total_fabric_used.toFixed(1)),
     total_fabric_spread: parseFloat(total_fabric_spread.toFixed(1)),
@@ -186,6 +196,8 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     total_cutting_lots,
     total_lay_layers,
     total_cutting_qty,
-    total_used_fabric_inch
+    total_used_fabric_inch,
+    avg_size_ratio,
+    today_avg_size_ratio
   };
 }
