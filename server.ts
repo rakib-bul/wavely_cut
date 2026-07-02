@@ -14,6 +14,87 @@ const PORT = 3000;
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
+// Serve robots.txt to instruct well-behaved bots not to crawl
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain");
+  res.send("User-agent: *\nDisallow: /\n");
+});
+
+// Anti-Bot / Bot Blocker Middleware
+app.use((req, res, next) => {
+  // Allow robots.txt to be read so crawlers know they are disallowed
+  if (req.path === "/robots.txt") {
+    return next();
+  }
+
+  const ua = req.headers["user-agent"];
+  if (!ua) {
+    // Block requests with no User-Agent header as they are usually scripts/bots
+    console.log(`[Bot Blocked] No User-Agent provided - Path: ${req.path}`);
+    return res.status(403).send("Forbidden: Requests must include a valid User-Agent.");
+  }
+
+  const uaLower = ua.toLowerCase();
+
+  // Robust list of bot keywords, scrapers, crawlers, and library-based HTTP clients
+  const botKeywords = [
+    "bot",
+    "crawler",
+    "spider",
+    "scraper",
+    "headless",
+    "crawl",
+    "slurp",
+    "transcoder",
+    "mediapartners-google",
+    "adsbot",
+    "gptbot",
+    "chatgpt",
+    "claudebot",
+    "anthropic",
+    "perplexity",
+    "cohere",
+    "bytespider",
+    "ccbot",
+    "semrush",
+    "ahrefs",
+    "mj12",
+    "dotbot",
+    "rogerbot",
+    "exabot",
+    "screaming frog",
+    "baiduspider",
+    "yandex",
+    "sogou",
+    "duckduckbot",
+    "ia_archiver",
+    "curl",
+    "wget",
+    "python",
+    "scrapy",
+    "urllib",
+    "axios",
+    "http-client",
+    "node-fetch",
+    "got",
+    "superagent",
+    "libwww",
+    "selenium",
+    "webdriver",
+    "puppeteer",
+    "playwright"
+  ];
+
+  const isBot = botKeywords.some(keyword => uaLower.includes(keyword));
+
+  if (isBot) {
+    console.log(`[Bot Blocked] User-Agent: "${ua}" - Path: ${req.path}`);
+    return res.status(403).send("Forbidden: Bot traffic is not permitted on this application.");
+  }
+
+  next();
+});
+
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1038,6 +1119,142 @@ app.put("/api/profiles/:id/avatar", async (req, res) => {
     return res.json(updatedProfile);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ==========================================
+// 5.5 CONSOLIDATED AUTO-SYNC API
+// ==========================================
+
+app.get("/api/sync", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (!user_email) {
+    return res.status(401).json({ error: "Unauthorized. Session email required to sync dashboard." });
+  }
+
+  try {
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+
+    // 1. Fetch machines
+    const machinesPromise = (async () => {
+      const { data: m, error } = await supabase
+        .from("machines")
+        .select("*")
+        .order("machine_name", { ascending: true });
+      if (error) throw error;
+      
+      if (m && m.length > 0) {
+        return m;
+      } else {
+        const defaultMachinesToInsert = [
+          { machine_name: "Auto Cutter Machine 1", machine_type: "Auto" },
+          { machine_name: "Auto Cutter Machine 2", machine_type: "Auto" },
+          { machine_name: "Manual Cutting Machine", machine_type: "Manual" },
+          { machine_name: "Stripe Cutting", machine_type: "Stripe" }
+        ];
+        const { data: seeded, error: seedError } = await supabase
+          .from("machines")
+          .insert(defaultMachinesToInsert)
+          .select();
+        if (seedError) throw seedError;
+        return seeded || [];
+      }
+    })();
+
+    // 2. Fetch buyers
+    const buyersPromise = (async () => {
+      if (cachedBuyers !== null) {
+        return cachedBuyers;
+      }
+      const { data: b, error } = await supabase
+        .from("buyers")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        console.error("Could not fetch buyers from Supabase:", error.message);
+        return [];
+      }
+      cachedBuyers = b || [];
+      return cachedBuyers;
+    })();
+
+    // 3. Fetch cutting entries
+    const entriesPromise = (async () => {
+      let query = supabase.from("cutting_entries").select("*");
+      
+      if (user_role === "operator") {
+        const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+        if (prof?.id) {
+          query = query.eq("created_by", prof.id);
+        } else {
+          query = query.eq("created_by", "00000000-0000-0000-0000-000000000000");
+        }
+      }
+
+      const { data: entries, error } = await query;
+      if (error) throw error;
+
+      const { data: profiles } = await supabase.from("profiles").select("id, email");
+      const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+      
+      const mappedEntries = (entries || []).map(e => ({
+        ...e,
+        total_length_inch: Number(e.total_length_inch) || (Number(e.marker_length_inch) * Number(e.lay)),
+        spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
+        scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - Number(e.marker_efficiency_percent)),
+        created_by: profileMap.get(e.created_by) || e.created_by || user_email,
+        approved_by: profileMap.get(e.approved_by) || e.approved_by || null
+      }));
+
+      mappedEntries.sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return mappedEntries;
+    })();
+
+    // 4. Fetch audit logs (Only if admin)
+    const logsPromise = (async () => {
+      if (user_role !== "admin") return [];
+      const { data: logs, error } = await supabase
+        .from("audit_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return logs || [];
+    })();
+
+    // 5. Fetch profiles list
+    const profilesPromise = (async () => {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return profiles || [];
+    })();
+
+    // Fetch everything concurrently via parallel promise resolution
+    const [machines, buyers, entries, auditLogs, profiles] = await Promise.all([
+      machinesPromise,
+      buyersPromise,
+      entriesPromise,
+      logsPromise,
+      profilesPromise
+    ]);
+
+    return res.json({
+      machines,
+      buyers,
+      entries,
+      auditLogs,
+      profiles,
+      settings: systemSettings
+    });
+
+  } catch (err: any) {
+    console.error("Dashboard sync API error:", err.message);
+    return res.status(500).json({ error: "Failed to perform synchronized load: " + err.message });
   }
 });
 

@@ -213,69 +213,53 @@ export default function App() {
         "X-User-Email": currentProfile.email
       };
 
-      // 1. Fetch Machines
-      const macData = await safeFetchJson("/api/machines", { headers });
-      setMachines(macData);
-      try {
-        localStorage.setItem("erp_cached_machines", JSON.stringify(macData));
-      } catch (e) {
-        console.error("Failed to cache machines locally", e);
-      }
+      // Perform a single unified synchronized load of all dashboard states
+      const syncData = await safeFetchJson("/api/sync", { headers });
 
-      // 1.5 Fetch Buyers
-      try {
-        const buyerData = await safeFetchJson("/api/buyers", { headers });
-        setBuyers(buyerData);
-        try {
-          localStorage.setItem("erp_cached_buyers", JSON.stringify(buyerData));
-        } catch (e) {
-          console.error("Failed to cache buyers locally", e);
-        }
-      } catch (buyerErr) {
-        console.warn("Could not fetch buyers list silently:", buyerErr);
-      }
-
-      // 2. Fetch Cutting Entries (Restricted based on active user's role on server)
-      const entData = await safeFetchJson("/api/entries", { headers });
-      setEntries(entData);
-      try {
-        localStorage.setItem("erp_cached_entries", JSON.stringify(entData));
-      } catch (e) {
-        console.error("Failed to cache entries locally", e);
-      }
-
-      // 3. Fetch Audit Logs (Strictly safe; only load if active role is admin)
-      if (currentProfile.role === "admin") {
-        try {
-          const logData = await safeFetchJson("/api/logs", { headers });
-          setAuditLogs(logData);
+      if (syncData) {
+        // Update machines state
+        if (syncData.machines) {
+          setMachines(syncData.machines);
           try {
-            localStorage.setItem("erp_cached_audit_logs", JSON.stringify(logData));
-          } catch (e) {
-            console.error("Failed to cache audit logs locally", e);
-          }
-        } catch (logErr) {
-          console.warn("Could not fetch audit logs silently:", logErr);
+            localStorage.setItem("erp_cached_machines", JSON.stringify(syncData.machines));
+          } catch (e) {}
         }
-      }
 
-      // 4. Fetch Profiles list
-      try {
-        const profData = await safeFetchJson("/api/profiles", { headers });
-        setProfiles(profData);
-        try {
-          localStorage.setItem("erp_cached_profiles", JSON.stringify(profData));
-        } catch (e) {
-          console.error("Failed to cache profiles locally", e);
+        // Update buyers state
+        if (syncData.buyers) {
+          setBuyers(syncData.buyers);
+          try {
+            localStorage.setItem("erp_cached_buyers", JSON.stringify(syncData.buyers));
+          } catch (e) {}
         }
-      } catch (profErr) {
-        console.warn("Could not fetch profiles list silently:", profErr);
-      }
 
-      // 5. Fetch system settings
-      try {
-        const settingsData = await safeFetchJson("/api/settings", { headers });
-        if (settingsData) {
+        // Update entries state
+        if (syncData.entries) {
+          setEntries(syncData.entries);
+          try {
+            localStorage.setItem("erp_cached_entries", JSON.stringify(syncData.entries));
+          } catch (e) {}
+        }
+
+        // Update audit logs state
+        if (syncData.auditLogs) {
+          setAuditLogs(syncData.auditLogs);
+          try {
+            localStorage.setItem("erp_cached_audit_logs", JSON.stringify(syncData.auditLogs));
+          } catch (e) {}
+        }
+
+        // Update profiles state
+        if (syncData.profiles) {
+          setProfiles(syncData.profiles);
+          try {
+            localStorage.setItem("erp_cached_profiles", JSON.stringify(syncData.profiles));
+          } catch (e) {}
+        }
+
+        // Update system settings state
+        if (syncData.settings) {
+          const settingsData = syncData.settings;
           if (typeof settingsData.job_no_digits === "number") {
             setJobNoDigits(settingsData.job_no_digits);
             try {
@@ -309,8 +293,6 @@ export default function App() {
             }
           }
         }
-      } catch (settingsErr) {
-        console.warn("Could not fetch system settings silently:", settingsErr);
       }
 
       setLastSyncedTime(new Date());
