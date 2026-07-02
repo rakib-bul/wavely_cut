@@ -1138,6 +1138,52 @@ app.get("/api/sync", async (req, res) => {
   try {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
 
+    const client_version = req.query.version as string;
+
+    // Concurrently fetch metadata counts and timestamps to build a lightweight version token
+    const [
+      { data: entryMax, error: err1 },
+      { data: entryCreatedMax, error: err2 },
+      { count: entryCount, error: err3 },
+      { count: logCount, error: err4 },
+      { count: profileCount, error: err5 },
+      { count: machineCount, error: err6 },
+      { count: buyerCount, error: err7 }
+    ] = await Promise.all([
+      supabase.from("cutting_entries").select("updated_at").order("updated_at", { ascending: false }).limit(1),
+      supabase.from("cutting_entries").select("created_at").order("created_at", { ascending: false }).limit(1),
+      supabase.from("cutting_entries").select("*", { count: "exact", head: true }),
+      supabase.from("audit_logs").select("*", { count: "exact", head: true }),
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("machines").select("*", { count: "exact", head: true }),
+      supabase.from("buyers").select("*", { count: "exact", head: true })
+    ]);
+
+    let server_version = "";
+    if (err1 || err2 || err3 || err4 || err5 || err6 || err7) {
+      console.warn("Metadata check bypassed due to a database warning:", { err1, err2, err3, err4, err5, err6, err7 });
+    } else {
+      server_version = [
+        entryMax?.[0]?.updated_at || "",
+        entryCreatedMax?.[0]?.created_at || "",
+        entryCount || 0,
+        logCount || 0,
+        profileCount || 0,
+        machineCount || 0,
+        buyerCount || 0,
+        systemSettings?.whats_new_updated_at || "",
+        user_role || "",
+        user_email || ""
+      ].join("|");
+
+      if (client_version && client_version === server_version) {
+        return res.json({ no_changes: true, version: server_version });
+      }
+    }
+
+    // Attach server_version to locals to include it in the final response
+    res.locals.server_version = server_version;
+
     // 1. Fetch machines
     const machinesPromise = (async () => {
       const { data: m, error } = await supabase
@@ -1249,7 +1295,8 @@ app.get("/api/sync", async (req, res) => {
       entries,
       auditLogs,
       profiles,
-      settings: systemSettings
+      settings: systemSettings,
+      version: res.locals.server_version || ""
     });
 
   } catch (err: any) {

@@ -140,6 +140,13 @@ export default function App() {
       return 30;
     }
   });
+  const [syncVersion, setSyncVersion] = useState<string>(() => {
+    try {
+      return localStorage.getItem("erp_sync_version") || "";
+    } catch {
+      return "";
+    }
+  });
   const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
   const [showSyncMenu, setShowSyncMenu] = useState<boolean>(false);
 
@@ -214,9 +221,23 @@ export default function App() {
       };
 
       // Perform a single unified synchronized load of all dashboard states
-      const syncData = await safeFetchJson("/api/sync", { headers });
+      const syncData = await safeFetchJson(`/api/sync?version=${encodeURIComponent(syncVersion)}`, { headers });
 
       if (syncData) {
+        if (syncData.no_changes) {
+          // No changes detected on the server database. Skip state updates and avoid local storage churn.
+          setLastSyncedTime(new Date());
+          return;
+        }
+
+        // Cache the newly received server-side schema version
+        if (syncData.version) {
+          setSyncVersion(syncData.version);
+          try {
+            localStorage.setItem("erp_sync_version", syncData.version);
+          } catch (e) {}
+        }
+
         // Update machines state
         if (syncData.machines) {
           setMachines(syncData.machines);
@@ -331,6 +352,10 @@ export default function App() {
   // --- SWITCH SIMULATED PROFILE (User Switching) ---
   const handleSwitchProfile = (p: Profile) => {
     setCurrentProfile(p);
+    setSyncVersion(""); // Reset sync version to force a complete fresh fetch for the new user profile
+    try {
+      localStorage.removeItem("erp_sync_version");
+    } catch (e) {}
     localStorage.setItem("erp_active_profile", JSON.stringify(p));
     // If operator/manager doesn't have access to tab, reset to general dashboard
     const protectedRolesMap: { [tab: string]: UserRole[] } = {
@@ -347,6 +372,10 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentProfile(null);
+    setSyncVersion("");
+    try {
+      localStorage.removeItem("erp_sync_version");
+    } catch (e) {}
     localStorage.removeItem("erp_active_profile");
   };
 
