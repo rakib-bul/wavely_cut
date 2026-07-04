@@ -281,7 +281,9 @@ export default function ReportsModule({
     const total_length = target.reduce((acc, c) => acc + (c.total_length_inch || 0), 0);
     const total_used_fabric_inch_val = target.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
     const total_cutting_qty_val = target.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
-    const avg_size_ratio_val = target.length > 0 ? target.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0) / target.length : 0;
+    const total_lay_plies_val = target.reduce((sum, e) => sum + (Number(e.lay) || 0), 0);
+    const total_ratio_val = target.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0);
+    const avg_size_ratio_val = target.length > 0 ? total_ratio_val / target.length : 0;
 
     // Derived fields
     const total_spread = Math.max(0, total_used - total_remnants_issued); // Spread fabric
@@ -333,7 +335,9 @@ export default function ReportsModule({
       total_length: total_length.toLocaleString(),
       total_used_fabric_inch: total_used_fabric_inch_val.toLocaleString(undefined, { maximumFractionDigits: 1 }),
       total_cutting_qty: total_cutting_qty_val.toLocaleString(),
-      avg_size_ratio: avg_size_ratio_val.toFixed(1)
+      avg_size_ratio: avg_size_ratio_val.toFixed(1),
+      total_lay_plies: total_lay_plies_val.toLocaleString(),
+      total_ratio: total_ratio_val.toFixed(1)
     };
   }, [filteredEntries]);
 
@@ -342,7 +346,7 @@ export default function ReportsModule({
     const headers = [
       "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
       "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
-      "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
+      "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spread Fabric (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
       "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
       "Scarp% as per Marker", "% of cutting scrap"
     ];
@@ -350,6 +354,7 @@ export default function ReportsModule({
     const rows = filteredEntries.map(e => {
       const mc = machines.find(m => m.id === e.machine_id)?.machine_name || "Unknown Machine";
       const remnantsWeight = parseFloat(e.remarks) || 0;
+      const spreadWeight = Math.max(0, e.fabric_used_kg - remnantsWeight);
       const spreadingScrap = e.remnant_weight_kg || 0;
       const totalCutQty = (e.lay || 0) * (e.ratio || 0);
       const totalMarkerLength = (e.lay || 0) * (e.marker_length_inch || 0);
@@ -374,6 +379,7 @@ export default function ReportsModule({
         parts: e.parts,
         fabricUsedKg: e.fabric_used_kg,
         remnantsWeight: remnantsWeight,
+        spreadWeight: spreadWeight,
         spreadingScrap: spreadingScrap,
         cuttingScrap: e.cutting_scrap_weight_kg,
         markerLengthInch: e.marker_length_inch,
@@ -882,26 +888,36 @@ export default function ReportsModule({
           <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Core Fabric & Production Volumes
           </h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Used</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Used Fabric</span>
               <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_used} KG</span>
               <span className="text-[9px] text-slate-400 block mt-1.5">Cumulative scale weight</span>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Spread</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Spreading Spread</span>
               <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_spread} KG</span>
               <span className="text-[9px] text-slate-400 block mt-1.5">Laying phase input weight</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Lay Qty</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.total_lay_plies} Plies</span>
+              <span className="text-[9px] text-slate-400 block mt-1.5">Sum of all lay plies</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-violet-500/20 transition-all flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Size Ratios</span>
+                <span className="font-mono text-violet-600 dark:text-violet-400 font-extrabold text-base">{reportMetrics.total_ratio} <span className="text-[9px] text-slate-400">Total</span></span>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800/80 mt-2 pt-2 flex items-center justify-between text-[10px]">
+                <span className="text-slate-400 uppercase tracking-wider font-bold">Avg Ratio:</span>
+                <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold">{reportMetrics.avg_size_ratio}</span>
+              </div>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
               <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Cut Quantity</span>
               <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.total_cutting_qty} Pcs</span>
               <span className="text-[9px] text-slate-400 block mt-1.5">Pieces cut (Ratio × Lay)</span>
-            </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Avg Size Ratio</span>
-              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.avg_size_ratio} Ratio</span>
-              <span className="text-[9px] text-slate-400 block mt-1.5">Mean markers size factor</span>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
               <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Lay Length</span>
@@ -1034,7 +1050,7 @@ export default function ReportsModule({
 
         {/* Dense Table wrapper */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs min-w-[2200px]">
+          <table className="w-full text-left border-collapse text-xs min-w-[2450px]">
             <thead>
               <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
                 <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
@@ -1054,6 +1070,8 @@ export default function ReportsModule({
                 <th className="p-4 whitespace-nowrap">Fabric Type</th>
                 <th className="p-4 whitespace-nowrap">Parts To Cut</th>
                 <th className="p-4 text-right whitespace-nowrap">Fabric Wt Used (KG)</th>
+                <th className="p-4 text-right whitespace-nowrap">Remnants Fabric (KG)</th>
+                <th className="p-4 text-right whitespace-nowrap">Spread Fabric (KG)</th>
                 <th className="p-4 text-right whitespace-nowrap">Spreading Scrap (KG)</th>
                 <th className="p-4 text-right whitespace-nowrap">Cutting Scrap (KG)</th>
                 <th className="p-4 text-right whitespace-nowrap">Marker Length Inch</th>
@@ -1077,6 +1095,7 @@ export default function ReportsModule({
                 paginatedEntries.map(entry => {
                   const mName = machines.find(m => m.id === entry.machine_id)?.machine_name || "Unknown";
                   const remnantsWeight = parseFloat(entry.remarks) || 0;
+                  const spreadWeight = Math.max(0, entry.fabric_used_kg - remnantsWeight);
                   const spreadingScrap = entry.remnant_weight_kg || 0;
                   const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
                   const totalMarkerLength = (entry.lay || 0) * (entry.marker_length_inch || 0);
@@ -1108,6 +1127,8 @@ export default function ReportsModule({
                       <td className="p-4 font-medium whitespace-nowrap">{entry.fabric_type}</td>
                       <td className="p-4 font-medium whitespace-nowrap max-w-[140px] truncate" title={entry.parts}>{entry.parts}</td>
                       <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{entry.fabric_used_kg} kg</td>
+                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{remnantsWeight.toFixed(1)} kg</td>
+                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{spreadWeight.toFixed(1)} kg</td>
                       <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{spreadingScrap} kg</td>
                       <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{entry.cutting_scrap_weight_kg} kg</td>
                       <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{entry.marker_length_inch} in</td>

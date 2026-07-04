@@ -156,6 +156,14 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     ? parseFloat((recent7DayEntries.reduce((acc, c) => acc + (c.actual_physical_marker_efficiency_ete || 0), 0) / recent7DayEntries.length).toFixed(1))
     : 0;
 
+  // Today's specific metrics requested for Daily Dashboard group
+  const today_lay_layers = todayEntries.reduce((acc, c) => acc + (Number(c.lay) || 0), 0);
+  const today_total_ratio = todayEntries.reduce((acc, c) => acc + (Number(c.ratio) || 0), 0);
+  const today_remnants = todayEntries.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
+  const today_fabric_spread = Math.max(0, today_fabric_used - today_remnants);
+  const today_spreading_scrap = todayEntries.reduce((acc, c) => acc + (Number(c.remnant_weight_kg) || 0), 0);
+  const today_cutting_scrap = todayEntries.reduce((acc, c) => acc + (Number(c.cutting_scrap_weight_kg) || 0), 0);
+
   // Overall sums requested for extra KPI cards
   const total_cutting_lots = targetEntries.length;
   const total_lay_layers = targetEntries.reduce((sum, e) => sum + (Number(e.lay) || 0), 0);
@@ -192,6 +200,13 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     month_fabric_used: parseFloat(month_fabric_used.toFixed(1)),
     daily_avg_cut_qty,
     recent_ete_efficiency,
+    // Today-specific detailed metrics
+    today_lay_layers,
+    today_total_ratio,
+    today_remnants: parseFloat(today_remnants.toFixed(1)),
+    today_fabric_spread: parseFloat(today_fabric_spread.toFixed(1)),
+    today_spreading_scrap: parseFloat(today_spreading_scrap.toFixed(1)),
+    today_cutting_scrap: parseFloat(today_cutting_scrap.toFixed(1)),
     // Overall totals for new KPI cards
     total_cutting_lots,
     total_lay_layers,

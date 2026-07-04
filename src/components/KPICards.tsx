@@ -36,6 +36,12 @@ interface KPICardsProps {
     month_fabric_used?: number;
     daily_avg_cut_qty?: number;
     recent_ete_efficiency?: number;
+    today_lay_layers?: number;
+    today_total_ratio?: number;
+    today_remnants?: number;
+    today_fabric_spread?: number;
+    today_spreading_scrap?: number;
+    today_cutting_scrap?: number;
     // New Cumulative/Overall KPIs
     total_cutting_lots?: number;
     total_lay_layers?: number;
@@ -238,11 +244,94 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
       color: "text-pink-600 bg-pink-50 dark:bg-pink-500/10",
       statusText: "CAD Length",
       statusColor: "bg-pink-500/15 text-pink-600 border-pink-500/20",
+    },
+    {
+      id: "today-lay-layers",
+      title: "Total Daily Lay Qty",
+      amount: (metrics.today_lay_layers || 0).toLocaleString(),
+      unit: "Layers",
+      desc: "Total layers laid for cutting on the latest active date",
+      icon: Layers,
+      color: "text-blue-600 bg-blue-50 dark:bg-blue-500/10",
+      statusText: "Daily Layers",
+      statusColor: "bg-blue-500/15 text-blue-600 border-blue-500/20",
+    },
+    {
+      id: "today-ratio-combined",
+      title: "Today's Size Ratios",
+      amount: (metrics.today_total_ratio || 0).toFixed(1),
+      unit: "Total Ratio",
+      desc: "Combined view of today's sum of size ratios and mean size ratio",
+      icon: Hash,
+      color: "text-violet-600 bg-violet-500/10",
+      statusText: "Ratio Stats",
+      statusColor: "bg-violet-500/15 text-violet-600 border-violet-500/20",
+      secondary: {
+        title: "Avg Ratio Today",
+        amount: (metrics.today_avg_size_ratio || 0).toFixed(1),
+        unit: "Avg Ratio"
+      }
+    },
+    {
+      id: "today-fabric-spread",
+      title: "Today's Spread Fabric",
+      amount: (metrics.today_fabric_spread || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Fabric laid today after subtracting remnants and roll-end waste",
+      icon: Layers,
+      color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10",
+      statusText: "Spread Weight",
+      statusColor: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20",
+    },
+    {
+      id: "today-remnants",
+      title: "Today's Remnants Fabric",
+      amount: (metrics.today_remnants || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Usable remnant roll weights salvaged and returned to stock today",
+      icon: Package,
+      color: "text-amber-600 bg-amber-500/10",
+      statusText: "Remnants",
+      statusColor: "bg-amber-500/15 text-amber-600 border-amber-500/20",
+    },
+    {
+      id: "today-spreading-scrap",
+      title: "Today's Spreading Scrap",
+      amount: (metrics.today_spreading_scrap || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Waste weight generated during the spreading phase today",
+      icon: Scissors,
+      color: "text-rose-600 bg-rose-500/10",
+      statusText: "Spreading Scrap",
+      statusColor: "bg-rose-500/15 text-rose-600 border-rose-500/20",
+    },
+    {
+      id: "today-cutting-scrap",
+      title: "Today's Cutting Scrap",
+      amount: (metrics.today_cutting_scrap || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Direct physical scissor cutting scrap collected from today's cuts",
+      icon: Scissors,
+      color: "text-rose-600 bg-rose-500/10",
+      statusText: "Cutting Scrap",
+      statusColor: "bg-rose-500/15 text-rose-600 border-rose-500/20",
     }
   ];
 
   // Group filter logic
-  const dailyKeys = ["total-qty", "today-output", "today-fabric", "size-ratio", "daily-trend", "daily-avg", "recent-quality"];
+  const dailyKeys = [
+    "today-output",
+    "today-fabric",
+    "today-fabric-spread",
+    "today-lay-layers",
+    "today-ratio-combined",
+    "today-remnants",
+    "today-spreading-scrap",
+    "today-cutting-scrap",
+    "daily-trend",
+    "daily-avg",
+    "recent-quality"
+  ];
   const dailyKpis = dailyKeys.map(key => kpis.find(k => k.id === key)).filter((k): k is typeof kpis[0] => !!k);
 
   const monthlyKpis = kpis.filter(kpi => 
@@ -256,6 +345,9 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
         const containerClasses = kpi.highlight
           ? "bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/80 border-2 border-emerald-500/30 p-6 rounded-2xl shadow-xs hover:shadow-md transition-all hover:-translate-y-0.5 duration-300 relative overflow-hidden"
           : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all hover:-translate-y-0.5 duration-300 relative overflow-hidden";
+
+        // Cast key to access secondary if present
+        const kpiItem = kpi as typeof kpi & { secondary?: { title: string; amount: string; unit: string } };
 
         return (
           <div key={kpi.id} className={containerClasses} id={`kpi-card-${kpi.id}`}>
@@ -280,6 +372,23 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
                 </span>
               </div>
             </div>
+
+            {kpiItem.secondary && (
+              <div className="mt-3.5 pt-3.5 border-t border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {kpiItem.secondary.title}
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-extrabold text-slate-900 dark:text-white font-mono leading-none">
+                    {kpiItem.secondary.amount}
+                  </span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
+                    {kpiItem.secondary.unit}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-4 border-t border-slate-100 dark:border-slate-800/60 pt-3 leading-relaxed">
               {kpi.desc}
             </p>
