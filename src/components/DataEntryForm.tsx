@@ -216,7 +216,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         cut_no: formData.cut_no.toUpperCase().trim(),
         lay: Number(formData.lay) || 1,
         ratio: Number(formData.ratio) || 1,
-        table_no: formData.table_no.trim() || 'TBL-1',
+        table_no: formData.table_no.trim() || '1',
         fabric_type: formData.fabric_type.trim() || 'Knit Fabric',
         parts: formData.parts.trim() || 'Body',
         fabric_used_kg: Number(formData.fabric_used_kg) || 0,
@@ -647,13 +647,21 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               {/* 8. Table */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Table</label>
-                <input
-                  type="text"
+                <select
                   name="table_no"
                   value={formData.table_no}
                   onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
-                />
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
+                >
+                  <option value="">-- Choose Table --</option>
+                  <option value="1">Table 1</option>
+                  <option value="2">Table 2</option>
+                  <option value="3">Table 3</option>
+                  <option value="4">Table 4</option>
+                  <option value="5">Table 5</option>
+                  <option value="6">Table 6</option>
+                  <option value="7">Table 7</option>
+                </select>
               </div>
 
               {/* 9. Fabric type */}

@@ -7,6 +7,7 @@ import DataEntryForm from "./components/DataEntryForm";
 import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
+import TableProductionView from "./components/TableProductionView";
 import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole } from "./types";
 import { compileDashboardKPIs, calculateFields } from "./utils/calculations";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
@@ -38,6 +39,7 @@ import {
 export default function App() {
   // --- Active Tab State ---
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [dashboardSubTab, setDashboardSubTab] = useState<"standard" | "table_wise">("standard");
 
   // --- Auth UI States ---
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
@@ -1332,39 +1334,79 @@ export default function App() {
 
             {/* TAB 1: OPERATIONS DASHBOARD */}
             {activeTab === "dashboard" && (
-              <div className="space-y-12 animate-fade-in">
-                {/* --- SECTION 1: DAILY OPERATIONS & ANALYTICS --- */}
-                <div className="space-y-6">
-                  <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-black tracking-widest text-blue-600 dark:text-blue-400 uppercase">
-                        Active Session
-                      </span>
-                      <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
-                        Daily Operations & Cutting-Floor Reports
-                      </h2>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Real-time interactive shift report logs, supervisor metrics, and daily throughput trends.
+              <div className="space-y-8 animate-fade-in">
+                {/* Live Production Dashboard View Selector Sub-Tabs */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-850/80">
+                  <div className="space-y-0.5">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                      Operations Console
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      Select production metrics view layout for active cutting floor tables.
                     </p>
                   </div>
-                  <KPICards metrics={compiledMainKPIs} group="daily" />
-                  <DailyReport entries={mainEntries} machines={machines} />
+                  <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 self-start sm:self-auto font-sans shadow-xs">
+                    <button
+                      onClick={() => setDashboardSubTab("standard")}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        dashboardSubTab === "standard"
+                          ? "bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white"
+                          : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      Daily Shifts & Trends
+                    </button>
+                    <button
+                      onClick={() => setDashboardSubTab("table_wise")}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        dashboardSubTab === "table_wise"
+                          ? "bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white"
+                          : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      Table-wise Live Production (Comparative)
+                    </button>
+                  </div>
                 </div>
 
-                {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
-                <div className="space-y-6">
-                  <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
-                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
-                      Cumulative & Monthly Production Analytics
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      CAD-to-physical efficiency mapping, total scrap margins, buyer yields, and knit quality trends.
-                    </p>
+                {dashboardSubTab === "standard" ? (
+                  <div className="space-y-12">
+                    {/* --- SECTION 1: DAILY OPERATIONS & ANALYTICS --- */}
+                    <div className="space-y-6">
+                      <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black tracking-widest text-blue-600 dark:text-blue-400 uppercase">
+                            Active Session
+                          </span>
+                          <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                            Daily Operations & Cutting-Floor Reports
+                          </h2>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Real-time interactive shift report logs, supervisor metrics, and daily throughput trends.
+                        </p>
+                      </div>
+                      <KPICards metrics={compiledMainKPIs} group="daily" />
+                      <DailyReport entries={mainEntries} machines={machines} />
+                    </div>
+
+                    {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
+                    <div className="space-y-6">
+                      <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                        <h2 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight uppercase">
+                          Cumulative & Monthly Production Analytics
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                          CAD-to-physical efficiency mapping, total scrap margins, buyer yields, and knit quality trends.
+                        </p>
+                      </div>
+                      <KPICards metrics={compiledMainKPIs} group="monthly" />
+                      <DashboardCharts entries={mainEntries} machines={machines} />
+                    </div>
                   </div>
-                  <KPICards metrics={compiledMainKPIs} group="monthly" />
-                  <DashboardCharts entries={mainEntries} machines={machines} />
-                </div>
+                ) : (
+                  <TableProductionView entries={mainEntries} />
+                )}
               </div>
             )}
 
