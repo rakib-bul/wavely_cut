@@ -13,7 +13,8 @@ import {
   FileSpreadsheet,
   Scale,
   Trash2,
-  Gauge
+  Gauge,
+  Printer
 } from "lucide-react";
 import { CuttingEntry, Machine } from "../types";
 
@@ -542,12 +543,12 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
             </h2>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Standard floor metrics, total fabric lays, marker counts, and active machine yields.
+            Standard floor metrics, total fabric lays, marker counts, and active machine yields for <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{selectedDate}</span>.
           </p>
         </div>
 
         {/* Date Selector & Export Actions Controls */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 print:hidden">
           <div className="flex items-center gap-1.5">
             <button
               onClick={handlePrevDay}
@@ -574,6 +575,16 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
           </div>
 
           <button
+            onClick={() => window.print()}
+            disabled={dayEntries.length === 0}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer shadow-sm shadow-blue-600/15 transition-all shrink-0 h-10"
+            title="Print daily operational report from browser"
+          >
+            <Printer size={15} />
+            <span>Print Report</span>
+          </button>
+
+          <button
             onClick={handleExportCSV}
             disabled={dayEntries.length === 0}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer shadow-sm shadow-emerald-600/15 transition-all shrink-0 h-10"
@@ -587,7 +598,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
 
       {/* Quick Access Dates Pills */}
       {availableDates.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6 print:hidden">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">Quick Select:</span>
           {availableDates.slice(0, 5).map(dateStr => (
             <button

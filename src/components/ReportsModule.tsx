@@ -736,7 +736,7 @@ export default function ReportsModule({
     <div className="space-y-6 font-sans">
       
       {/* Search and Advanced filter controls panel */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-xs print:hidden">
         <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-200 dark:border-slate-850">
           <span className="text-xs uppercase font-extrabold tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <Filter size={14} className="text-[#2563EB] stroke-[2.5]" /> Filter & Search Ledgers
@@ -1031,7 +1031,7 @@ export default function ReportsModule({
           <h3 className="font-sans font-black text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Ledger Entry Registry ({filteredEntries.length} Matches)
           </h3>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
             <button
               onClick={() => window.print()}
               className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 py-2 px-4 rounded-xl text-xs text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs"
@@ -1081,7 +1081,7 @@ export default function ReportsModule({
                 <th className="p-4 text-right whitespace-nowrap">Scrap% per Marker</th>
                 <th className="p-4 text-right whitespace-nowrap">% of Cutting Scrap</th>
                 <th className="p-4 text-center whitespace-nowrap">Status</th>
-                <th className="p-4 text-right pr-5 whitespace-nowrap">Actions</th>
+                <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
@@ -1150,7 +1150,7 @@ export default function ReportsModule({
                           {entry.status}
                         </span>
                       </td>
-                      <td className="p-4 text-right pr-5 whitespace-nowrap">
+                      <td className="p-4 text-right pr-5 whitespace-nowrap print:hidden">
                         <div className="flex items-center justify-end space-x-1.5">
                           
                           {/* Operator/S&A: Submit Draft Action Button */}
@@ -1218,7 +1218,7 @@ export default function ReportsModule({
         </div>
 
         {/* Pagination controls footer */}
-        <div className="p-5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs text-slate-450 dark:text-slate-500 font-medium">
+        <div className="p-5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs text-slate-450 dark:text-slate-500 font-medium print:hidden">
           <span>
             Showing records {Math.min(filteredEntries.length, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(filteredEntries.length, currentPage * itemsPerPage)} of {filteredEntries.length} matching rows
           </span>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { 
   Weight, 
   Layers, 
@@ -12,7 +12,9 @@ import {
   TrendingDown,
   Package,
   Zap,
-  Hash
+  Hash,
+  LayoutGrid,
+  Table
 } from "lucide-react";
 
 interface KPICardsProps {
@@ -54,6 +56,7 @@ interface KPICardsProps {
 }
 
 export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
+  const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const kpis = [
     {
       id: "gross-fabric",
@@ -398,15 +401,114 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
     </div>
   );
 
+  const renderTableGrid = (items: typeof kpis) => (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs text-xs">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 dark:text-slate-505 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
+              <th className="p-4 pl-5">Metric Name</th>
+              <th className="p-4 text-center">Status</th>
+              <th className="p-4 text-right">Value</th>
+              <th className="p-4">Detailed Description</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-600 dark:text-slate-300 font-medium">
+            {items.map((kpi) => {
+              const Icon = kpi.icon;
+              const kpiItem = kpi as typeof kpi & { secondary?: { title: string; amount: string; unit: string } };
+
+              return (
+                <tr key={kpi.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition">
+                  {/* Name + Icon */}
+                  <td className="p-4 pl-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${kpi.color} shrink-0`}>
+                        <Icon size={16} className="stroke-[2.5]" />
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-slate-850 dark:text-slate-100 text-xs">
+                          {kpi.title}
+                        </div>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold font-mono">
+                          ID: {kpi.id}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Status Badge */}
+                  <td className="p-4 text-center">
+                    <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border tracking-wider inline-block ${kpi.statusColor}`}>
+                      {kpi.statusText}
+                    </span>
+                  </td>
+
+                  {/* Value */}
+                  <td className="p-4 text-right">
+                    <div className="flex flex-col items-end">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm font-extrabold text-slate-900 dark:text-white font-mono">
+                          {kpi.amount}
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase">
+                          {kpi.unit}
+                        </span>
+                      </div>
+                      {kpiItem.secondary && (
+                        <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5 uppercase tracking-wide">
+                          {kpiItem.secondary.title}: {kpiItem.secondary.amount} {kpiItem.secondary.unit}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Description */}
+                  <td className="p-4 text-slate-500 dark:text-slate-400 leading-relaxed font-sans max-w-xs md:max-w-md xl:max-w-xl truncate hover:text-clip hover:whitespace-normal transition-all duration-300">
+                    {kpi.desc}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   if (group === "daily") {
     return (
-      <div className="space-y-4 font-sans">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2">
+      <div className="space-y-4 font-sans animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-800 pb-3">
           <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             Daily Shifts, Trends & Quality KPIs
           </h3>
+          <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 self-start sm:self-auto">
+            <button
+              onClick={() => setViewMode("card")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === "card"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <LayoutGrid size={13} />
+              <span>Card View</span>
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              <Table size={13} />
+              <span>Table View</span>
+            </button>
+          </div>
         </div>
-        {renderCardGrid(dailyKpis)}
+        {viewMode === "card" ? renderCardGrid(dailyKpis) : renderTableGrid(dailyKpis)}
       </div>
     );
   }

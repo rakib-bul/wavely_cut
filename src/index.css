@@ -35,3 +35,136 @@ body {
   background: rgba(156, 163, 175, 0.5);
 }
 
+/* ==========================================
+   CSS PRINT STYLESHEET
+   Optimizes DailyReport and ReportsModule
+   for high-quality physical or PDF printing.
+   ========================================== */
+@media print {
+  /* Set standard margins and layout scale */
+  @page {
+    size: landscape;
+    margin: 1.2cm;
+  }
+
+  /* Force pure-white backgrounds and dark text on all elements */
+  html, body, #root, main, .flex, .bg-white, .bg-slate-50, .bg-slate-100 {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Force dark theme to print cleanly as light theme */
+  .dark, .dark * {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Hide navigation, simulation, search bars, modals, scrollbars and buttons */
+  aside,
+  header,
+  iframe,
+  footer,
+  .print-hide,
+  .print\:hidden,
+  button,
+  select,
+  input,
+  .quick-select,
+  .role-switcher,
+  [title*="Simulation"],
+  [title*="Sync"],
+  .border-dashed {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  /* Reset layout grids so they stack beautifully on physical sheets */
+  main {
+    display: block !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Print-friendly Cards */
+  .bg-white {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 1rem !important;
+    margin-bottom: 1.5rem !important;
+    box-shadow: none !important;
+  }
+
+  /* Enable background colors to render cleanly on print (PDFs / physical printers) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Table layout optimizations for very wide cutting logs */
+  .overflow-x-auto {
+    overflow: visible !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: unset !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 800 !important;
+    font-size: 8px !important;
+    padding: 6px 4px !important;
+    border: 1px solid #cbd5e1 !important;
+    text-transform: uppercase !important;
+  }
+
+  td {
+    font-size: 8px !important;
+    padding: 5px 4px !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #334155 !important;
+    white-space: normal !important; /* Allow wrapping to fit landscape */
+  }
+
+  /* Highlight critical values elegantly in gray shades for black & white printers */
+  .text-\[\#2563EB\], .text-blue-600, .text-emerald-600, .text-rose-500 {
+    color: #000000 !important;
+    font-weight: bold !important;
+  }
+
+  /* Add page breaks between key modules/dashboards */
+  .page-break {
+    page-break-before: always !important;
+    break-before: always !important;
+  }
+}
+
+
