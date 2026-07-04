@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     fabric_used_kg NUMERIC(10, 3) NOT NULL CHECK (fabric_used_kg >= 0),
     remnant_weight_kg NUMERIC(10, 3) NOT NULL CHECK (remnant_weight_kg >= 0),
     cutting_scrap_weight_kg NUMERIC(10, 3) NOT NULL CHECK (cutting_scrap_weight_kg >= 0),
+    reject_qty INT NOT NULL DEFAULT 0 CHECK (reject_qty >= 0),
+    remnants_scrap_weight_kg NUMERIC(10, 3) NOT NULL DEFAULT 0.000 CHECK (remnants_scrap_weight_kg >= 0),
     marker_length_inch NUMERIC(10, 2) NOT NULL CHECK (marker_length_inch > 0),
     marker_efficiency_percent NUMERIC(5, 2) NOT NULL CHECK (marker_efficiency_percent > 0 AND marker_efficiency_percent <= 100),
     remarks TEXT,
