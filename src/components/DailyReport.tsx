@@ -79,11 +79,27 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
     const total_spread = Math.max(0, total_used - total_remnants_issued); // Spread fabric
 
     // Remnant calculations
-    const remnants_issued_percent = total_used > 0 ? (total_remnants_issued / total_used) * 100 : 0;
-    const remnants_used = total_remnants_issued * 0.45; // Simulated 45% reusable back as remnants
-    const remnants_real_scrap = total_remnants_issued - remnants_used;
-    const remnants_scrap_percent = total_used > 0 && total_remnants_issued > 0 ? (remnants_real_scrap / total_remnants_issued) * 100 : 0;
-    const remnants_utilization_percent = total_used > 0 && total_remnants_issued > 0 ? (remnants_used / total_remnants_issued) * 100 : 0;
+    let total_remnants_weight_kg = 0;
+    let total_remnants_scrap_kg = 0;
+    let total_remnants_used_kg = 0;
+
+    dayEntries.forEach(e => {
+      if (e.remarks) {
+        const parts = e.remarks.split('|');
+        const remnants_weight_kg = parseFloat(parts[0]) || 0;
+        const remnants_scrap_kg = parseFloat(parts[2]) || 0;
+        total_remnants_weight_kg += remnants_weight_kg;
+        total_remnants_scrap_kg += remnants_scrap_kg;
+        total_remnants_used_kg += Math.max(0, remnants_weight_kg - remnants_scrap_kg);
+      }
+    });
+
+    const remnants_issued_percent = total_used > 0 ? ((total_remnants_weight_kg / total_used) * 100).toFixed(1) + "%" : "0.0%";
+    const remnants_used = total_remnants_used_kg.toFixed(1);
+    const remnants_real_scrap = total_remnants_scrap_kg.toFixed(1);
+    const remnants_scrap_percent = total_remnants_weight_kg > 0 ? ((total_remnants_scrap_kg / total_remnants_weight_kg) * 100).toFixed(1) + "%" : "0.0%";
+    const remnants_utilization_percent = total_remnants_weight_kg > 0 ? ((total_remnants_used_kg / total_remnants_weight_kg) * 100).toFixed(1) + "%" : "100.0%";
+    const total_remnants_issued_val = total_remnants_issued.toFixed(1);
 
     // Direct Scrap % metrics
     const cutting_scrap_percent = total_used > 0 ? (total_cutting_scrap / total_used) * 100 : 0;
@@ -112,7 +128,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
       totalFabricUsedKg,
       totalCalculatedMetric,
       total_used,
-      total_remnants_issued,
+      total_remnants_issued: total_remnants_issued_val,
       total_cutting_scrap,
       total_spreading_scrap,
       total_marker_scrap_kg,
@@ -409,12 +425,12 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${cutting_scrap_percent.toFixed(1)}%</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${spreading_scrap_percent.toFixed(1)}%</td>
 
-              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_remnants_issued.toFixed(1)}</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_used.toFixed(1)}</td>
-              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${remnants_real_scrap.toFixed(1)}</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_issued_percent.toFixed(1)}%</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_scrap_percent.toFixed(1)}%</td>
-              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_utilization_percent.toFixed(1)}%</td>
+              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_remnants_issued}</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_used}</td>
+              <td class="cell-default" style="padding: 6px 12px; text-align: center;">${remnants_real_scrap}</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_issued_percent}</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_scrap_percent}</td>
+              <td class="cell-green" style="padding: 6px 12px; text-align: center;">${remnants_utilization_percent}</td>
 
               <td class="cell-default" style="padding: 6px 12px; text-align: center;">${total_cutting_scrap.toFixed(1)}</td>
               <td class="cell-green" style="padding: 6px 12px; text-align: center;">${cutting_scrap_percent.toFixed(1)}%</td>
@@ -508,7 +524,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
                   <td class="align-right">${e.marker_length_inch}</td>
                   <td class="align-right">${e.marker_efficiency_percent}%</td>
                   <td class="align-center" style="font-weight: bold; color: ${e.status === 'approved' ? '#16A34A' : '#D97706'};">${e.status}</td>
-                  <td class="align-left">${e.remarks || ""}</td>
+                  <td class="align-left">${(e.remarks || "").split('|')[0]}</td>
                 </tr>
               `;
             }).join("")}

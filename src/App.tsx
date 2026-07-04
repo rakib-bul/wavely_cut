@@ -1457,6 +1457,7 @@ export default function App() {
                     onSelectEditEntry={(entry) => setEditingEntry(entry)}
                     buyers={buyers}
                     onSubmitDraft={handleSubmitDraft}
+                    onRefresh={() => fetchData(true)}
                   />
                 </div>
               </div>
@@ -1488,6 +1489,7 @@ export default function App() {
                   onSelectEditEntry={(entry) => setEditingEntry(entry)}
                   buyers={buyers}
                   onSubmitDraft={handleSubmitDraft}
+                  onRefresh={() => fetchData(true)}
                 />
               </div>
             )}

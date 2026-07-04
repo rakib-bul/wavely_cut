@@ -30,6 +30,209 @@ interface ReportsModuleProps {
   onSelectEditEntry?: (entry: CuttingEntry) => void;
   buyers?: Buyer[];
   onSubmitDraft?: (entry: CuttingEntry) => void;
+  onRefresh?: () => void;
+}
+
+// Helpers for parsing/formatting "remarks" with packed remnants used data
+export interface RemnantsUsedData {
+  remnants_weight_kg: number;
+  reject_qty: number;
+  remnants_scrap_kg: number;
+}
+
+export function parseRemarksRemnants(remarks: string): RemnantsUsedData {
+  if (!remarks) {
+    return { remnants_weight_kg: 0, reject_qty: 0, remnants_scrap_kg: 0 };
+  }
+  const parts = remarks.split('|');
+  const remnants_weight_kg = parseFloat(parts[0]) || 0;
+  const reject_qty = parseFloat(parts[1]) || 0;
+  const remnants_scrap_kg = parseFloat(parts[2]) || 0;
+  return { remnants_weight_kg, reject_qty, remnants_scrap_kg };
+}
+
+export function formatRemarksRemnants(remnants_weight_kg: number, reject_qty: number, remnants_scrap_kg: number): string {
+  return `${remnants_weight_kg}|${reject_qty}|${remnants_scrap_kg}`;
+}
+
+function RemnantsRow({
+  entry,
+  machines,
+  currentProfile,
+  onSave
+}: {
+  entry: CuttingEntry;
+  machines: Machine[];
+  currentProfile: Profile;
+  onSave: (entry: CuttingEntry, rejectQty: number, remnantsScrapKg: number) => Promise<void>;
+  key?: React.Key;
+}) {
+  const mName = machines.find(m => m.id === entry.machine_id)?.machine_name || "Unknown";
+  const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+  
+  const parsed = parseRemarksRemnants(entry.remarks);
+  const remnantsWeight = parsed.remnants_weight_kg;
+  
+  const [rejectQty, setRejectQty] = useState<string>(parsed.reject_qty ? String(parsed.reject_qty) : "");
+  const [remnantsScrap, setRemnantsScrap] = useState<string>(parsed.remnants_scrap_kg ? String(parsed.remnants_scrap_kg) : "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const isAllowed = currentProfile.role === "admin" || currentProfile.role === "supervisor";
+  const disabled = !isAllowed;
+
+  // Sync state if entry prop changes
+  React.useEffect(() => {
+    const updated = parseRemarksRemnants(entry.remarks);
+    setRejectQty(updated.reject_qty ? String(updated.reject_qty) : "");
+    setRemnantsScrap(updated.remnants_scrap_kg ? String(updated.remnants_scrap_kg) : "");
+  }, [entry.remarks]);
+
+  const numRejectQty = Number(rejectQty) || 0;
+  const numRemnantsScrap = Number(remnantsScrap) || 0;
+  const remnantsUsed = Math.max(0, remnantsWeight - numRemnantsScrap);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveStatus('idle');
+    try {
+      await onSave(entry, numRejectQty, numRemnantsScrap);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2500);
+    } catch (err: any) {
+      setSaveStatus('error');
+      setErrorMsg(err.message || "Failed to save");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsSaving(true);
+    setSaveStatus('idle');
+    try {
+      await onSave(entry, 0, 0);
+      setRejectQty("");
+      setRemnantsScrap("");
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2500);
+    } catch (err: any) {
+      setSaveStatus('error');
+      setErrorMsg(err.message || "Failed to delete");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const hasChanges = numRejectQty !== parsed.reject_qty || numRemnantsScrap !== parsed.remnants_scrap_kg;
+
+  return (
+    <tr className="hover:bg-slate-50/40 dark:hover:bg-slate-800/10 transition-colors">
+      <td className="p-4 pl-5 whitespace-nowrap font-mono">{entry.entry_date}</td>
+      <td className="p-4 whitespace-nowrap">
+        <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider border ${
+          entry.shift === 'day' 
+            ? "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900" 
+            : "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900"
+        }`}>
+          {entry.shift}
+        </span>
+      </td>
+      <td className="p-4 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{mName}</td>
+      <td className="p-4 font-medium whitespace-nowrap">{entry.buyer}</td>
+      <td className="p-4 font-mono font-bold whitespace-nowrap">{entry.job_no}</td>
+      <td className="p-4 font-medium whitespace-nowrap">{entry.color}</td>
+      <td className="p-4 font-medium whitespace-nowrap">{entry.item}</td>
+      <td className="p-4 font-mono font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">{entry.cut_no}</td>
+      <td className="p-4 text-right font-mono font-black text-[#2563EB] whitespace-nowrap">{totalCutQty}</td>
+      
+      {/* 10. REJECT QTY INPUT (NEW!) */}
+      <td className="p-3 whitespace-nowrap">
+        <input
+          type="number"
+          placeholder="0"
+          value={rejectQty}
+          onChange={e => setRejectQty(e.target.value)}
+          disabled={disabled}
+          className="w-20 h-9 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+        />
+      </td>
+
+      <td className="p-4 font-mono font-medium whitespace-nowrap">{entry.table_no}</td>
+      <td className="p-4 font-medium whitespace-nowrap">{entry.fabric_type}</td>
+      
+      {/* 13. REMNANTS FABRIC KG */}
+      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+        {remnantsWeight.toFixed(1)} kg
+      </td>
+
+      {/* 14. REMNANTS SCRAP KG INPUT (NEW!) */}
+      <td className="p-3 whitespace-nowrap">
+        <input
+          type="number"
+          step="0.1"
+          placeholder="0.0"
+          value={remnantsScrap}
+          onChange={e => setRemnantsScrap(e.target.value)}
+          disabled={disabled}
+          className="w-24 h-9 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+        />
+      </td>
+
+      {/* 15. REMNANTS FABRIC USED KG */}
+      <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+        {remnantsUsed.toFixed(1)} kg
+      </td>
+
+      {/* ACTION CELL */}
+      <td className="p-4 text-center pr-5 whitespace-nowrap print:hidden">
+        <div className="flex items-center justify-center space-x-1.5">
+          {isSaving ? (
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          ) : saveStatus === 'success' ? (
+            <span className="text-emerald-600 font-extrabold text-[10px] uppercase flex items-center gap-1">
+              <CheckCircle size={14} className="stroke-[3]" /> Saved
+            </span>
+          ) : saveStatus === 'error' ? (
+            <span className="text-rose-600 font-extrabold text-[10px] uppercase flex items-center gap-1" title={errorMsg}>
+              <AlertTriangle size={14} className="stroke-[3]" /> Error
+            </span>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              {hasChanges && isAllowed && (
+                <button
+                  onClick={handleSave}
+                  title="Save remnants data manually"
+                  className="px-2.5 py-1 bg-blue-600 text-white rounded-md text-[10px] font-bold hover:bg-blue-700 cursor-pointer transition shadow-xs"
+                >
+                  Save
+                </button>
+              )}
+              {isAllowed && (parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0) && (
+                <button
+                  onClick={handleDelete}
+                  title="Delete/Clear remnant entries"
+                  className="p-1 text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-200 transition cursor-pointer"
+                >
+                  <Trash2 size={14} className="stroke-[2.5]" />
+                </button>
+              )}
+              {!isAllowed && (
+                <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">View Only</span>
+              )}
+              {!hasChanges && isAllowed && !(parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0) && (
+                <span className="text-slate-350 text-[10px] font-bold uppercase">Ready</span>
+              )}
+              {!hasChanges && isAllowed && (parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0) && (
+                <span className="text-slate-350 text-[10px] font-bold uppercase">Synced</span>
+              )}
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
 }
 
 export default function ReportsModule({
@@ -41,7 +244,8 @@ export default function ReportsModule({
   onDeleteEntry,
   onSelectEditEntry,
   buyers = [],
-  onSubmitDraft
+  onSubmitDraft,
+  onRefresh
 }: ReportsModuleProps) {
   // --- Filtering State ---
   const [entryToDelete, setEntryToDelete] = useState<CuttingEntry | null>(null);
@@ -65,6 +269,9 @@ export default function ReportsModule({
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
+
+  // --- Reports Tab State ---
+  const [activeReportsTab, setActiveReportsTab] = useState<'ledger' | 'remnants'>('ledger');
 
   // --- Clear filters ---
   const resetFilters = () => {
@@ -289,13 +496,20 @@ export default function ReportsModule({
     const total_spread = Math.max(0, total_used - total_remnants_issued); // Spread fabric
 
     // Remnant calculations
-    // Remnants Issued % (relative to total fabric)
-    const remnants_issued_percent = total_used > 0 ? (total_remnants_issued / total_used) * 100 : 0;
-    // Remnants Fabric Used = fabric actually laid. Let's assume remnants used back is part of optimization
-    const remnants_used = total_remnants_issued * 0.45; // Simulated 45% reusable back as remnants
-    const remnants_real_scrap = total_remnants_issued - remnants_used;
-    const remnants_scrap_percent = total_remnants_issued > 0 ? (remnants_real_scrap / total_remnants_issued) * 100 : 0;
-    const remnants_utilization_percent = total_remnants_issued > 0 ? (remnants_used / total_remnants_issued) * 100 : 0;
+    let total_remnants_weight_kg = 0;
+    let total_remnants_scrap_kg = 0;
+    let total_remnants_used_kg = 0;
+
+    target.forEach(e => {
+      const parsed = parseRemarksRemnants(e.remarks);
+      total_remnants_weight_kg += parsed.remnants_weight_kg;
+      total_remnants_scrap_kg += parsed.remnants_scrap_kg;
+      total_remnants_used_kg += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+    });
+
+    const remnants_issued_percent = total_used > 0 ? (total_remnants_weight_kg / total_used) * 100 : 0;
+    const remnants_scrap_percent = total_remnants_weight_kg > 0 ? (total_remnants_scrap_kg / total_remnants_weight_kg) * 100 : 0;
+    const remnants_utilization_percent = total_remnants_weight_kg > 0 ? (total_remnants_used_kg / total_remnants_weight_kg) * 100 : 100;
 
     // Direct Scrap % metrics
     const cutting_scrap_percent = total_used > 0 ? (total_cutting_scrap / total_used) * 100 : 0;
@@ -325,11 +539,11 @@ export default function ReportsModule({
       actual_marker_scrap_percent: actual_marker_scrap_percent.toFixed(1),
       spreading_scrap_percent: spreading_scrap_percent.toFixed(1),
       remnants_fabric_issued: total_remnants_issued.toFixed(1),
-      remnants_fabric_used: remnants_used.toFixed(1),
-      remnants_scrap: remnants_real_scrap.toFixed(1),
-      remnants_issued_percent: remnants_issued_percent.toFixed(1),
-      remnants_scrap_percent: remnants_scrap_percent.toFixed(1),
-      remnants_utilization: remnants_utilization_percent.toFixed(1),
+      remnants_fabric_used: total_remnants_used_kg.toFixed(1),
+      remnants_scrap: total_remnants_scrap_kg.toFixed(1),
+      remnants_issued_percent: remnants_issued_percent.toFixed(1) + "%",
+      remnants_scrap_percent: remnants_scrap_percent.toFixed(1) + "%",
+      remnants_utilization: remnants_utilization_percent.toFixed(1) + "%",
       total_cutting_scrap: total_cutting_scrap.toFixed(1),
       total_cutting_scrap_percent: cutting_scrap_percent.toFixed(1),
       total_length: total_length.toLocaleString(),
@@ -420,11 +634,22 @@ export default function ReportsModule({
       const total_used_fabric_inch_val = calcTarget.reduce((acc, c) => acc + (c.total_used_fabric_inch || (c.lay || 0) * (c.marker_length_inch || 0) * ((c.marker_efficiency_percent || 0) / 100)), 0);
 
       const total_spread = Math.max(0, total_used - total_remnants_issued);
-      const remnants_issued_percent = total_used > 0 ? (total_remnants_issued / total_used) * 100 : 0;
-      const remnants_used = total_remnants_issued * 0.45;
-      const remnants_real_scrap = total_remnants_issued - remnants_used;
-      const remnants_scrap_percent = total_remnants_issued > 0 ? (remnants_real_scrap / total_remnants_issued) * 100 : 0;
-      const remnants_utilization_percent = total_remnants_issued > 0 ? (remnants_used / total_remnants_issued) * 100 : 0;
+      
+      // Remnants Calculations
+      let total_remnants_weight_kg = 0;
+      let total_remnants_scrap_kg = 0;
+      let total_remnants_used_kg = 0;
+
+      calcTarget.forEach(e => {
+        const parsed = parseRemarksRemnants(e.remarks);
+        total_remnants_weight_kg += parsed.remnants_weight_kg;
+        total_remnants_scrap_kg += parsed.remnants_scrap_kg;
+        total_remnants_used_kg += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+      });
+
+      const remnants_issued_percent = total_used > 0 ? (total_remnants_weight_kg / total_used) * 100 : 0;
+      const remnants_scrap_percent = total_remnants_weight_kg > 0 ? (total_remnants_scrap_kg / total_remnants_weight_kg) * 100 : 0;
+      const remnants_utilization_percent = total_remnants_weight_kg > 0 ? (total_remnants_used_kg / total_remnants_weight_kg) * 100 : 100;
 
       const cutting_scrap_percent = total_used > 0 ? (total_cutting_scrap / total_used) * 100 : 0;
       const spreading_scrap_percent = total_used > 0 ? (total_spreading_scrap / total_used) * 100 : 0;
@@ -452,8 +677,8 @@ export default function ReportsModule({
         actual_marker_scrap_percent: actual_marker_scrap_percent.toFixed(1) + "%",
         spreading_scrap_percent: spreading_scrap_percent.toFixed(1) + "%",
         remnants_fabric_issued: total_remnants_issued.toFixed(1),
-        remnants_fabric_used: remnants_used.toFixed(1),
-        remnants_scrap: remnants_real_scrap.toFixed(1),
+        remnants_fabric_used: total_remnants_used_kg.toFixed(1),
+        remnants_scrap: total_remnants_scrap_kg.toFixed(1),
         remnants_issued_percent: remnants_issued_percent.toFixed(1) + "%",
         remnants_scrap_percent: remnants_scrap_percent.toFixed(1) + "%",
         remnants_utilization: remnants_utilization_percent.toFixed(1) + "%",
@@ -564,9 +789,9 @@ export default function ReportsModule({
         <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_fabric_issued}</td>
         <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_fabric_used}</td>
         <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_scrap}</td>
-        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_issued_percent}%</td>
-        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_scrap_percent}%</td>
-        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_utilization}%</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_issued_percent}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_scrap_percent}</td>
+        <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.remnants_utilization}</td>
 
         <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_cutting_scrap}</td>
         <td style="text-align: center; font-weight: bold; background-color: #BDD7EE;">${reportMetrics.total_cutting_scrap_percent}%</td>
@@ -867,7 +1092,35 @@ export default function ReportsModule({
         </div>
       </div>
 
-      {/* METRICS ACCORDION BREAKDOWN */}
+      {/* REPORTS SUB-TAB NAVIGATION */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 text-xs font-black uppercase tracking-wider pb-px print:hidden mt-2 mb-6">
+        <button
+          onClick={() => setActiveReportsTab('ledger')}
+          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeReportsTab === 'ledger'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
+          }`}
+        >
+          <BarChart size={14} className="stroke-[2.5]" />
+          Ledger & Performance Audits
+        </button>
+        <button
+          onClick={() => setActiveReportsTab('remnants')}
+          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeReportsTab === 'remnants'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
+          }`}
+        >
+          <FileSpreadsheet size={14} className="stroke-[2.5]" />
+          Remnant Entry
+        </button>
+      </div>
+
+      {activeReportsTab === 'ledger' && (
+        <>
+          {/* METRICS ACCORDION BREAKDOWN */}
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
@@ -937,7 +1190,7 @@ export default function ReportsModule({
           <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Scrap & Waste Auditing
           </h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-rose-500/20 transition-all">
               <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Spreading Scrap</span>
               <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.spreading_scrap_kg} KG</span>
@@ -955,12 +1208,6 @@ export default function ReportsModule({
               <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.actual_marker_scrap_kg} KG</span>
               <span className="text-xs text-rose-500 font-black">({reportMetrics.actual_marker_scrap_percent}%)</span>
               <span className="text-[9px] text-slate-400 block mt-1">Net processed marker waste</span>
-            </div>
-            <div className="bg-amber-50/20 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-800/60 p-4 rounded-2xl shadow-xs hover:border-amber-500/30 transition-all">
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 block font-black uppercase tracking-wider mb-1">Remnant Scrap Rate</span>
-              <span className="font-mono text-amber-600 dark:text-amber-400 font-extrabold text-base">{reportMetrics.remnants_scrap_percent}%</span>
-              <span className="text-xs text-slate-400 font-medium">({reportMetrics.remnants_scrap} KG unused)</span>
-              <span className="text-[9px] text-slate-400 block mt-1">Rate of discarded remnant logs</span>
             </div>
           </div>
         </div>
@@ -989,38 +1236,6 @@ export default function ReportsModule({
           </div>
         </div>
 
-        {/* BENTO SECTION 4: Remnants Lifecycle Audits */}
-        <div className="space-y-3">
-          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Remnants Lifecycle Audits
-          </h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Fabric Issued</span>
-              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.remnants_fabric_issued} KG</span>
-              <span className="text-xs text-indigo-500 font-black">({reportMetrics.remnants_issued_percent}%)</span>
-              <span className="text-[9px] text-slate-400 block mt-1">Total weight saved as remnant rolls</span>
-            </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Reused/Recovered</span>
-              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.remnants_fabric_used} KG</span>
-              <span className="text-xs text-indigo-500 font-black">({reportMetrics.remnants_utilization}%)</span>
-              <span className="text-[9px] text-slate-400 block mt-1">Weight fed back into active laying</span>
-            </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Real Waste</span>
-              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-base">{reportMetrics.remnants_scrap} KG</span>
-              <span className="text-xs text-indigo-500 font-black">({reportMetrics.remnants_scrap_percent}%)</span>
-              <span className="text-[9px] text-slate-400 block mt-1">Irrecoverable remnant scraps</span>
-            </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Cutting Scrap</span>
-              <span className="font-mono text-slate-850 dark:text-slate-100 font-extrabold text-base">{reportMetrics.total_cutting_scrap} KG</span>
-              <span className="text-xs text-rose-500 font-black">({reportMetrics.total_cutting_scrap_percent}%)</span>
-              <span className="text-[9px] text-slate-400 block mt-1">Physical cut scrap volume</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* MAIN DATA TABLES & ACTION LEDGERS */}
@@ -1244,6 +1459,142 @@ export default function ReportsModule({
         </div>
 
       </div>
+      </>
+      )}
+
+      {activeReportsTab === 'remnants' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-fade-in">
+            <div>
+              <h3 className="font-sans font-extrabold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Remnants & Yield Performance Ledgers ({filteredEntries.length} Records)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Maintain and record remnants usage, fabric reject counts, and remnants scrap.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs animate-fade-in">
+            {/* Table Title and Export */}
+            <div className="p-5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h3 className="font-sans font-black text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Remnants Processing Logs ({filteredEntries.length} Matches)
+              </h3>
+              <div className="flex flex-wrap items-center gap-3 print:hidden">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 py-2 px-4 rounded-xl text-xs text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs"
+                >
+                  <Printer size={13} className="stroke-[2.5]" /> Print Report
+                </button>
+              </div>
+            </div>
+
+            {/* Dense Table wrapper */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs min-w-[1950px]">
+                <thead>
+                  <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="p-4 pl-5 whitespace-nowrap cursor-pointer select-none" onClick={() => handleSort("entry_date")}>
+                      Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap">Shift</th>
+                    <th className="p-4 whitespace-nowrap">Machine</th>
+                    <th className="p-4 whitespace-nowrap">Buyer</th>
+                    <th className="p-4 whitespace-nowrap">Job No</th>
+                    <th className="p-4 whitespace-nowrap">Color</th>
+                    <th className="p-4 whitespace-nowrap">Item</th>
+                    <th className="p-4 whitespace-nowrap">Cut No</th>
+                    <th className="p-4 text-right whitespace-nowrap">Total Cut Qty</th>
+                    <th className="p-4 whitespace-nowrap">Reject Qty</th>
+                    <th className="p-4 whitespace-nowrap">Table No</th>
+                    <th className="p-4 whitespace-nowrap">Fabric Type</th>
+                    <th className="p-4 text-right whitespace-nowrap">Remnants Fabric (KG)</th>
+                    <th className="p-4 whitespace-nowrap">Remnants Scrap KG</th>
+                    <th className="p-4 text-right whitespace-nowrap">Remnants Fabric Used (KG)</th>
+                    <th className="p-4 text-center whitespace-nowrap print:hidden">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                  {paginatedEntries.length === 0 ? (
+                    <tr>
+                      <td colSpan={16} className="text-center p-12 text-xs text-slate-400">
+                        No matching cutting logs found for remnants entries.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedEntries.map(entry => (
+                      <RemnantsRow
+                        key={entry.id}
+                        entry={entry}
+                        machines={machines}
+                        currentProfile={currentProfile}
+                        onSave={async (e, rQty, rScrap) => {
+                          const updatedRemarks = formatRemarksRemnants(
+                            parseRemarksRemnants(e.remarks).remnants_weight_kg,
+                            rQty,
+                            rScrap
+                          );
+                          const headers = {
+                            "Content-Type": "application/json",
+                            "X-User-Role": currentProfile.role,
+                            "X-User-Email": currentProfile.email
+                          };
+                          const payload = {
+                            ...e,
+                            remarks: updatedRemarks
+                          };
+                          const res = await fetch(`/api/entries/${e.id}`, {
+                            method: "PUT",
+                            headers,
+                            body: JSON.stringify(payload)
+                          });
+                          if (!res.ok) {
+                            const data = await res.json().catch(() => ({}));
+                            throw new Error(data.error || "Failed to update database record");
+                          }
+                          // Refresh parent data
+                          if (onRefresh) {
+                            onRefresh();
+                          }
+                        }}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination controls footer */}
+            <div className="p-5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs text-slate-450 dark:text-slate-500 font-medium print:hidden">
+              <span>
+                Showing records {Math.min(filteredEntries.length, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(filteredEntries.length, currentPage * itemsPerPage)} of {filteredEntries.length} matching rows
+              </span>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-1.5 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 transition font-bold cursor-pointer"
+                >
+                  Prev
+                </button>
+                <span className="p-1.5 px-3.5 bg-[#2563EB] text-white font-black rounded-xl leading-normal">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-1.5 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 transition font-bold cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Custom Confirmation Modal for Deletion */}
       {entryToDelete && (
