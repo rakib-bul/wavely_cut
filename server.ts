@@ -998,7 +998,8 @@ app.get("/api/logs", async (req, res) => {
     const { data: logs, error } = await supabase
       .from("audit_logs")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(200);
 
     if (error) {
       return res.status(500).json({ error: error.message });
@@ -1265,7 +1266,8 @@ app.get("/api/sync", async (req, res) => {
       const { data: logs, error } = await supabase
         .from("audit_logs")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
       if (error) throw error;
       return logs || [];
     })();

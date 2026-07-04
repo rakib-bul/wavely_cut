@@ -135,9 +135,9 @@ export default function App() {
   const [syncInterval, setSyncInterval] = useState<number>(() => {
     try {
       const saved = localStorage.getItem("erp_sync_interval_sec");
-      return saved ? Number(saved) : 30; // Default optimized from 10s to 30s
+      return saved ? Number(saved) : 60; // Default optimized from 30s to 60s to reduce Fast Origin Transfer
     } catch {
-      return 30;
+      return 60;
     }
   });
   const [syncVersion, setSyncVersion] = useState<string>(() => {
@@ -339,15 +339,34 @@ export default function App() {
     fetchData(false); // Initial load on profile change
   }, [currentProfile]);
 
+  // Monitor tab visibility state to pause polling when backgrounded (reduces Fast Origin Transfer)
+  const [isTabVisible, setIsTabVisible] = useState<boolean>(true);
+
   useEffect(() => {
-    if (!isAutoSyncEnabled || syncInterval <= 0 || !currentProfile) return;
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === "visible";
+      setIsTabVisible(visible);
+      if (visible && currentProfile) {
+        // Trigger a fresh catch-up fetch immediately when user returns to the tab
+        fetchData(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentProfile]);
+
+  useEffect(() => {
+    if (!isAutoSyncEnabled || syncInterval <= 0 || !currentProfile || !isTabVisible) return;
 
     const interval = setInterval(() => {
       fetchData(true); // Background sync silently
     }, syncInterval * 1000);
 
     return () => clearInterval(interval);
-  }, [currentProfile, isAutoSyncEnabled, syncInterval]);
+  }, [currentProfile, isAutoSyncEnabled, syncInterval, isTabVisible]);
 
   // --- SWITCH SIMULATED PROFILE (User Switching) ---
   const handleSwitchProfile = (p: Profile) => {
@@ -1214,7 +1233,7 @@ export default function App() {
                       <div className="space-y-1.5">
                         <label className="font-bold block text-slate-500 dark:text-slate-400">Polling Interval</label>
                         <div className="grid grid-cols-4 gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-xl border border-slate-100 dark:border-slate-850">
-                          {[5, 10, 30, 60].map((sec) => (
+                          {[30, 60, 120, 300].map((sec) => (
                             <button
                               key={sec}
                               onClick={() => {
@@ -1227,7 +1246,7 @@ export default function App() {
                                   : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                               }`}
                             >
-                              {sec}s
+                              {sec === 30 ? "30s" : sec === 60 ? "1m" : sec === 120 ? "2m" : "5m"}
                             </button>
                           ))}
                         </div>
