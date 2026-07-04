@@ -321,10 +321,10 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
   // Group filter logic
   const dailyKeys = [
     "today-output",
-    "today-fabric",
-    "today-fabric-spread",
     "today-lay-layers",
     "today-ratio-combined",
+    "today-fabric",
+    "today-fabric-spread",
     "today-remnants",
     "today-spreading-scrap",
     "today-cutting-scrap",
