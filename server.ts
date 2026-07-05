@@ -1052,7 +1052,19 @@ app.get("/api/profiles", async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    return res.json(profiles || []);
+    const enrichedProfiles = (profiles || []).map(p => {
+      const perms = (systemSettings as any).user_permissions?.[p.id] || {
+        can_access_cutting_entry: true,
+        can_access_remnant_entry: true
+      };
+      return {
+        ...p,
+        can_access_cutting_entry: perms.can_access_cutting_entry !== false,
+        can_access_remnant_entry: perms.can_access_remnant_entry !== false
+      };
+    });
+
+    return res.json(enrichedProfiles);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -1138,6 +1150,67 @@ app.put("/api/profiles/:id/avatar", async (req, res) => {
     await addAuditLog(user_email, "edit", "avatar", id, currentProfile, updatedProfile);
     
     return res.json(updatedProfile);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/profiles/:id/permissions", async (req, res) => {
+  const { id } = req.params;
+  const { can_access_cutting_entry, can_access_remnant_entry } = req.body;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role !== "admin") {
+    return res.status(403).json({ error: "Only Admins can modify user permissions." });
+  }
+
+  try {
+    const { data: currentProfile, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !currentProfile) {
+      return res.status(404).json({ error: "Profile not found." });
+    }
+
+    if (!(systemSettings as any).user_permissions) {
+      (systemSettings as any).user_permissions = {};
+    }
+
+    const old_permissions = (systemSettings as any).user_permissions[id] || {
+      can_access_cutting_entry: true,
+      can_access_remnant_entry: true
+    };
+
+    (systemSettings as any).user_permissions[id] = {
+      can_access_cutting_entry: !!can_access_cutting_entry,
+      can_access_remnant_entry: !!can_access_remnant_entry
+    };
+
+    const success = saveSettings(systemSettings);
+    if (!success) {
+      return res.status(500).json({ error: "Failed to persist user permissions." });
+    }
+
+    const enrichedProfile = {
+      ...currentProfile,
+      can_access_cutting_entry: !!can_access_cutting_entry,
+      can_access_remnant_entry: !!can_access_remnant_entry
+    };
+
+    await addAuditLog(
+      user_email,
+      "edit",
+      "user_permissions",
+      id,
+      old_permissions,
+      (systemSettings as any).user_permissions[id]
+    );
+
+    return res.json(enrichedProfile);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -1299,7 +1372,19 @@ app.get("/api/sync", async (req, res) => {
         .select("*")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return profiles || [];
+      
+      const enriched = (profiles || []).map(p => {
+        const perms = (systemSettings as any).user_permissions?.[p.id] || {
+          can_access_cutting_entry: true,
+          can_access_remnant_entry: true
+        };
+        return {
+          ...p,
+          can_access_cutting_entry: perms.can_access_cutting_entry !== false,
+          can_access_remnant_entry: perms.can_access_remnant_entry !== false
+        };
+      });
+      return enriched;
     })();
 
     // Fetch everything concurrently via parallel promise resolution
@@ -1442,6 +1527,16 @@ app.post("/api/admin/create-user", async (req, res) => {
       return res.status(400).json({ error: dbError.message });
     }
 
+    // Set default permissions in systemSettings
+    if (!(systemSettings as any).user_permissions) {
+      (systemSettings as any).user_permissions = {};
+    }
+    (systemSettings as any).user_permissions[userId] = {
+      can_access_cutting_entry: true,
+      can_access_remnant_entry: true
+    };
+    saveSettings(systemSettings);
+
     // Log administrative action
     await addAuditLog(
       admin_email,
@@ -1452,7 +1547,13 @@ app.post("/api/admin/create-user", async (req, res) => {
       { email: normalizedEmail, full_name: userName, role: userRole, department: userDept }
     );
 
-    return res.json({ profile: newProfile, message: "User account created successfully by admin" });
+    const enrichedProfile = {
+      ...newProfile,
+      can_access_cutting_entry: true,
+      can_access_remnant_entry: true
+    };
+
+    return res.json({ profile: enrichedProfile, message: "User account created successfully by admin" });
 
   } catch (err: any) {
     console.error("Supabase Admin direct user creation error:", err.message);

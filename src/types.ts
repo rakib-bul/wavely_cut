@@ -8,6 +8,8 @@ export interface Profile {
   department: string;
   avatar_url?: string;
   created_at: string;
+  can_access_cutting_entry?: boolean;
+  can_access_remnant_entry?: boolean;
 }
 
 export interface Machine {

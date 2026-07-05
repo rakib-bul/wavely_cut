@@ -16,7 +16,8 @@ import {
   BarChart,
   FileSpreadsheet,
   AlertTriangle,
-  Send
+  Send,
+  Lock
 } from "lucide-react";
 import { CuttingEntry, Machine, Profile, UserRole, Buyer } from "../types";
 
@@ -1105,17 +1106,27 @@ export default function ReportsModule({
           <BarChart size={14} className="stroke-[2.5]" />
           Ledger & Performance Audits
         </button>
-        <button
-          onClick={() => setActiveReportsTab('remnants')}
-          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeReportsTab === 'remnants'
-              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
-          }`}
-        >
-          <FileSpreadsheet size={14} className="stroke-[2.5]" />
-          Remnant Entry
-        </button>
+        {currentProfile.can_access_remnant_entry === false ? (
+          <div 
+            className="pb-3 border-b-2 border-transparent text-slate-300 dark:text-slate-600 flex items-center gap-2 cursor-not-allowed select-none"
+            title="Remnant Entry requires active Remnants clearance."
+          >
+            <Lock size={14} className="stroke-[2.5]" />
+            <span>Remnant Entry</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => setActiveReportsTab('remnants')}
+            className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+              activeReportsTab === 'remnants'
+                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
+            }`}
+          >
+            <FileSpreadsheet size={14} className="stroke-[2.5]" />
+            Remnant Entry
+          </button>
+        )}
       </div>
 
       {activeReportsTab === 'ledger' && (

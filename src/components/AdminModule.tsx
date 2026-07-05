@@ -29,6 +29,7 @@ interface AdminModuleProps {
   auditLogs: AuditLog[];
   onUpdateRole: (id: string, role: UserRole) => void;
   onUpdateAvatar?: (id: string, avatarUrl: string) => Promise<void>;
+  onUpdatePermissions?: (id: string, can_access_cutting_entry: boolean, can_access_remnant_entry: boolean) => Promise<void>;
   onAddMachine: (name: string, type: string) => void;
   schemaDDL: string;
   rlsDDL: string;
@@ -51,6 +52,7 @@ export default function AdminModule({
   auditLogs,
   onUpdateRole,
   onUpdateAvatar,
+  onUpdatePermissions,
   onAddMachine,
   schemaDDL,
   rlsDDL,
@@ -374,8 +376,8 @@ export default function AdminModule({
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
                       <th className="p-4 pl-5">Verified Operator Name</th>
-                      <th className="p-4">Email Reference</th>
-                      <th className="p-4">Department Branch</th>
+                      <th className="p-4">Email & Branch</th>
+                      <th className="p-4 text-center">Entry Permissions</th>
                       <th className="p-4 text-right pr-5">Assigned Role Check</th>
                     </tr>
                   </thead>
@@ -420,8 +422,48 @@ export default function AdminModule({
                             </div>
                           </div>
                         </td>
-                        <td className="p-4 font-mono text-slate-500">{p.email}</td>
-                        <td className="p-4 text-slate-500 dark:text-slate-400 font-medium">{p.department}</td>
+                        <td className="p-4">
+                          <span className="font-mono text-slate-500 block">{p.email}</span>
+                          <span className="text-[10px] text-slate-400 font-bold block mt-0.5">{p.department}</span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-4">
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-650 dark:text-slate-300 select-none" title="Allow/deny access to Cutting entries form">
+                              <input 
+                                type="checkbox"
+                                checked={p.can_access_cutting_entry !== false}
+                                onChange={(e) => {
+                                  if (onUpdatePermissions) {
+                                    onUpdatePermissions(
+                                      p.id, 
+                                      e.target.checked, 
+                                      p.can_access_remnant_entry !== false
+                                    );
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider">Cutting Form</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-650 dark:text-slate-300 select-none" title="Allow/deny access to Remnant Entry form">
+                              <input 
+                                type="checkbox"
+                                checked={p.can_access_remnant_entry !== false}
+                                onChange={(e) => {
+                                  if (onUpdatePermissions) {
+                                    onUpdatePermissions(
+                                      p.id, 
+                                      p.can_access_cutting_entry !== false, 
+                                      e.target.checked
+                                    );
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider">Remnant Form</span>
+                            </label>
+                          </div>
+                        </td>
                         <td className="p-4 text-right pr-5">
                           <select
                             value={p.role}

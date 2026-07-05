@@ -731,6 +731,48 @@ export default function App() {
     }
   };
 
+  // --- ADMIN: UPDATE USER PERMISSIONS ACTION ---
+  const handleUpdateUserPermissions = async (
+    id: string,
+    can_access_cutting_entry: boolean,
+    can_access_remnant_entry: boolean
+  ) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch(`/api/profiles/${id}/permissions`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ can_access_cutting_entry, can_access_remnant_entry })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Permission modification denied.");
+        return;
+      }
+
+      const updatedProfile = await res.json();
+
+      // If updating roles/permissions on current active profile, apply change to active state!
+      if (id === currentProfile.id) {
+        setCurrentProfile(prev => ({
+          ...prev,
+          can_access_cutting_entry: updatedProfile.can_access_cutting_entry,
+          can_access_remnant_entry: updatedProfile.can_access_remnant_entry
+        }));
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed updating user permissions: " + err.message);
+    }
+  };
+
   // --- ADMIN: HARDWARE MACHINE CREATE ACTION ---
   const handleAddMachine = async (name: string, type: string) => {
     try {
@@ -1513,6 +1555,7 @@ export default function App() {
                   auditLogs={auditLogs}
                   onUpdateRole={handleUpdateUserRole}
                   onUpdateAvatar={handleUpdateUserAvatar}
+                  onUpdatePermissions={handleUpdateUserPermissions}
                   onAddMachine={handleAddMachine}
                   schemaDDL={SCHEMA_DDL_STRING}
                   rlsDDL={RLS_DDL_STRING}

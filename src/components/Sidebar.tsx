@@ -12,7 +12,8 @@ import {
   Sparkles,
   Code2,
   Phone,
-  Mail
+  Mail,
+  Lock
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -72,16 +73,26 @@ export default function Sidebar({
       {/* Main Navigation with Generous Spacing & Hover States */}
       <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
         {navItems.map((item) => {
-          const hasAccess = item.roles.includes(currentProfile.role);
-          const Icon = item.icon;
+          let hasAccess = item.roles.includes(currentProfile.role);
+          let tooltipMessage = "";
+          let useLockIcon = false;
+
+          if (hasAccess && item.id === "data_entry" && currentProfile.can_access_cutting_entry === false) {
+            hasAccess = false;
+            useLockIcon = true;
+            tooltipMessage = "Cutting Entries access has been locked by Admin.";
+          }
+
+          const Icon = useLockIcon ? Lock : item.icon;
           
           if (!hasAccess) {
             const displayRoles = item.roles.map(r => r === "supervisor" ? "officer" : r).join(", ");
+            const titleText = tooltipMessage || `${item.label} requires ${displayRoles} roles.`;
             return (
               <div 
                 key={item.id} 
                 className="flex items-center gap-4 text-slate-300 dark:text-slate-600 px-4 py-3 rounded-xl text-[13px] font-bold cursor-not-allowed opacity-40 select-none"
-                title={`${item.label} requires ${displayRoles} roles.`}
+                title={titleText}
               >
                 <Icon size={20} className="shrink-0 text-slate-300 dark:text-slate-600" />
                 <span>{item.label}</span>
