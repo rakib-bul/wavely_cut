@@ -1050,8 +1050,8 @@ app.get("/api/profiles", async (req, res) => {
       };
       return {
         ...p,
-        can_access_cutting_entry: perms.can_access_cutting_entry !== false,
-        can_access_remnant_entry: perms.can_access_remnant_entry !== false
+        can_access_cutting_entry: p.can_access_cutting_entry !== undefined ? p.can_access_cutting_entry : (perms.can_access_cutting_entry !== false),
+        can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false)
       };
     });
 
@@ -1167,13 +1167,36 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
       return res.status(404).json({ error: "Profile not found." });
     }
 
+    // 1. Try to update the permissions directly in the database profiles table
+    let dbError: any = null;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          can_access_cutting_entry: !!can_access_cutting_entry,
+          can_access_remnant_entry: !!can_access_remnant_entry
+        })
+        .eq("id", id);
+      dbError = error;
+    } catch (err: any) {
+      dbError = err;
+    }
+
+    // If the database has not been upgraded yet (missing column error), we'll write to local settings and prompt/report
+    if (dbError && (dbError.code === "42703" || dbError.message?.includes("column"))) {
+      console.warn("Permission columns missing in Database profiles table. Falling back to local settings.json storage.");
+    } else if (dbError) {
+      return res.status(500).json({ error: "Database error: " + dbError.message });
+    }
+
+    // 2. Dual-write/fallback to systemSettings for perfect backward compatibility
     if (!(systemSettings as any).user_permissions) {
       (systemSettings as any).user_permissions = {};
     }
 
     const old_permissions = (systemSettings as any).user_permissions[id] || {
-      can_access_cutting_entry: true,
-      can_access_remnant_entry: true
+      can_access_cutting_entry: currentProfile.can_access_cutting_entry !== false,
+      can_access_remnant_entry: currentProfile.can_access_remnant_entry !== false
     };
 
     (systemSettings as any).user_permissions[id] = {
@@ -1183,7 +1206,7 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
 
     const success = saveSettings(systemSettings);
     if (!success) {
-      return res.status(500).json({ error: "Failed to persist user permissions." });
+      return res.status(500).json({ error: "Failed to persist user permissions locally." });
     }
 
     const enrichedProfile = {
@@ -1362,8 +1385,8 @@ app.get("/api/sync", async (req, res) => {
         };
         return {
           ...p,
-          can_access_cutting_entry: perms.can_access_cutting_entry !== false,
-          can_access_remnant_entry: perms.can_access_remnant_entry !== false
+          can_access_cutting_entry: p.can_access_cutting_entry !== undefined ? p.can_access_cutting_entry : (perms.can_access_cutting_entry !== false),
+          can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false)
         };
       });
       return enriched;
@@ -1489,7 +1512,7 @@ app.post("/api/admin/create-user", async (req, res) => {
 
     const userId = authData.user?.id || "00000000-0000-0000-0000-000000000000";
     
-    const newProfile = {
+    const newProfile: any = {
       id: userId,
       full_name: userName,
       email: normalizedEmail,
@@ -1497,10 +1520,28 @@ app.post("/api/admin/create-user", async (req, res) => {
       department: userDept
     };
 
-    // Insert into profiles
-    const { error: dbError } = await supabase
-      .from("profiles")
-      .insert(newProfile);
+    // Try to insert with default permissions. If database doesn't have columns yet, fall back.
+    let dbError: any = null;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .insert({
+          ...newProfile,
+          can_access_cutting_entry: true,
+          can_access_remnant_entry: true
+        });
+      dbError = error;
+    } catch (err: any) {
+      dbError = err;
+    }
+
+    if (dbError && (dbError.code === "42703" || dbError.message?.includes("column"))) {
+      // Fallback if DB column is missing
+      const { error } = await supabase
+        .from("profiles")
+        .insert(newProfile);
+      dbError = error;
+    }
 
     if (dbError) {
       console.warn("Could not insert profile in Supabase table, cleaning auth user...", dbError.message);

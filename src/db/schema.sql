@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     role VARCHAR(50) NOT NULL CHECK (role IN ('operator', 'supervisor', 'manager', 'admin')),
     department VARCHAR(100) NOT NULL DEFAULT 'Cutting',
     avatar_url TEXT,
+    can_access_cutting_entry BOOLEAN NOT NULL DEFAULT true,
+    can_access_remnant_entry BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

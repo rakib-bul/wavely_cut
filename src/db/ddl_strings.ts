@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     role VARCHAR(50) NOT NULL CHECK (role IN ('operator', 'supervisor', 'manager', 'admin')),
     department VARCHAR(100) NOT NULL DEFAULT 'Cutting',
     avatar_url TEXT,
+    can_access_cutting_entry BOOLEAN NOT NULL DEFAULT true,
+    can_access_remnant_entry BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -104,13 +106,12 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cutting_entries ENABLE ROW LEVEL SECURITY;
 
--- SELECT: Operator can view own entries; Supervisor, Manager, Admin can view all
+-- SELECT: All authenticated users can view all entries (unified access policy)
 CREATE POLICY select_cutting_entries ON public.cutting_entries
     FOR SELECT
     TO authenticated
     USING (
-        public.get_user_role() IN ('admin', 'supervisor', 'manager') 
-        OR (public.get_user_role() = 'operator' AND created_by = auth.uid())
+        true
     );
 
 -- INSERT: Operators and Supervisors can insert entries
