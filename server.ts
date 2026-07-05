@@ -552,15 +552,6 @@ app.get("/api/entries", async (req, res) => {
   try {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     let query = supabase.from("cutting_entries").select("*");
-    
-    if (user_role === "operator") {
-      const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
-      if (prof?.id) {
-        query = query.eq("created_by", prof.id);
-      } else {
-        query = query.eq("created_by", "00000000-0000-0000-0000-000000000000");
-      }
-    }
 
     const { data: entries, error } = await query;
     if (error) {
@@ -1324,15 +1315,6 @@ app.get("/api/sync", async (req, res) => {
     // 3. Fetch cutting entries
     const entriesPromise = (async () => {
       let query = supabase.from("cutting_entries").select("*");
-      
-      if (user_role === "operator") {
-        const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
-        if (prof?.id) {
-          query = query.eq("created_by", prof.id);
-        } else {
-          query = query.eq("created_by", "00000000-0000-0000-0000-000000000000");
-        }
-      }
 
       const { data: entries, error } = await query;
       if (error) throw error;
