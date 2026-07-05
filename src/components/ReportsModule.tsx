@@ -567,15 +567,19 @@ export default function ReportsModule({
     const headers = [
       "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
       "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
-      "Fabric Weight Used (KG)", "Remnants Weight (KG)", "Spread Fabric (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
+      "Fabric Weight Used (KG)", "Remnants Weight Issued (KG)", "Remnants Fabric Used (KG)", "Remnants Scrap (KG)", "Reject Pieces (Pcs)", "Spread Fabric (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
       "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
-      "Scarp% as per Marker", "% of cutting scrap"
+      "Scrap% as per Marker", "% of cutting scrap"
     ];
 
     const rows = filteredEntries.map(e => {
       const mc = machines.find(m => m.id === e.machine_id)?.machine_name || "Unknown Machine";
-      const remnantsWeight = parseFloat(e.remarks) || 0;
-      const spreadWeight = Math.max(0, e.fabric_used_kg - remnantsWeight);
+      const parsed = parseRemarksRemnants(e.remarks);
+      const remnantsIssued = parsed.remnants_weight_kg;
+      const remnantsScrap = parsed.remnants_scrap_kg;
+      const remnantsUsed = Math.max(0, remnantsIssued - remnantsScrap);
+      const rejectQty = parsed.reject_qty;
+      const spreadWeight = Math.max(0, e.fabric_used_kg - remnantsIssued);
       const spreadingScrap = e.remnant_weight_kg || 0;
       const totalCutQty = (e.lay || 0) * (e.ratio || 0);
       const totalMarkerLength = (e.lay || 0) * (e.marker_length_inch || 0);
@@ -599,7 +603,10 @@ export default function ReportsModule({
         fabricType: e.fabric_type,
         parts: e.parts,
         fabricUsedKg: e.fabric_used_kg,
-        remnantsWeight: remnantsWeight,
+        remnantsWeight: remnantsIssued,
+        remnantsUsed: remnantsUsed,
+        remnantsScrap: remnantsScrap,
+        rejectQty: rejectQty,
         spreadWeight: spreadWeight,
         spreadingScrap: spreadingScrap,
         cuttingScrap: e.cutting_scrap_weight_kg,
@@ -861,9 +868,9 @@ export default function ReportsModule({
       </head>
       <body>
         <table>
-          <tr><td colspan="10" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">GARMENTS CUTTING LEDGER REPORT</td></tr>
-          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
-          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
+          <tr><td colspan="28" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">GARMENTS CUTTING LEDGER REPORT</td></tr>
+          <tr><td colspan="28" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+          <tr><td colspan="28" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
         </table>
 
         <table>
@@ -910,7 +917,7 @@ export default function ReportsModule({
         </table>
 
         <table>
-          <tr><td colspan="24" class="section-header">DETAILED LEDGER RECORDS</td></tr>
+          <tr><td colspan="28" class="section-header">DETAILED LEDGER RECORDS</td></tr>
         </table>
 
         <table>
@@ -938,6 +945,10 @@ export default function ReportsModule({
                 <td class="align-left">${r.parts}</td>
                 <td class="align-right">${Number(r.fabricUsedKg).toFixed(2)}</td>
                 <td class="align-right">${Number(r.remnantsWeight).toFixed(2)}</td>
+                <td class="align-right">${Number(r.remnantsUsed).toFixed(2)}</td>
+                <td class="align-right">${Number(r.remnantsScrap).toFixed(2)}</td>
+                <td class="align-right">${Number(r.rejectQty).toLocaleString()}</td>
+                <td class="align-right">${Number(r.spreadWeight).toFixed(2)}</td>
                 <td class="align-right">${Number(r.spreadingScrap).toFixed(2)}</td>
                 <td class="align-right">${Number(r.cuttingScrap).toFixed(2)}</td>
                 <td class="align-right">${Number(r.markerLengthInch).toFixed(2)}</td>

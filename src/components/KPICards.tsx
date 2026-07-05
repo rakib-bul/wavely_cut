@@ -28,6 +28,22 @@ interface KPICardsProps {
     avg_ete_efficiency: number;
     remnant_utilization: number;
     efficiency_gap: number;
+    // Remnants detailed totals
+    total_remnants_issued?: number;
+    total_remnants_scrap_kg?: number;
+    total_remnants_used_kg?: number;
+    total_reject_qty?: number;
+    remnants_issued_percent?: number;
+    remnants_scrap_percent?: number;
+    remnants_utilization_percent?: number;
+    // Today remnant metrics
+    today_remnants_issued?: number;
+    today_remnants_scrap_kg?: number;
+    today_remnants_used_kg?: number;
+    today_reject_qty?: number;
+    today_remnants_issued_percent?: number;
+    today_remnants_scrap_percent?: number;
+    today_remnants_utilization_percent?: number;
     // New Datewise KPIs
     latestDateStr?: string;
     today_fabric_used?: number;
@@ -307,6 +323,117 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
       color: "text-rose-600 bg-rose-500/10",
       statusText: "Cutting Scrap",
       statusColor: "bg-rose-500/15 text-rose-600 border-rose-500/20",
+    },
+    {
+      id: "today-remnants-issued",
+      title: "Today's Remnants Issued",
+      amount: (metrics.today_remnants_issued || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Total remnant weight returned or re-entered today",
+      icon: Weight,
+      color: "text-blue-600 bg-blue-500/10",
+      statusText: "Today's Remnants",
+      statusColor: "bg-blue-500/15 text-blue-600 border-blue-500/20",
+    },
+    {
+      id: "today-remnants-used",
+      title: "Today's Remnants Used",
+      amount: (metrics.today_remnants_used_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Remnants fabric successfully utilized on the floor today",
+      icon: Layers,
+      color: "text-emerald-600 bg-emerald-500/10",
+      statusText: "Remnants Used",
+      statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+    },
+    {
+      id: "today-remnants-scrap",
+      title: "Today's Remnants Scrap",
+      amount: (metrics.today_remnants_scrap_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Waste or short roll-ends discarded as scrap from remnants today",
+      icon: Scissors,
+      color: "text-rose-600 bg-rose-500/10",
+      statusText: "Remnant Scrap",
+      statusColor: "bg-rose-500/15 text-rose-600 border-rose-500/20",
+    },
+    {
+      id: "today-remnants-utilization",
+      title: "Today's Remnants Utilization",
+      amount: (metrics.today_remnants_utilization_percent || 0).toFixed(1),
+      unit: "%",
+      desc: "Percentage rate of remnants successfully used versus discarded today",
+      icon: Percent,
+      color: "text-indigo-600 bg-indigo-500/10",
+      statusText: "Utilization",
+      statusColor: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20",
+    },
+    {
+      id: "today-reject-qty",
+      title: "Today's Reject Pieces",
+      amount: (metrics.today_reject_qty || 0).toLocaleString(),
+      unit: "Pcs",
+      desc: "Defective panel pieces rejected on the floor today",
+      icon: TriangleAlert,
+      color: "text-amber-600 bg-amber-500/10",
+      statusText: "Rejects Today",
+      statusColor: "bg-amber-500/15 text-amber-600 border-amber-500/20",
+    },
+    // Overall / Monthly Remnants
+    {
+      id: "total-remnants-issued",
+      title: "Cumulative Remnants Issued",
+      amount: (metrics.total_remnants_issued || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Total remnants weight issued across approved lots",
+      icon: Weight,
+      color: "text-blue-600 bg-blue-500/10",
+      statusText: "All-Time",
+      statusColor: "bg-blue-500/15 text-blue-600 border-blue-500/20",
+    },
+    {
+      id: "total-remnants-used",
+      title: "Cumulative Remnants Used",
+      amount: (metrics.total_remnants_used_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Total remnants weight successfully cut/utilized",
+      icon: Layers,
+      color: "text-emerald-600 bg-emerald-500/10",
+      statusText: "Total Used",
+      statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+    },
+    {
+      id: "total-remnants-scrap",
+      title: "Cumulative Remnants Scrap",
+      amount: (metrics.total_remnants_scrap_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Total remnants scrap / un-usable fragments discarded",
+      icon: Scissors,
+      color: "text-rose-600 bg-rose-500/10",
+      statusText: "Total Scrap",
+      statusColor: "bg-rose-500/15 text-rose-600 border-rose-500/20",
+    },
+    {
+      id: "total-remnants-utilization",
+      title: "Remnants Utilization Rate",
+      amount: (metrics.remnants_utilization_percent || 0).toFixed(1),
+      unit: "%",
+      desc: "Overall percentage efficiency of remnant fabric utilization",
+      icon: Percent,
+      color: "text-indigo-600 bg-indigo-500/10",
+      statusText: "Total Rate",
+      statusColor: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20",
+    },
+    {
+      id: "total-reject-qty",
+      title: "Total Reject Pieces",
+      amount: (metrics.total_reject_qty || 0).toLocaleString(),
+      unit: "Pcs",
+      desc: "Cumulative count of panels or cut garments rejected for flaws",
+      icon: TriangleAlert,
+      color: "text-amber-600 bg-amber-500/10",
+      statusText: "Total Rejects",
+      statusColor: "bg-amber-500/15 text-amber-600 border-amber-500/20",
     }
   ];
 
@@ -319,6 +446,11 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
     "today-fabric-spread",
     "today-spreading-scrap",
     "today-cutting-scrap",
+    "today-remnants-issued",
+    "today-remnants-used",
+    "today-remnants-scrap",
+    "today-remnants-utilization",
+    "today-reject-qty",
     "daily-trend",
     "daily-avg",
     "recent-quality"
@@ -326,7 +458,12 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
   const dailyKpis = dailyKeys.map(key => kpis.find(k => k.id === key)).filter((k): k is typeof kpis[0] => !!k);
 
   const monthlyKpis = kpis.filter(kpi => 
-    ["gross-fabric", "fabric-spread", "cutting-scrap", "cad-eff", "ete-eff", "eff-gap", "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch"].includes(kpi.id)
+    [
+      "gross-fabric", "fabric-spread", "cutting-scrap", "cad-eff", "ete-eff", "eff-gap",
+      "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch",
+      "total-remnants-issued", "total-remnants-used", "total-remnants-scrap",
+      "total-remnants-utilization", "total-reject-qty"
+    ].includes(kpi.id)
   );
 
   const renderCardGrid = (items: typeof kpis) => (
@@ -523,6 +660,17 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
           </div>
           <div className="mt-4">
             {renderCardGrid(monthlyKpis.filter(kpi => ["month-total", "total-lots", "total-layers", "total-used-inch"].includes(kpi.id)))}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2">
+            <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Cumulative Remnants Analytics & Quality Rejects
+            </h3>
+          </div>
+          <div className="mt-4">
+            {renderCardGrid(monthlyKpis.filter(kpi => ["total-remnants-issued", "total-remnants-used", "total-remnants-scrap", "total-remnants-utilization", "total-reject-qty"].includes(kpi.id)))}
           </div>
         </div>
       </div>

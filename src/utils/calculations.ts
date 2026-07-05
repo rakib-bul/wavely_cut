@@ -91,12 +91,41 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   const total_spreading_scrap = targetEntries.reduce((acc, current) => acc + (current.remnant_weight_kg || 0), 0);
   const total_marker_scrap = targetEntries.reduce((acc, current) => acc + (current.actual_marker_scrap_kg || 0), 0);
 
+  // Helper inside to parse packed remnants data
+  const parseRemarks = (remarks: string) => {
+    if (!remarks) return { remnants_weight_kg: 0, reject_qty: 0, remnants_scrap_kg: 0 };
+    const parts = remarks.split('|');
+    return {
+      remnants_weight_kg: parseFloat(parts[0]) || 0,
+      reject_qty: parseFloat(parts[1]) || 0,
+      remnants_scrap_kg: parseFloat(parts[2]) || 0,
+    };
+  };
+
+  // Detailed remnants stats across entries
+  let total_remnants_issued = 0;
+  let total_remnants_scrap_kg = 0;
+  let total_remnants_used_kg = 0;
+  let total_reject_qty = 0;
+
+  targetEntries.forEach(e => {
+    const parsed = parseRemarks(e.remarks || "");
+    total_remnants_issued += parsed.remnants_weight_kg;
+    total_remnants_scrap_kg += parsed.remnants_scrap_kg;
+    total_remnants_used_kg += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+    total_reject_qty += parsed.reject_qty;
+  });
+
+  const remnants_issued_percent = total_fabric_used > 0 ? (total_remnants_issued / total_fabric_used) * 100 : 0;
+  const remnants_scrap_percent = total_remnants_issued > 0 ? (total_remnants_scrap_kg / total_remnants_issued) * 100 : 0;
+  const remnants_utilization_percent = total_remnants_issued > 0 ? (total_remnants_used_kg / total_remnants_issued) * 100 : 100;
+
   // Total fabric spread = total used - remnants
-  const total_fabric_spread = Math.max(0, total_fabric_used - total_remnant);
+  const total_fabric_spread = Math.max(0, total_fabric_used - total_remnants_issued);
 
   // Remnant utilization = percentage of fabric that wasn't remnants
   const remnant_utilization = total_fabric_used > 0
-    ? parseFloat((((total_fabric_used - total_remnant) / total_fabric_used) * 100).toFixed(1))
+    ? parseFloat((((total_fabric_used - total_remnants_issued) / total_fabric_used) * 100).toFixed(1))
     : 100;
 
   // Average Theoretical Efficiency
@@ -159,8 +188,25 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   // Today's specific metrics requested for Daily Dashboard group
   const today_lay_layers = todayEntries.reduce((acc, c) => acc + (Number(c.lay) || 0), 0);
   const today_total_ratio = todayEntries.reduce((acc, c) => acc + (Number(c.ratio) || 0), 0);
-  const today_remnants = todayEntries.reduce((acc, c) => acc + (parseFloat(c.remarks) || 0), 0);
-  const today_fabric_spread = Math.max(0, today_fabric_used - today_remnants);
+
+  let today_remnants_issued = 0;
+  let today_remnants_scrap_kg = 0;
+  let today_remnants_used_kg = 0;
+  let today_reject_qty = 0;
+
+  todayEntries.forEach(e => {
+    const parsed = parseRemarks(e.remarks || "");
+    today_remnants_issued += parsed.remnants_weight_kg;
+    today_remnants_scrap_kg += parsed.remnants_scrap_kg;
+    today_remnants_used_kg += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+    today_reject_qty += parsed.reject_qty;
+  });
+
+  const today_remnants_issued_percent = today_fabric_used > 0 ? (today_remnants_issued / today_fabric_used) * 100 : 0;
+  const today_remnants_scrap_percent = today_remnants_issued > 0 ? (today_remnants_scrap_kg / today_remnants_issued) * 100 : 0;
+  const today_remnants_utilization_percent = today_remnants_issued > 0 ? (today_remnants_used_kg / today_remnants_issued) * 100 : 100;
+
+  const today_fabric_spread = Math.max(0, today_fabric_used - today_remnants_issued);
   const today_spreading_scrap = todayEntries.reduce((acc, c) => acc + (Number(c.remnant_weight_kg) || 0), 0);
   const today_cutting_scrap = todayEntries.reduce((acc, c) => acc + (Number(c.cutting_scrap_weight_kg) || 0), 0);
 
@@ -190,6 +236,14 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     avg_ete_efficiency,
     remnant_utilization,
     efficiency_gap,
+    // Remnants detailed totals
+    total_remnants_issued: parseFloat(total_remnants_issued.toFixed(1)),
+    total_remnants_scrap_kg: parseFloat(total_remnants_scrap_kg.toFixed(1)),
+    total_remnants_used_kg: parseFloat(total_remnants_used_kg.toFixed(1)),
+    total_reject_qty,
+    remnants_issued_percent,
+    remnants_scrap_percent,
+    remnants_utilization_percent,
     // New Datewise KPIs
     latestDateStr,
     today_fabric_used: parseFloat(today_fabric_used.toFixed(1)),
@@ -203,7 +257,14 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     // Today-specific detailed metrics
     today_lay_layers,
     today_total_ratio,
-    today_remnants: parseFloat(today_remnants.toFixed(1)),
+    today_remnants: parseFloat(today_remnants_issued.toFixed(1)),
+    today_remnants_issued: parseFloat(today_remnants_issued.toFixed(1)),
+    today_remnants_scrap_kg: parseFloat(today_remnants_scrap_kg.toFixed(1)),
+    today_remnants_used_kg: parseFloat(today_remnants_used_kg.toFixed(1)),
+    today_reject_qty,
+    today_remnants_issued_percent,
+    today_remnants_scrap_percent,
+    today_remnants_utilization_percent,
     today_fabric_spread: parseFloat(today_fabric_spread.toFixed(1)),
     today_spreading_scrap: parseFloat(today_spreading_scrap.toFixed(1)),
     today_cutting_scrap: parseFloat(today_cutting_scrap.toFixed(1)),

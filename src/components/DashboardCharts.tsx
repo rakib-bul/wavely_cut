@@ -37,6 +37,33 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
     .sort((a,b) => a.date.localeCompare(b.date))
     .slice(-7); // Last 7 cutting dates
 
+  // Helper to parse packed remnants data
+  const parseRemarks = (remarks: string) => {
+    if (!remarks) return { remnants_weight_kg: 0, reject_qty: 0, remnants_scrap_kg: 0 };
+    const parts = remarks.split('|');
+    return {
+      remnants_weight_kg: parseFloat(parts[0]) || 0,
+      reject_qty: parseFloat(parts[1]) || 0,
+      remnants_scrap_kg: parseFloat(parts[2]) || 0,
+    };
+  };
+
+  // --- Aggregate Daily Remnants Issued, Used & Scrap ---
+  const remnantDailyDataMap: { [date: string]: { date: string; issued: number; scrap: number; used: number } } = {};
+  targetEntries.forEach(e => {
+    const d = e.entry_date;
+    if (!remnantDailyDataMap[d]) {
+      remnantDailyDataMap[d] = { date: d, issued: 0, scrap: 0, used: 0 };
+    }
+    const parsed = parseRemarks(e.remarks || "");
+    remnantDailyDataMap[d].issued += parsed.remnants_weight_kg;
+    remnantDailyDataMap[d].scrap += parsed.remnants_scrap_kg;
+    remnantDailyDataMap[d].used += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+  });
+  const remnantDailyData = Object.values(remnantDailyDataMap)
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .slice(-7); // Last 7 cutting dates
+
   // --- Aggregate Machine Performance ---
   const machinePerformances = machines.map(m => {
     const machineEntries = targetEntries.filter(e => e.machine_id === m.id);
@@ -253,6 +280,43 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
                   <Bar dataKey="efficiency" name="Yield ETE-Efficiency (%)" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={12} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Remnants Performance BarChart */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0 col-span-1 lg:col-span-2">
+          <div className="mb-4">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Remnant Fabric Performance Timeline
+            </h3>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Remnants Issued vs. Used vs. Scrap (KG) - Last 7 Active Days</p>
+          </div>
+          <div className="h-68 min-w-0 min-h-0">
+            {remnantDailyData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-slate-400">No active remnants history to plot.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <BarChart data={remnantDailyData} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                    stroke="#E2E8F0"
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
+                    stroke="#E2E8F0"
+                  />
+                  <Tooltip 
+                    contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', fontFamily: 'Inter', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
+                  <Bar dataKey="issued" name="Remnants Issued (KG)" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="used" name="Remnants Fabric Used (KG)" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="scrap" name="Remnant Scrap (KG)" fill="#EF4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
