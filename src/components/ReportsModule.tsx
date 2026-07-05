@@ -80,8 +80,14 @@ function RemnantsRow({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState("");
 
-  const isAllowed = currentProfile.role === "admin" || currentProfile.role === "supervisor";
-  const disabled = !isAllowed;
+  const hasRemnantData = parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0;
+  const isAllowedToEnter = currentProfile.role === "admin" || currentProfile.role === "supervisor" || currentProfile.can_access_remnant_entry !== false;
+  const isAllowedToEditOrDelete = currentProfile.role === "admin" || currentProfile.role === "supervisor";
+
+  const isSaveAllowed = (!hasRemnantData && isAllowedToEnter) || (hasRemnantData && isAllowedToEditOrDelete);
+  const isDeleteAllowed = hasRemnantData && isAllowedToEditOrDelete;
+
+  const disabled = !isSaveAllowed;
 
   // Sync state if entry prop changes
   React.useEffect(() => {
@@ -201,7 +207,7 @@ function RemnantsRow({
             </span>
           ) : (
             <div className="flex items-center gap-1.5">
-              {hasChanges && isAllowed && (
+              {hasChanges && isSaveAllowed && (
                 <button
                   onClick={handleSave}
                   title="Save remnants data manually"
@@ -210,7 +216,7 @@ function RemnantsRow({
                   Save
                 </button>
               )}
-              {isAllowed && (parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0) && (
+              {isDeleteAllowed && (
                 <button
                   onClick={handleDelete}
                   title="Delete/Clear remnant entries"
@@ -219,13 +225,13 @@ function RemnantsRow({
                   <Trash2 size={14} className="stroke-[2.5]" />
                 </button>
               )}
-              {!isAllowed && (
+              {!isSaveAllowed && (
                 <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">View Only</span>
               )}
-              {!hasChanges && isAllowed && !(parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0) && (
+              {!hasChanges && isSaveAllowed && !hasRemnantData && (
                 <span className="text-slate-350 text-[10px] font-bold uppercase">Ready</span>
               )}
-              {!hasChanges && isAllowed && (parsed.reject_qty > 0 || parsed.remnants_scrap_kg > 0) && (
+              {!hasChanges && isSaveAllowed && hasRemnantData && (
                 <span className="text-slate-350 text-[10px] font-bold uppercase">Synced</span>
               )}
             </div>
@@ -1408,9 +1414,8 @@ export default function ReportsModule({
                             </button>
                           )}
 
-                          {/* Operator: Edit own draft ONLY. Supervisor/Admin: Edit all */}
-                          {( (entry.status !== "approved" && currentProfile.role === "operator" && entry.created_by.toLowerCase() === currentProfile.email.toLowerCase()) || 
-                             (currentProfile.role === "supervisor" || currentProfile.role === "admin") ) && (
+                          {/* Only Admin and Officer (supervisor) can edit records */}
+                          {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
                             <button
                               onClick={() => onSelectEditEntry && onSelectEditEntry(entry)}
                               className="text-slate-700 hover:text-white hover:bg-slate-800 bg-slate-100 p-1.5 rounded-lg transition cursor-pointer border border-slate-200"

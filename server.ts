@@ -582,6 +582,29 @@ app.post("/api/entries", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
+  // Verify cutting entry permission
+  try {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id, role, can_access_cutting_entry")
+      .eq("email", user_email)
+      .single();
+
+    if (prof) {
+      const userPerms = (systemSettings as any).user_permissions?.[prof.id] || {
+        can_access_cutting_entry: true,
+        can_access_remnant_entry: true
+      };
+      const canAccessCutting = prof.can_access_cutting_entry !== undefined ? prof.can_access_cutting_entry : (userPerms.can_access_cutting_entry !== false);
+      
+      if (!canAccessCutting) {
+        return res.status(403).json({ error: "Access Denied. You do not have permission to enter cutting entries." });
+      }
+    }
+  } catch (err) {
+    console.warn("Could not verify cutting permission from profile:", err);
+  }
+
   if (user_role === "manager") {
     return res.status(403).json({ error: "Permission Denied. Managers do not have write access." });
   }
@@ -674,6 +697,29 @@ app.post("/api/entries", async (req, res) => {
 app.post("/api/entries/bulk", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  // Verify cutting entry permission
+  try {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id, role, can_access_cutting_entry")
+      .eq("email", user_email)
+      .single();
+
+    if (prof) {
+      const userPerms = (systemSettings as any).user_permissions?.[prof.id] || {
+        can_access_cutting_entry: true,
+        can_access_remnant_entry: true
+      };
+      const canAccessCutting = prof.can_access_cutting_entry !== undefined ? prof.can_access_cutting_entry : (userPerms.can_access_cutting_entry !== false);
+      
+      if (!canAccessCutting) {
+        return res.status(403).json({ error: "Access Denied. You do not have permission to enter cutting entries." });
+      }
+    }
+  } catch (err) {
+    console.warn("Could not verify cutting permission from profile:", err);
+  }
 
   if (user_role === "manager") {
     return res.status(403).json({ error: "Permission Denied. Managers do not have write access." });
@@ -810,18 +856,58 @@ app.put("/api/entries/:id", async (req, res) => {
     const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
     const creatorEmail = profileMap.get(existingEntry.created_by) || user_email;
 
-    // Role policies
-    if (user_role === "operator" && existingEntry.status === "approved") {
-      return res.status(403).json({ error: "Operators cannot edit approved cutting entries." });
-    }
-    if (user_role === "operator" && creatorEmail.toLowerCase() !== user_email) {
-      return res.status(403).json({ error: "Operators can only edit their own draft entries." });
-    }
-    if (user_role === "manager") {
-      return res.status(403).json({ error: "Managers do not have edit rights." });
-    }
+    // Fetch caller profile and permissions
+    let callerProfile: any = null;
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, role, can_access_cutting_entry, can_access_remnant_entry")
+        .eq("email", user_email)
+        .single();
+      callerProfile = data;
+    } catch {}
+
+    const callerPerms = (systemSettings as any).user_permissions?.[callerProfile?.id || ""] || {
+      can_access_cutting_entry: true,
+      can_access_remnant_entry: true
+    };
+    
+    const canAccessRemnant = callerProfile?.can_access_remnant_entry !== undefined ? callerProfile.can_access_remnant_entry : (callerPerms.can_access_remnant_entry !== false);
+    const activeRole = callerProfile?.role || user_role;
 
     const data = req.body;
+
+    // Check if they are trying to edit core cutting fields
+    const isOnlyRemarksChanging = (
+      existingEntry.entry_date === data.entry_date &&
+      existingEntry.shift === data.shift &&
+      existingEntry.machine_id === data.machine_id &&
+      existingEntry.buyer === data.buyer &&
+      existingEntry.job_no === data.job_no &&
+      existingEntry.color === data.color &&
+      existingEntry.item === data.item &&
+      existingEntry.cut_no === data.cut_no &&
+      Number(existingEntry.lay) === Number(data.lay) &&
+      Number(existingEntry.ratio) === Number(data.ratio) &&
+      existingEntry.table_no === data.table_no &&
+      existingEntry.fabric_type === data.fabric_type &&
+      existingEntry.parts === data.parts &&
+      Number(existingEntry.fabric_used_kg) === Number(data.fabric_used_kg) &&
+      Number(existingEntry.remnant_weight_kg) === Number(data.remnant_weight_kg) &&
+      Number(existingEntry.cutting_scrap_weight_kg) === Number(data.cutting_scrap_weight_kg) &&
+      Number(existingEntry.marker_length_inch) === Number(data.marker_length_inch) &&
+      Number(existingEntry.marker_efficiency_percent) === Number(data.marker_efficiency_percent)
+    );
+
+    // Role policies: Only Admin and Officer (supervisor) can edit cutting entries
+    if (activeRole !== "admin" && activeRole !== "supervisor") {
+      if (!isOnlyRemarksChanging) {
+        return res.status(403).json({ error: "Permission Denied. Only Admin and Officer roles can edit data." });
+      }
+      if (!canAccessRemnant) {
+        return res.status(403).json({ error: "Access Denied. You do not have permission to enter remnant data." });
+      }
+    }
     const old_value = {
       ...existingEntry,
       created_by: creatorEmail,
@@ -904,7 +990,19 @@ app.delete("/api/entries/:id", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
-  if (user_role !== "supervisor" && user_role !== "admin") {
+  let activeRole = user_role;
+  try {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("email", user_email)
+      .single();
+    if (prof) {
+      activeRole = prof.role;
+    }
+  } catch {}
+
+  if (activeRole !== "supervisor" && activeRole !== "admin") {
     return res.status(403).json({ error: "Only Officers or Administrators can delete cutting records." });
   }
 
