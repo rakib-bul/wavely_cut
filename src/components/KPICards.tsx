@@ -14,7 +14,9 @@ import {
   Zap,
   Hash,
   LayoutGrid,
-  Table
+  Table,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface KPICardsProps {
@@ -75,9 +77,18 @@ interface KPICardsProps {
     today_booking_vs_cut?: number;
   };
   group?: "daily" | "monthly" | "all";
+  selectedDate?: string;
+  setSelectedDate?: (date: string) => void;
+  availableDates?: string[];
 }
 
-export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
+export default function KPICards({ 
+  metrics, 
+  group = "all", 
+  selectedDate, 
+  setSelectedDate, 
+  availableDates 
+}: KPICardsProps) {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const kpis = [
     {
@@ -665,12 +676,66 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
   );
 
   if (group === "daily") {
+    const handlePrevDay = () => {
+      if (!availableDates || availableDates.length === 0 || !selectedDate || !setSelectedDate) return;
+      const currentIndex = availableDates.indexOf(selectedDate);
+      if (currentIndex !== -1 && currentIndex < availableDates.length - 1) {
+        setSelectedDate(availableDates[currentIndex + 1]);
+      } else {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 1);
+        const prevDateStr = d.toISOString().split("T")[0];
+        setSelectedDate(prevDateStr);
+      }
+    };
+
+    const handleNextDay = () => {
+      if (!availableDates || availableDates.length === 0 || !selectedDate || !setSelectedDate) return;
+      const currentIndex = availableDates.indexOf(selectedDate);
+      if (currentIndex > 0) {
+        setSelectedDate(availableDates[currentIndex - 1]);
+      } else {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() + 1);
+        const nextDateStr = d.toISOString().split("T")[0];
+        setSelectedDate(nextDateStr);
+      }
+    };
+
     return (
       <div className="space-y-4 font-sans animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 dark:border-slate-800 pb-3">
-          <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Daily Shifts, Trends & Quality KPIs
-          </h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Daily Shifts, Trends & Quality KPIs
+            </h3>
+            {selectedDate && setSelectedDate && (
+              <div className="flex items-center gap-1.5 print:hidden bg-slate-50 dark:bg-slate-950/50 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 h-9">
+                <button
+                  onClick={handlePrevDay}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer text-slate-600 dark:text-slate-400 flex items-center justify-center w-7 h-7"
+                  title="Previous Logged Date"
+                >
+                  <ChevronLeft size={14} className="stroke-[2.5]" />
+                </button>
+                
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none cursor-pointer px-1 w-28 text-center"
+                />
+
+                <button
+                  onClick={handleNextDay}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer text-slate-600 dark:text-slate-400 flex items-center justify-center w-7 h-7"
+                  title="Next Logged Date"
+                >
+                  <ChevronRight size={14} className="stroke-[2.5]" />
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 self-start sm:self-auto">
             <button
               onClick={() => setViewMode("card")}

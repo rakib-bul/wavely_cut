@@ -104,7 +104,7 @@ export function calculateFields(entry: Omit<CuttingEntry, 'total_length_inch' | 
 /**
  * Summarize statistics across multiple CuttingEntries.
  */
-export function compileDashboardKPIs(entries: CuttingEntry[]) {
+export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: string) {
   const approved = entries.filter(e => e.status === 'approved');
   const targetEntries = approved.length > 0 ? approved : entries; // fallback if none approved
 
@@ -166,7 +166,7 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   // --- Date-wise Calculations ---
   const dates = targetEntries.map(e => e.entry_date).filter(Boolean);
   const uniqueSortedDates = Array.from(new Set(dates)).sort();
-  const latestDateStr = uniqueSortedDates.length > 0 ? uniqueSortedDates[uniqueSortedDates.length - 1] : getCurrentProductionDateAndShift().entry_date;
+  const latestDateStr = selectedDate || (uniqueSortedDates.length > 0 ? uniqueSortedDates[uniqueSortedDates.length - 1] : getCurrentProductionDateAndShift().entry_date);
   
   const latestIndex = uniqueSortedDates.indexOf(latestDateStr);
   const yesterdayDateStr = latestIndex > 0 ? uniqueSortedDates[latestIndex - 1] : null;

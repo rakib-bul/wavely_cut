@@ -22,9 +22,16 @@ import { getCurrentProductionDateAndShift } from "../utils/calculations";
 interface DailyReportProps {
   entries: CuttingEntry[];
   machines: Machine[];
+  selectedDate?: string;
+  setSelectedDate?: (date: string) => void;
 }
 
-export default function DailyReport({ entries, machines }: DailyReportProps) {
+export default function DailyReport({ 
+  entries, 
+  machines, 
+  selectedDate: propSelectedDate, 
+  setSelectedDate: propSetSelectedDate 
+}: DailyReportProps) {
   // 1. Find all unique dates that have entries, sorted descending
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
@@ -42,12 +49,15 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
   }, []);
 
   // 2. Default state for selected date: latest available date with entries, or today
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [internalSelectedDate, setInternalSelectedDate] = useState<string>(() => {
     if (availableDates.length > 0) {
       return availableDates[0];
     }
     return todayStr;
   });
+
+  const selectedDate = propSelectedDate !== undefined ? propSelectedDate : internalSelectedDate;
+  const setSelectedDate = propSetSelectedDate !== undefined ? propSetSelectedDate : setInternalSelectedDate;
 
   // 3. Filter entries for the selected date
   const dayEntries = useMemo(() => {
@@ -562,31 +572,6 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
 
         {/* Date Selector & Export Actions Controls */}
         <div className="flex flex-wrap items-center gap-3 print:hidden">
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handlePrevDay}
-              className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-xs h-10"
-              title="Previous Logged Date"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-white dark:bg-[#0B1220] border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs h-10"
-            />
-
-            <button
-              onClick={handleNextDay}
-              className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-xs h-10"
-              title="Next Logged Date"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
           <button
             onClick={() => window.print()}
             disabled={dayEntries.length === 0}
@@ -608,26 +593,6 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
           </button>
         </div>
       </div>
-
-      {/* Quick Access Dates Pills */}
-      {availableDates.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-6 print:hidden">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">Quick Select:</span>
-          {availableDates.slice(0, 5).map(dateStr => (
-            <button
-              key={dateStr}
-              onClick={() => setSelectedDate(dateStr)}
-              className={`px-3 py-1.5 rounded-full text-xs font-mono transition font-bold cursor-pointer border ${
-                selectedDate === dateStr
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700"
-              }`}
-            >
-              {dateStr}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* If no entries for this date */}
       {dayEntries.length === 0 ? (

@@ -9,7 +9,7 @@ import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import TableProductionView from "./components/TableProductionView";
 import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole } from "./types";
-import { compileDashboardKPIs, calculateFields } from "./utils/calculations";
+import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -1008,14 +1008,43 @@ export default function App() {
     return { mainEntries: main, stripeEntries: stripe };
   }, [entries, machines]);
 
-  // --- Aggregate Dashboard Stats ---
-  const compiledMainKPIs = useMemo(() => {
-    return compileDashboardKPIs(mainEntries);
+  // --- Dashboard Selected Date States ---
+  const mainAvailableDates = useMemo(() => {
+    const dates = new Set<string>();
+    mainEntries.forEach(e => {
+      if (e.entry_date) {
+        dates.add(e.entry_date);
+      }
+    });
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
   }, [mainEntries]);
 
-  const compiledStripeKPIs = useMemo(() => {
-    return compileDashboardKPIs(stripeEntries);
+  const stripeAvailableDates = useMemo(() => {
+    const dates = new Set<string>();
+    stripeEntries.forEach(e => {
+      if (e.entry_date) {
+        dates.add(e.entry_date);
+      }
+    });
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
   }, [stripeEntries]);
+
+  const fallbackDate = useMemo(() => getCurrentProductionDateAndShift().entry_date, []);
+
+  const [mainSelectedDate, setMainSelectedDate] = useState<string>("");
+  const [stripeSelectedDate, setStripeSelectedDate] = useState<string>("");
+
+  const activeMainSelectedDate = mainSelectedDate || (mainAvailableDates.length > 0 ? mainAvailableDates[0] : fallbackDate);
+  const activeStripeSelectedDate = stripeSelectedDate || (stripeAvailableDates.length > 0 ? stripeAvailableDates[0] : fallbackDate);
+
+  // --- Aggregate Dashboard Stats ---
+  const compiledMainKPIs = useMemo(() => {
+    return compileDashboardKPIs(mainEntries, activeMainSelectedDate);
+  }, [mainEntries, activeMainSelectedDate]);
+
+  const compiledStripeKPIs = useMemo(() => {
+    return compileDashboardKPIs(stripeEntries, activeStripeSelectedDate);
+  }, [stripeEntries, activeStripeSelectedDate]);
 
   if (!currentProfile) {
     return (
@@ -1449,7 +1478,7 @@ export default function App() {
                           : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                       }`}
                     >
-                      Table-wise Live Production (Comparative)
+                      Live Production
                     </button>
                   </div>
                 </div>
@@ -1471,8 +1500,19 @@ export default function App() {
                           Real-time interactive shift report logs, supervisor metrics, and daily throughput trends.
                         </p>
                       </div>
-                      <KPICards metrics={compiledMainKPIs} group="daily" />
-                      <DailyReport entries={mainEntries} machines={machines} />
+                      <KPICards 
+                        metrics={compiledMainKPIs} 
+                        group="daily" 
+                        selectedDate={activeMainSelectedDate}
+                        setSelectedDate={setMainSelectedDate}
+                        availableDates={mainAvailableDates}
+                      />
+                      <DailyReport 
+                        entries={mainEntries} 
+                        machines={machines} 
+                        selectedDate={activeMainSelectedDate}
+                        setSelectedDate={setMainSelectedDate}
+                      />
                     </div>
 
                     {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
@@ -1508,8 +1548,19 @@ export default function App() {
                       Daily logs, lay plies, and physical piece yields specifically for isolated stripe tables.
                     </p>
                   </div>
-                  <KPICards metrics={compiledStripeKPIs} group="daily" />
-                  <DailyReport entries={stripeEntries} machines={machines} />
+                  <KPICards 
+                    metrics={compiledStripeKPIs} 
+                    group="daily" 
+                    selectedDate={activeStripeSelectedDate}
+                    setSelectedDate={setStripeSelectedDate}
+                    availableDates={stripeAvailableDates}
+                  />
+                  <DailyReport 
+                    entries={stripeEntries} 
+                    machines={machines} 
+                    selectedDate={activeStripeSelectedDate}
+                    setSelectedDate={setStripeSelectedDate}
+                  />
                 </div>
 
                 {/* --- SECTION 2: CUMULATIVE & MONTHLY PERFORMANCE --- */}
