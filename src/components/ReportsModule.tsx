@@ -567,8 +567,8 @@ export default function ReportsModule({
   const exportToCSV = () => {
     if (reportSubView === 'consumption') {
       const headersList = [
-        "Date", "Buyer", "Job", "Color", "Item", "PO", "Cut Num", "Cutting Qty",
-        "Booking Consumption", "Marker Consumption", "Booking Vs Marker Con", "Cutting Con", "Booking vs Cut con", "Super Visor"
+        "Date", "Buyer", "Job", "Color", "Item", "PO", "Cut Num", "Cutting Qty", "Fabric Wt Used (KG)",
+        "Booking Consumption", "Marker Consumption", "Booking Vs Marker Con", "Cutting Con", "Booking vs Cut con", "Fabric Save/Loss %", "Fabric Save/Loss (KG)", "Super Visor"
       ];
 
       const html = `
@@ -606,9 +606,9 @@ export default function ReportsModule({
         </head>
         <body>
           <table>
-            <tr><td colspan="14" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">DAILY CONSUMPTION TRACKING REPORT</td></tr>
-            <tr><td colspan="14" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
-            <tr><td colspan="14" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
+            <tr><td colspan="17" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">DAILY CONSUMPTION TRACKING REPORT</td></tr>
+            <tr><td colspan="17" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+            <tr><td colspan="17" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
           </table>
 
           <table>
@@ -632,6 +632,19 @@ export default function ReportsModule({
                   return val < 0 ? `Loss (${val.toFixed(3)})` : `Save (+${val.toFixed(3)})`;
                 };
 
+                const formatExcelPct = (val: number | null) => {
+                  if (val === null) return "-";
+                  return val.toFixed(1) + "%";
+                };
+
+                const formatExcelKg = (val: number | null) => {
+                  if (val === null) return "-";
+                  return val.toFixed(2);
+                };
+
+                const fabricSaveLossPct = (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : null;
+                const fabricSaveLossKg = (fabricSaveLossPct !== null && e.fabric_used_kg) ? e.fabric_used_kg * (fabricSaveLossPct / 100) : null;
+
                 return `
                   <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
                     <td class="align-center">${e.entry_date}</td>
@@ -642,11 +655,14 @@ export default function ReportsModule({
                     <td class="align-left">${e.po_no || "-"}</td>
                     <td class="align-center">${e.cut_no}</td>
                     <td class="align-right">${totalCutQty}</td>
+                    <td class="align-right">${e.fabric_used_kg}</td>
                     <td class="align-right">${bookingCons !== null ? bookingCons.toFixed(3) : "-"}</td>
                     <td class="align-right">${markerConsumption !== null ? markerConsumption.toFixed(3) : "-"}</td>
                     <td class="align-right" style="color: ${bookingVsMarker !== null && bookingVsMarker < 0 ? '#C53030' : '#2F855A'}">${formatExcelVal(bookingVsMarker)}</td>
                     <td class="align-right">${cuttingCons !== null ? cuttingCons.toFixed(3) : "-"}</td>
                     <td class="align-right" style="color: ${bookingVsCut !== null && bookingVsCut < 0 ? '#C53030' : '#2F855A'}">${formatExcelVal(bookingVsCut)}</td>
+                    <td class="align-right" style="color: ${fabricSaveLossPct !== null && fabricSaveLossPct < 0 ? '#C53030' : '#2F855A'}">${formatExcelPct(fabricSaveLossPct)}</td>
+                    <td class="align-right" style="color: ${fabricSaveLossKg !== null && fabricSaveLossKg < 0 ? '#C53030' : '#2F855A'}">${formatExcelKg(fabricSaveLossKg)}</td>
                     <td class="align-left">${e.supervisor_name || "-"}</td>
                   </tr>
                 `;
@@ -1596,11 +1612,14 @@ export default function ReportsModule({
                   <th className="p-4 whitespace-nowrap">Item</th>
                   <th className="p-4 whitespace-nowrap">Cut Num</th>
                   <th className="p-4 text-right whitespace-nowrap">Cutting Qty</th>
+                  <th className="p-4 text-right whitespace-nowrap">Fabric Wt Used (KG)</th>
                   <th className="p-4 text-right whitespace-nowrap">Booking Consumption</th>
                   <th className="p-4 text-right whitespace-nowrap">Marker Cons</th>
                   <th className="p-4 text-right whitespace-nowrap">Booking vs Marker Con</th>
                   <th className="p-4 text-right whitespace-nowrap">Cutting Con</th>
                   <th className="p-4 text-right whitespace-nowrap">Booking vs Cut Con</th>
+                  <th className="p-4 text-right whitespace-nowrap">Fabric Save/Loss %</th>
+                  <th className="p-4 text-right whitespace-nowrap">Fabric Save/Loss (KG)</th>
                   <th className="p-4 whitespace-nowrap">Supervisor</th>
                   <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
                 </tr>
@@ -1608,7 +1627,7 @@ export default function ReportsModule({
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
                 {paginatedEntries.length === 0 ? (
                   <tr>
-                    <td colSpan={15} className="text-center p-12 text-xs text-slate-400">
+                    <td colSpan={18} className="text-center p-12 text-xs text-slate-400">
                       No matching cutting logs resolved the active filter options.
                     </td>
                   </tr>
@@ -1621,6 +1640,8 @@ export default function ReportsModule({
 
                     const bookingVsMarker = (bookingCons !== null && markerCons !== null) ? (bookingCons - markerCons) : null;
                     const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+                    const fabricSaveLossPct = (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : null;
+                    const fabricSaveLossKg = (fabricSaveLossPct !== null && entry.fabric_used_kg) ? entry.fabric_used_kg * (fabricSaveLossPct / 100) : null;
 
                     return (
                       <tr 
@@ -1635,6 +1656,7 @@ export default function ReportsModule({
                         <td className="p-4 font-medium whitespace-nowrap">{entry.item}</td>
                         <td className="p-4 font-mono font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">{entry.cut_no}</td>
                         <td className="p-4 text-right font-mono font-black text-[#2563EB] whitespace-nowrap">{totalCutQty}</td>
+                        <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{entry.fabric_used_kg}</td>
                         <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                           {bookingCons !== null ? bookingCons.toFixed(3) : "-"}
                         </td>
@@ -1657,6 +1679,12 @@ export default function ReportsModule({
                               ? `Loss (${bookingVsCut.toFixed(3)})` 
                               : `Save (+${bookingVsCut.toFixed(3)})`
                           ) : "-"}
+                        </td>
+                        <td className={`p-4 text-right font-mono font-extrabold whitespace-nowrap ${fabricSaveLossPct !== null && fabricSaveLossPct < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                          {fabricSaveLossPct !== null ? `${fabricSaveLossPct.toFixed(1)}%` : "-"}
+                        </td>
+                        <td className={`p-4 text-right font-mono font-extrabold whitespace-nowrap ${fabricSaveLossKg !== null && fabricSaveLossKg < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                          {fabricSaveLossKg !== null ? fabricSaveLossKg.toFixed(2) : "-"}
                         </td>
                         <td className="p-4 font-semibold text-slate-700 dark:text-slate-350 whitespace-nowrap">
                           {entry.supervisor_name || "-"}

@@ -67,6 +67,12 @@ interface KPICardsProps {
     total_used_fabric_inch?: number;
     avg_size_ratio?: number;
     today_avg_size_ratio?: number;
+    total_fabric_save_loss_percent?: number;
+    total_fabric_save_loss_kg?: number;
+    today_fabric_save_loss_percent?: number;
+    today_fabric_save_loss_kg?: number;
+    today_booking_vs_marker?: number;
+    today_booking_vs_cut?: number;
   };
   group?: "daily" | "monthly" | "all";
 }
@@ -434,6 +440,58 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
       color: "text-amber-600 bg-amber-500/10",
       statusText: "Total Rejects",
       statusColor: "bg-amber-500/15 text-amber-600 border-amber-500/20",
+    },
+    {
+      id: "today-fabric-save-loss-pct",
+      title: "Fabric Save/Loss %",
+      amount: (metrics.today_fabric_save_loss_percent || 0) >= 0 
+        ? "+" + (metrics.today_fabric_save_loss_percent || 0).toFixed(1)
+        : (metrics.today_fabric_save_loss_percent || 0).toFixed(1),
+      unit: "%",
+      desc: "Today's percentage of fabric saved or lost vs booking consumption",
+      icon: Percent,
+      color: (metrics.today_fabric_save_loss_percent || 0) < 0 ? "text-rose-600 bg-rose-500/10" : "text-emerald-600 bg-emerald-500/10",
+      statusText: (metrics.today_fabric_save_loss_percent || 0) < 0 ? "Loss" : "Save",
+      statusColor: (metrics.today_fabric_save_loss_percent || 0) < 0 ? "bg-rose-500/15 text-rose-600 border-rose-500/20" : "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+    },
+    {
+      id: "today-fabric-save-loss-kg",
+      title: "Fabric Save/Loss (KG)",
+      amount: (metrics.today_fabric_save_loss_kg || 0) >= 0 
+        ? "+" + (metrics.today_fabric_save_loss_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+        : (metrics.today_fabric_save_loss_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      unit: "KG",
+      desc: "Today's weight of fabric saved or lost vs booking consumption",
+      icon: Weight,
+      color: (metrics.today_fabric_save_loss_kg || 0) < 0 ? "text-rose-600 bg-rose-500/10" : "text-emerald-600 bg-emerald-500/10",
+      statusText: (metrics.today_fabric_save_loss_kg || 0) < 0 ? "Loss" : "Save",
+      statusColor: (metrics.today_fabric_save_loss_kg || 0) < 0 ? "bg-rose-500/15 text-rose-600 border-rose-500/20" : "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+    },
+    {
+      id: "today-booking-vs-marker",
+      title: "Booking vs Marker Consumption",
+      amount: (metrics.today_booking_vs_marker || 0) >= 0
+        ? "+" + (metrics.today_booking_vs_marker || 0).toFixed(3)
+        : (metrics.today_booking_vs_marker || 0).toFixed(3),
+      unit: "KG/Doz",
+      desc: "Today's average difference between Booking Consumption and Marker Consumption",
+      icon: Layers,
+      color: (metrics.today_booking_vs_marker || 0) < 0 ? "text-rose-600 bg-rose-500/10" : "text-emerald-600 bg-emerald-500/10",
+      statusText: (metrics.today_booking_vs_marker || 0) < 0 ? "Loss" : "Save",
+      statusColor: (metrics.today_booking_vs_marker || 0) < 0 ? "bg-rose-500/15 text-rose-600 border-rose-500/20" : "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+    },
+    {
+      id: "today-booking-vs-cut",
+      title: "Booking vs Cut Consumption",
+      amount: (metrics.today_booking_vs_cut || 0) >= 0
+        ? "+" + (metrics.today_booking_vs_cut || 0).toFixed(3)
+        : (metrics.today_booking_vs_cut || 0).toFixed(3),
+      unit: "KG/Doz",
+      desc: "Today's average difference between Booking Consumption and Cutting Consumption",
+      icon: Scissors,
+      color: (metrics.today_booking_vs_cut || 0) < 0 ? "text-rose-600 bg-rose-500/10" : "text-emerald-600 bg-emerald-500/10",
+      statusText: (metrics.today_booking_vs_cut || 0) < 0 ? "Loss" : "Save",
+      statusColor: (metrics.today_booking_vs_cut || 0) < 0 ? "bg-rose-500/15 text-rose-600 border-rose-500/20" : "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
     }
   ];
 
@@ -451,6 +509,10 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
     "today-remnants-scrap",
     "today-remnants-utilization",
     "today-reject-qty",
+    "today-fabric-save-loss-pct",
+    "today-fabric-save-loss-kg",
+    "today-booking-vs-marker",
+    "today-booking-vs-cut",
     "daily-trend",
     "daily-avg",
     "recent-quality"
@@ -461,6 +523,7 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
     [
       "gross-fabric", "fabric-spread", "cutting-scrap", "cad-eff", "ete-eff", "eff-gap",
       "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch",
+      "total-fabric-save-loss-pct", "total-fabric-save-loss-kg",
       "total-remnants-issued", "total-remnants-used", "total-remnants-scrap",
       "total-remnants-utilization", "total-reject-qty"
     ].includes(kpi.id)
@@ -659,7 +722,7 @@ export default function KPICards({ metrics, group = "all" }: KPICardsProps) {
             </h3>
           </div>
           <div className="mt-4">
-            {renderCardGrid(monthlyKpis.filter(kpi => ["month-total", "total-lots", "total-layers", "total-used-inch"].includes(kpi.id)))}
+            {renderCardGrid(monthlyKpis.filter(kpi => ["month-total", "total-lots", "total-layers", "total-used-inch", "total-fabric-save-loss-pct", "total-fabric-save-loss-kg"].includes(kpi.id)))}
           </div>
         </div>
 

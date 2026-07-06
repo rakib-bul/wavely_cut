@@ -65,7 +65,7 @@ export default function Sidebar({
             Wavely Cut
           </h1>
           <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mt-0.5">
-            Rakib Hasan • Enterprise
+            Cutting Management System
           </span>
         </div>
       </div>

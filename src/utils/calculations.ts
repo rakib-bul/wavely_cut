@@ -239,6 +239,59 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   const total_cutting_qty = targetEntries.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
   const total_used_fabric_inch = targetEntries.reduce((acc, c) => acc + (Number(c.total_used_fabric_inch) || (Number(c.lay) || 0) * (Number(c.marker_length_inch) || 0) * ((Number(c.marker_efficiency_percent) || 0) / 100)), 0);
 
+  // --- Fabric Save/Loss Calculations ---
+  let total_fabric_save_loss_kg = 0;
+  let total_fabric_used_for_save_loss = 0;
+  
+  let today_fabric_save_loss_kg = 0;
+  let today_fabric_used_for_save_loss = 0;
+  let today_booking_vs_marker_sum = 0;
+  let today_booking_vs_marker_count = 0;
+  let today_booking_vs_cut_sum = 0;
+  let today_booking_vs_cut_count = 0;
+
+  targetEntries.forEach(e => {
+    const totalCutQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+    const bookingCons = (e.booking_consumption !== undefined && e.booking_consumption !== null) ? Number(e.booking_consumption) : null;
+    const cuttingCons = totalCutQty > 0 ? (Number(e.fabric_used_kg) / totalCutQty) * 12 : null;
+    const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+    const fabricSaveLossPct = (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : null;
+    const fabricSaveLossKg = (fabricSaveLossPct !== null && e.fabric_used_kg) ? Number(e.fabric_used_kg) * (fabricSaveLossPct / 100) : null;
+
+    // Added for Booking vs Marker/Cut average
+    const markerCons = (e.marker_consumption !== undefined && e.marker_consumption !== null) ? Number(e.marker_consumption) : null;
+    const bookingVsMarker = (bookingCons !== null && markerCons !== null) ? (bookingCons - markerCons) : null;
+    
+    if (e.entry_date === latestDateStr) {
+      if (bookingVsMarker !== null) {
+        today_booking_vs_marker_sum += bookingVsMarker;
+        today_booking_vs_marker_count++;
+      }
+      if (bookingVsCut !== null) {
+        today_booking_vs_cut_sum += bookingVsCut;
+        today_booking_vs_cut_count++;
+      }
+    }
+
+    if (fabricSaveLossKg !== null && e.fabric_used_kg) {
+      total_fabric_save_loss_kg += fabricSaveLossKg;
+      total_fabric_used_for_save_loss += Number(e.fabric_used_kg);
+      
+      if (e.entry_date === latestDateStr) {
+        today_fabric_save_loss_kg += fabricSaveLossKg;
+        today_fabric_used_for_save_loss += Number(e.fabric_used_kg);
+      }
+    }
+  });
+
+  const total_fabric_save_loss_percent = total_fabric_used_for_save_loss > 0 
+    ? (total_fabric_save_loss_kg / total_fabric_used_for_save_loss) * 100 
+    : 0;
+    
+  const today_fabric_save_loss_percent = today_fabric_used_for_save_loss > 0 
+    ? (today_fabric_save_loss_kg / today_fabric_used_for_save_loss) * 100 
+    : 0;
+
   // Average Size Ratio across all target entries
   const avg_size_ratio = targetEntries.length > 0
     ? parseFloat((targetEntries.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0) / targetEntries.length).toFixed(1))
@@ -297,6 +350,12 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
     total_cutting_qty,
     total_used_fabric_inch,
     avg_size_ratio,
-    today_avg_size_ratio
+    today_avg_size_ratio,
+    today_booking_vs_marker: today_booking_vs_marker_count > 0 ? today_booking_vs_marker_sum / today_booking_vs_marker_count : 0,
+    today_booking_vs_cut: today_booking_vs_cut_count > 0 ? today_booking_vs_cut_sum / today_booking_vs_cut_count : 0,
+    total_fabric_save_loss_kg,
+    total_fabric_save_loss_percent,
+    today_fabric_save_loss_kg,
+    today_fabric_save_loss_percent
   };
 }
