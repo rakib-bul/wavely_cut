@@ -43,10 +43,16 @@ export interface CuttingEntry {
   parts: string; // e.g., 'Front, Back, Sleeves'
   fabric_used_kg: number;
   remnant_weight_kg: number;
+  booking_consumption?: number;
+  cutting_consumption?: number;
   cutting_scrap_weight_kg: number;
+  reject_qty?: number; // explicitly in interface or in remarks? Wait, reject_qty is in DB and interface but let's check. Wait, reject_qty is already part of the DB and calculations.
   marker_length_inch: number;
+  marker_consumption?: number; // Added
   marker_efficiency_percent: number;
   remarks: string;
+  po_no?: string;
+  supervisor_name?: string;
   created_by: string; // profile_id / email
   approved_by?: string; // profile_id / email
   status: EntryStatus;

@@ -75,6 +75,14 @@ export default function App() {
       return 7;
     }
   });
+  const [isPoNumberRequired, setIsPoNumberRequired] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_is_po_number_required");
+      return saved === "true";
+    } catch {
+      return false;
+    }
+  });
   const [whatsNewTitle, setWhatsNewTitle] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_title") || "");
   const [whatsNewContent, setWhatsNewContent] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_content") || "");
   const [whatsNewUpdatedAt, setWhatsNewUpdatedAt] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_updated_at") || "");
@@ -283,6 +291,12 @@ export default function App() {
         // Update system settings state
         if (syncData.settings) {
           const settingsData = syncData.settings;
+          if (typeof settingsData.is_po_number_required === "boolean") {
+            setIsPoNumberRequired(settingsData.is_po_number_required);
+            try {
+              localStorage.setItem("erp_cached_is_po_number_required", String(settingsData.is_po_number_required));
+            } catch (e) {}
+          }
           if (typeof settingsData.job_no_digits === "number") {
             setJobNoDigits(settingsData.job_no_digits);
             try {
@@ -605,7 +619,7 @@ export default function App() {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers,
-        body: JSON.stringify({ job_no_digits: digits })
+        body: JSON.stringify({ job_no_digits: digits, is_po_number_required: isPoNumberRequired })
       });
 
       if (!res.ok) {
@@ -616,6 +630,35 @@ export default function App() {
 
       const updated = await res.json();
       setJobNoDigits(updated.job_no_digits);
+      setIsPoNumberRequired(updated.is_po_number_required);
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed to update system settings: " + err.message);
+    }
+  };
+
+  const handleUpdatePoRequired = async (required: boolean) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ job_no_digits: jobNoDigits, is_po_number_required: required })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Setting update failed.");
+        return;
+      }
+
+      const updated = await res.json();
+      setIsPoNumberRequired(updated.is_po_number_required);
       await fetchData();
     } catch (err: any) {
       alert("Failed to update system settings: " + err.message);
@@ -1514,6 +1557,7 @@ export default function App() {
                   onSubmitEntry={handleSubmitEntry}
                   onWebImport={handleBulkImport}
                   jobNoDigits={jobNoDigits}
+                  isPoNumberRequired={isPoNumberRequired}
                 />
               </div>
             )}
@@ -1565,6 +1609,8 @@ export default function App() {
                   onUploadBuyersCache={handleUploadBuyersCache}
                   jobNoDigits={jobNoDigits}
                   onUpdateJobNoDigits={handleUpdateJobNoDigits}
+                  isPoNumberRequired={isPoNumberRequired}
+                  onUpdatePoRequired={handleUpdatePoRequired}
                   onAddUser={handleAdminCreateUser}
                   whatsNewTitle={whatsNewTitle}
                   whatsNewContent={whatsNewContent}
@@ -1635,6 +1681,103 @@ export default function App() {
                   <option value="B">Night Shift</option>
                 </select>
               </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">PO Number</label>
+                <input 
+                  type="text"
+                  value={editingEntry.po_no || ''}
+                  onChange={e => setEditingEntry({ ...editingEntry, po_no: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Color</label>
+                <input 
+                  type="text"
+                  value={editingEntry.color}
+                  onChange={e => setEditingEntry({ ...editingEntry, color: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Item</label>
+                <input 
+                  type="text"
+                  value={editingEntry.item}
+                  onChange={e => setEditingEntry({ ...editingEntry, item: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Cut Number</label>
+                <input 
+                  type="text"
+                  value={editingEntry.cut_no}
+                  onChange={e => setEditingEntry({ ...editingEntry, cut_no: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Table Number</label>
+                <input 
+                  type="text"
+                  value={editingEntry.table_no}
+                  onChange={e => setEditingEntry({ ...editingEntry, table_no: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Fabric Type</label>
+                <input 
+                  type="text"
+                  value={editingEntry.fabric_type}
+                  onChange={e => setEditingEntry({ ...editingEntry, fabric_type: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Parts</label>
+                <input 
+                  type="text"
+                  value={editingEntry.parts}
+                  onChange={e => setEditingEntry({ ...editingEntry, parts: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Reject Qty</label>
+                <input 
+                  type="number"
+                  value={editingEntry.reject_qty || 0}
+                  onChange={e => setEditingEntry({ ...editingEntry, reject_qty: Number(e.target.value) })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Supervisor Name</label>
+                <input 
+                  type="text"
+                  value={editingEntry.supervisor_name || ''}
+                  onChange={e => setEditingEntry({ ...editingEntry, supervisor_name: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                />
+              </div>
+
 
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Buyer Partner</label>
@@ -1714,6 +1857,17 @@ export default function App() {
               </div>
 
               <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Booking Consumption</label>
+                <input 
+                  type="number"
+                  step="0.001"
+                  value={editingEntry.booking_consumption || ''}
+                  onChange={e => setEditingEntry({ ...editingEntry, booking_consumption: Number(e.target.value) })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                />
+              </div>
+
+              <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Cutting Scrap (KG)</label>
                 <input 
                   type="number"
@@ -1737,8 +1891,31 @@ export default function App() {
                 />
               </div>
 
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Length (Inch)</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  value={editingEntry.marker_length_inch}
+                  onChange={e => setEditingEntry({ ...editingEntry, marker_length_inch: Number(e.target.value) })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Consumption</label>
+                <input 
+                  type="number"
+                  step="0.001"
+                  value={editingEntry.marker_consumption || ''}
+                  onChange={e => setEditingEntry({ ...editingEntry, marker_consumption: Number(e.target.value) })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
+                />
+              </div>
+
               <div className="col-span-2">
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Remnants Weight (KG)</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Remarks</label>
                 <textarea 
                   value={editingEntry.remarks}
                   onChange={e => setEditingEntry({ ...editingEntry, remarks: e.target.value })}

@@ -39,6 +39,8 @@ interface AdminModuleProps {
   onUploadBuyersCache?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   jobNoDigits?: number;
   onUpdateJobNoDigits?: (digits: number) => void;
+  isPoNumberRequired?: boolean;
+  onUpdatePoRequired?: (required: boolean) => void;
   onAddUser?: (user: { email: string; password: string; full_name: string; role: UserRole; department: string }) => Promise<{ success: boolean; error?: string }>;
   whatsNewTitle?: string;
   whatsNewContent?: string;
@@ -62,6 +64,8 @@ export default function AdminModule({
   onUploadBuyersCache,
   jobNoDigits = 7,
   onUpdateJobNoDigits,
+  isPoNumberRequired = false,
+  onUpdatePoRequired,
   onAddUser,
   whatsNewTitle = "",
   whatsNewContent = "",
@@ -831,6 +835,25 @@ export default function AdminModule({
                   You have unsaved adjustments.
                 </span>
               )}
+            </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-850">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Settings size={16} className="text-[#2563EB]" /> Data Entry Requirements
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-6 font-medium">
+              Toggle mandatory field requirements for the cutting entry form.
+            </p>
+
+            <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-150 dark:border-slate-800 shadow-xs max-w-md">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Require PO Number</span>
+              <button
+                onClick={() => onUpdatePoRequired?.(!isPoNumberRequired)}
+                className={`w-12 h-6 rounded-full transition-all ${isPoNumberRequired ? 'bg-emerald-500' : 'bg-slate-300'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white transition-all transform ${isPoNumberRequired ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
             </div>
           </div>
 

@@ -24,6 +24,7 @@ interface DataEntryFormProps {
   onSubmitEntry: (entry: Omit<CuttingEntry, 'id' | 'created_by' | 'created_at' | 'updated_at'> & { id?: string; status: 'draft' | 'submitted' }) => Promise<{ success: boolean; error?: string }>;
   onWebImport: (entries: any[]) => Promise<{ success: boolean; count?: number; errors?: string[] }>;
   jobNoDigits?: number;
+  isPoNumberRequired?: boolean;
 }
 
 const PREDEFINED_ITEMS = [
@@ -59,7 +60,27 @@ const PREDEFINED_FABRICS = [
   "RFD/Wash"
 ];
 
-export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport, jobNoDigits = 7 }: DataEntryFormProps) {
+const SUPERVISORS = [
+  "Sohel Rana",
+  "Jwel Rana",
+  "Nurujamman",
+  "Mehedi Hasan",
+  "Arif",
+  "Rakib",
+  "Noyon",
+  "Biplob",
+  "Mortuza",
+  "Nayem",
+  "Riazul Islam",
+  "Jamil Hossain",
+  "Bappy Sorkar",
+  "Ashraful",
+  "Khorshed",
+  "Zahid",
+  "Raju Islam"
+];
+
+export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport, jobNoDigits = 7, isPoNumberRequired = false }: DataEntryFormProps) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
 
@@ -80,10 +101,13 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     parts: "",
     fabric_used_kg: "",
     remnant_weight_kg: "",
+    booking_consumption: "",
     cutting_scrap_weight_kg: "",
     marker_length_inch: "",
     marker_efficiency_percent: "",
-    remarks: ""
+    remarks: "",
+    po_no: "",
+    supervisor_name: ""
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -181,6 +205,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
       }
 
       if (!formData.cut_no.trim()) return setValidationError("Cutting Number (Cut No) is required.");
+      if (isPoNumberRequired && !formData.po_no.trim()) return setValidationError("PO Number is required.");
       if (!formData.color.trim()) return setValidationError("Fabric Color is required.");
       if (!formData.item.trim()) return setValidationError("Garment Item name is required.");
       if (!formData.machine_id) return setValidationError("Please assign a Cutting Machine.");
@@ -212,6 +237,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         buyer: formData.buyer.toUpperCase().trim(),
         job_no: formData.job_no.toUpperCase().trim(),
         color: formData.color.trim(),
+        po_no: formData.po_no ? formData.po_no.trim() : "",
         item: formData.item.trim(),
         cut_no: formData.cut_no.toUpperCase().trim(),
         lay: Number(formData.lay) || 1,
@@ -221,10 +247,13 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         parts: formData.parts.trim() || 'Body',
         fabric_used_kg: Number(formData.fabric_used_kg) || 0,
         remnant_weight_kg: Number(formData.remnant_weight_kg) || 0,
+        booking_consumption: formData.booking_consumption !== "" ? Number(formData.booking_consumption) : undefined,
+        cutting_consumption: (Number(formData.lay) * Number(formData.ratio)) > 0 ? (Number(formData.fabric_used_kg) / (Number(formData.lay) * Number(formData.ratio))) * 12 : 0,
         cutting_scrap_weight_kg: Number(formData.cutting_scrap_weight_kg) || 0,
         marker_length_inch: Number(formData.marker_length_inch) || 1,
         marker_efficiency_percent: Number(formData.marker_efficiency_percent) || 80,
         remarks: formData.remarks.trim(),
+        supervisor_name: formData.supervisor_name || undefined,
         status
       };
 
@@ -569,6 +598,18 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 />
               </div>
 
+              {/* 3a. PO Number */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">PO Number</label>
+                <input
+                  type="text"
+                  name="po_no"
+                  value={formData.po_no}
+                  onChange={handleInputChange}
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+                />
+              </div>
+
               {/* 4. item */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Item</label>
@@ -752,19 +793,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
-
-              {/* 14. Marker Length (Inches) */}
-              <div>
-                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Length (Inches)</label>
-                <input
-                  type="number"
-                  name="marker_length_inch"
-                  value={formData.marker_length_inch}
-                  onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
-                />
-              </div>
-
+              
               {/* 15. Marker Efficiency % */}
               <div>
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Efficiency %</label>
@@ -789,6 +818,46 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   onChange={handleInputChange}
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
+              </div>
+
+              {/* 16a. Booking Consumption */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Booking Consumption</label>
+                <input
+                  type="number"
+                  step="0.001"
+                  name="booking_consumption"
+                  value={formData.booking_consumption}
+                  onChange={handleInputChange}
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+                />
+              </div>
+              {/* 14. Marker Consumption (Inches) */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Consumption (Inches)</label>
+                <input
+                  type="number"
+                  name="marker_length_inch"
+                  value={formData.marker_length_inch}
+                  onChange={handleInputChange}
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+                />
+              </div>
+
+              {/* 16c. Supervisor Name */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Supervisor Name</label>
+                <select
+                  name="supervisor_name"
+                  value={formData.supervisor_name}
+                  onChange={handleInputChange}
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
+                >
+                  <option value="">-- Choose Supervisor --</option>
+                  {SUPERVISORS.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

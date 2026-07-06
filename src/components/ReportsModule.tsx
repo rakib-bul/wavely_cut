@@ -279,6 +279,7 @@ export default function ReportsModule({
 
   // --- Reports Tab State ---
   const [activeReportsTab, setActiveReportsTab] = useState<'ledger' | 'remnants'>('ledger');
+  const [reportSubView, setReportSubView] = useState<'ledger' | 'consumption'>('ledger');
 
   // --- Clear filters ---
   const resetFilters = () => {
@@ -564,6 +565,109 @@ export default function ReportsModule({
 
   // --- EXPORT TO EXCEL / CSV (WITH BEAUTIFUL STYLES) ---
   const exportToCSV = () => {
+    if (reportSubView === 'consumption') {
+      const headersList = [
+        "Date", "Buyer", "Job", "Color", "Item", "PO", "Cut Num", "Cutting Qty",
+        "Booking Consumption", "Marker Cons", "Booking Vs Marker Con", "Cutting Con", "Booking vs Cut con", "Super Visor"
+      ];
+
+      const html = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Daily Consumption Tracking</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+          <style>
+            body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; }
+            table { border-collapse: collapse; margin-bottom: 25px; }
+            th, td { border: 1.5pt solid #000000; padding: 6px 10px; font-size: 10pt; vertical-align: middle; }
+            .report-title { font-size: 16pt; font-weight: bold; color: #1F4E78; text-align: left; border: none; }
+            .report-meta { font-size: 10pt; color: #595959; text-align: left; border: none; }
+            .section-header { font-size: 12pt; font-weight: bold; color: #1F4E78; background-color: #D9E1F2; text-align: left; border: 1.5pt solid #8EA9DB; padding: 8px; }
+            .ledger-header { background-color: #2F5597; color: #FFFFFF; font-weight: bold; text-align: center; }
+            .ledger-row-even { background-color: #F2F2F2; }
+            .ledger-row-odd { background-color: #FFFFFF; }
+            .align-left { text-align: left; }
+            .align-right { text-align: right; }
+            .align-center { text-align: center; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <tr><td colspan="14" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">DAILY CONSUMPTION TRACKING REPORT</td></tr>
+            <tr><td colspan="14" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+            <tr><td colspan="14" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                ${headersList.map(h => `<th class="ledger-header">${h}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredEntries.map((e, idx) => {
+                const totalCutQty = (e.lay || 0) * (e.ratio || 0);
+                const bookingCons = e.booking_consumption !== undefined && e.booking_consumption !== null ? Number(e.booking_consumption) : null;
+                const markerConsumption = (e.marker_consumption !== undefined && e.marker_consumption !== null) ? Number(e.marker_consumption) : (e.marker_length_inch !== undefined && e.marker_length_inch !== null ? Number(e.marker_length_inch) : null);
+                const cuttingCons = totalCutQty > 0 ? (Number(e.fabric_used_kg) / totalCutQty) * 12 : null;
+
+                const bookingVsMarker = (bookingCons !== null && markerConsumption !== null) ? (bookingCons - markerConsumption) : null;
+                const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+
+                const formatExcelVal = (val: number | null) => {
+                  if (val === null) return "-";
+                  return val < 0 ? `Loss (${val.toFixed(3)})` : `Save (+${val.toFixed(3)})`;
+                };
+
+                return `
+                  <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
+                    <td class="align-center">${e.entry_date}</td>
+                    <td class="align-left">${e.buyer}</td>
+                    <td class="align-center">${e.job_no}</td>
+                    <td class="align-left">${e.color}</td>
+                    <td class="align-left">${e.po_no || "-"}</td>
+                    <td class="align-left">${e.item}</td>
+                    <td class="align-center">${e.cut_no}</td>
+                    <td class="align-right">${totalCutQty}</td>
+                    <td class="align-right">${bookingCons !== null ? bookingCons.toFixed(3) : "-"}</td>
+                    <td class="align-right">${markerConsumption !== null ? markerConsumption.toFixed(3) : "-"}</td>
+                    <td class="align-right" style="color: ${bookingVsMarker !== null && bookingVsMarker < 0 ? '#C53030' : '#2F855A'}">${formatExcelVal(bookingVsMarker)}</td>
+                    <td class="align-right">${cuttingCons !== null ? cuttingCons.toFixed(3) : "-"}</td>
+                    <td class="align-right" style="color: ${bookingVsCut !== null && bookingVsCut < 0 ? '#C53030' : '#2F855A'}">${formatExcelVal(bookingVsCut)}</td>
+                    <td class="align-left">${e.supervisor_name || "-"}</td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(["\uFEFF" + html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `daily_consumption_tracking_${new Date().toISOString().slice(0,10)}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
     const headers = [
       "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
       "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
@@ -1271,9 +1375,25 @@ export default function ReportsModule({
         
         {/* Table Title and Export */}
         <div className="p-5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h3 className="font-sans font-black text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Ledger Entry Registry ({filteredEntries.length} Matches)
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <h3 className="font-sans font-black text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              Report View:
+            </h3>
+            <div className="flex bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] font-bold">
+              <button
+                onClick={() => { setReportSubView('ledger'); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${reportSubView === 'ledger' ? 'bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-550 dark:text-slate-400 hover:text-slate-800'}`}
+              >
+                Garments Cutting Ledger Report
+              </button>
+              <button
+                onClick={() => { setReportSubView('consumption'); setCurrentPage(1); }}
+                className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${reportSubView === 'consumption' ? 'bg-white dark:bg-slate-950 text-[#2563EB] dark:text-blue-400 shadow-sm' : 'text-slate-550 dark:text-slate-400 hover:text-slate-800'}`}
+              >
+                Daily Consumption Tracking Report
+              </button>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-3 print:hidden">
             <button
               onClick={() => window.print()}
@@ -1293,170 +1413,283 @@ export default function ReportsModule({
 
         {/* Dense Table wrapper */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs min-w-[2450px]">
-            <thead>
-              <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
-                <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
-                  Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
-                </th>
-                <th className="p-4 whitespace-nowrap">Shift</th>
-                <th className="p-4 whitespace-nowrap">Machine</th>
-                <th className="p-4 whitespace-nowrap">Buyer</th>
-                <th className="p-4 whitespace-nowrap">Job No</th>
-                <th className="p-4 whitespace-nowrap">Color</th>
-                <th className="p-4 whitespace-nowrap">Item</th>
-                <th className="p-4 whitespace-nowrap">Cut No</th>
-                <th className="p-4 text-right whitespace-nowrap">Lay Plies</th>
-                <th className="p-4 text-right whitespace-nowrap">Size Ratio</th>
-                <th className="p-4 text-right whitespace-nowrap">Total Cut Qty</th>
-                <th className="p-4 whitespace-nowrap">Table No</th>
-                <th className="p-4 whitespace-nowrap">Fabric Type</th>
-                <th className="p-4 whitespace-nowrap">Parts To Cut</th>
-                <th className="p-4 text-right whitespace-nowrap">Fabric Wt Used (KG)</th>
-                <th className="p-4 text-right whitespace-nowrap">Remnants Fabric (KG)</th>
-                <th className="p-4 text-right whitespace-nowrap">Spread Fabric (KG)</th>
-                <th className="p-4 text-right whitespace-nowrap">Spreading Scrap (KG)</th>
-                <th className="p-4 text-right whitespace-nowrap">Cutting Scrap (KG)</th>
-                <th className="p-4 text-right whitespace-nowrap">Marker Length Inch</th>
-                <th className="p-4 text-right whitespace-nowrap">Marker Efficiency %</th>
-                <th className="p-4 text-right whitespace-nowrap">Total Marker Len (In)</th>
-                <th className="p-4 text-right whitespace-nowrap">Total Used Fabric (Inch)</th>
-                <th className="p-4 text-right whitespace-nowrap">Scrap% per Marker</th>
-                <th className="p-4 text-right whitespace-nowrap">% of Cutting Scrap</th>
-                <th className="p-4 text-center whitespace-nowrap">Status</th>
-                <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
-              {paginatedEntries.length === 0 ? (
-                <tr>
-                  <td colSpan={26} className="text-center p-12 text-xs text-slate-400">
-                    No matching cutting logs resolved the active filter options.
-                  </td>
+          {reportSubView === 'ledger' ? (
+            <table className="w-full text-left border-collapse text-xs min-w-[2450px]">
+              <thead>
+                <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
+                  <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
+                    Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 whitespace-nowrap">Shift</th>
+                  <th className="p-4 whitespace-nowrap">Machine</th>
+                  <th className="p-4 whitespace-nowrap">Buyer</th>
+                  <th className="p-4 whitespace-nowrap">Job No</th>
+                  <th className="p-4 whitespace-nowrap">PO No</th>
+                  <th className="p-4 whitespace-nowrap">Color</th>
+                  <th className="p-4 whitespace-nowrap">Item</th>
+                  <th className="p-4 whitespace-nowrap">Cut No</th>
+                  <th className="p-4 text-right whitespace-nowrap">Lay Plies</th>
+                  <th className="p-4 text-right whitespace-nowrap">Size Ratio</th>
+                  <th className="p-4 text-right whitespace-nowrap">Total Cut Qty</th>
+                  <th className="p-4 whitespace-nowrap">Table No</th>
+                  <th className="p-4 whitespace-nowrap">Fabric Type</th>
+                  <th className="p-4 whitespace-nowrap">Parts To Cut</th>
+                  <th className="p-4 text-right whitespace-nowrap">Fabric Wt Used (KG)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Remnants Fabric (KG)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Spread Fabric (KG)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Spreading Scrap (KG)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Cutting Scrap (KG)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Marker Length Inch</th>
+                  <th className="p-4 text-right whitespace-nowrap">Marker Efficiency %</th>
+                  <th className="p-4 text-right whitespace-nowrap">Total Marker Len (In)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Total Used Fabric (Inch)</th>
+                  <th className="p-4 text-right whitespace-nowrap">Scrap% per Marker</th>
+                  <th className="p-4 text-right whitespace-nowrap">% of Cutting Scrap</th>
+                  <th className="p-4 text-center whitespace-nowrap">Status</th>
+                  <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
                 </tr>
-              ) : (
-                paginatedEntries.map(entry => {
-                  const mName = machines.find(m => m.id === entry.machine_id)?.machine_name || "Unknown";
-                  const remnantsWeight = parseFloat(entry.remarks) || 0;
-                  const spreadWeight = Math.max(0, entry.fabric_used_kg - remnantsWeight);
-                  const spreadingScrap = entry.remnant_weight_kg || 0;
-                  const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
-                  const totalMarkerLength = (entry.lay || 0) * (entry.marker_length_inch || 0);
-                  const totalFabricUsedInch = (entry.lay || 0) * (entry.marker_length_inch || 0) * ((entry.marker_efficiency_percent || 0) / 100);
-                  const scrapPercentAsPerMarker = 100 - (entry.marker_efficiency_percent || 0);
-                  const percentageOfCuttingScrap = entry.fabric_used_kg > 0 ? ((entry.cutting_scrap_weight_kg || 0) / entry.fabric_used_kg) * 100 : 0;
-                  
-                  return (
-                     <tr 
-                      key={entry.id} 
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 text-slate-600 dark:text-slate-300 transition-colors"
-                    >
-                      <td className="p-4 pl-5 font-bold whitespace-nowrap">{entry.entry_date}</td>
-                      <td className="p-4 whitespace-nowrap">
-                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[10px] font-black text-slate-600 dark:text-slate-400">
-                          {entry.shift === "A" ? "Day" : entry.shift === "B" ? "Night" : entry.shift}
-                        </span>
-                      </td>
-                      <td className="p-4 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{mName}</td>
-                      <td className="p-4 font-extrabold truncate max-w-[120px] text-slate-850 dark:text-slate-100 whitespace-nowrap">{entry.buyer}</td>
-                      <td className="p-4 font-mono text-slate-450 dark:text-slate-500 whitespace-nowrap">{entry.job_no}</td>
-                      <td className="p-4 font-medium whitespace-nowrap">{entry.color}</td>
-                      <td className="p-4 font-medium whitespace-nowrap">{entry.item}</td>
-                      <td className="p-4 font-mono font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">{entry.cut_no}</td>
-                      <td className="p-4 text-right font-mono font-bold whitespace-nowrap">{entry.lay}</td>
-                      <td className="p-4 text-right font-mono font-bold whitespace-nowrap">{entry.ratio}</td>
-                      <td className="p-4 text-right font-mono font-black text-[#2563EB] whitespace-nowrap">{totalCutQty}</td>
-                      <td className="p-4 font-mono font-medium whitespace-nowrap">{entry.table_no}</td>
-                      <td className="p-4 font-medium whitespace-nowrap">{entry.fabric_type}</td>
-                      <td className="p-4 font-medium whitespace-nowrap max-w-[140px] truncate" title={entry.parts}>{entry.parts}</td>
-                      <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{entry.fabric_used_kg} kg</td>
-                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{remnantsWeight.toFixed(1)} kg</td>
-                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{spreadWeight.toFixed(1)} kg</td>
-                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{spreadingScrap} kg</td>
-                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{entry.cutting_scrap_weight_kg} kg</td>
-                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{entry.marker_length_inch} in</td>
-                      <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{entry.marker_efficiency_percent}%</td>
-                      <td className="p-4 text-right font-mono font-bold text-[#2563EB] whitespace-nowrap">{totalMarkerLength.toFixed(1)} in</td>
-                      <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{totalFabricUsedInch.toFixed(1)} in</td>
-                      <td className="p-4 text-right font-mono text-slate-550 whitespace-nowrap">{scrapPercentAsPerMarker}%</td>
-                      <td className={`p-4 text-right font-mono font-bold whitespace-nowrap ${percentageOfCuttingScrap > 5 ? "text-amber-600" : "text-slate-500 dark:text-slate-400"}`}>
-                        {percentageOfCuttingScrap.toFixed(2)}%
-                      </td>
-                      <td className="p-4 text-center whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] uppercase font-black border ${
-                          entry.status === 'approved' 
-                            ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900"
-                            : entry.status === 'submitted'
-                            ? "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900"
-                            : "bg-slate-50 dark:bg-slate-800/40 text-slate-550 dark:text-slate-400 border-slate-200 dark:border-slate-800"
-                        }`}>
-                          {entry.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right pr-5 whitespace-nowrap print:hidden">
-                        <div className="flex items-center justify-end space-x-1.5">
-                          
-                          {/* Operator/S&A: Submit Draft Action Button */}
-                          {entry.status === "draft" && (
-                            (currentProfile.role === "operator" && entry.created_by.toLowerCase() === currentProfile.email.toLowerCase()) || 
-                            (currentProfile.role === "supervisor" || currentProfile.role === "admin")
-                          ) && onSubmitDraft && (
-                            <button
-                              onClick={() => {
-                                onSubmitDraft(entry);
-                              }}
-                              className="text-blue-600 hover:text-white hover:bg-blue-600 bg-blue-50/40 p-1.5 rounded-lg transition cursor-pointer border border-blue-200/50"
-                              title="Commit & Submit (Auto-Approve)"
-                            >
-                              <Send size={13} className="stroke-[2.5]" />
-                            </button>
-                          )}
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                {paginatedEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={27} className="text-center p-12 text-xs text-slate-400">
+                      No matching cutting logs resolved the active filter options.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedEntries.map(entry => {
+                    const mName = machines.find(m => m.id === entry.machine_id)?.machine_name || "Unknown";
+                    const remnantsWeight = parseFloat(entry.remarks) || 0;
+                    const spreadWeight = Math.max(0, entry.fabric_used_kg - remnantsWeight);
+                    const spreadingScrap = entry.remnant_weight_kg || 0;
+                    const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+                    const totalMarkerLength = (entry.lay || 0) * (entry.marker_length_inch || 0);
+                    const totalFabricUsedInch = (entry.lay || 0) * (entry.marker_length_inch || 0) * ((entry.marker_efficiency_percent || 0) / 100);
+                    const scrapPercentAsPerMarker = 100 - (entry.marker_efficiency_percent || 0);
+                    const percentageOfCuttingScrap = entry.fabric_used_kg > 0 ? ((entry.cutting_scrap_weight_kg || 0) / entry.fabric_used_kg) * 100 : 0;
+                    
+                    return (
+                       <tr 
+                        key={entry.id} 
+                        className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 text-slate-600 dark:text-slate-300 transition-colors"
+                      >
+                        <td className="p-4 pl-5 font-bold whitespace-nowrap">{entry.entry_date}</td>
+                        <td className="p-4 whitespace-nowrap">
+                          <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[10px] font-black text-slate-600 dark:text-slate-400">
+                            {entry.shift === "A" ? "Day" : entry.shift === "B" ? "Night" : entry.shift}
+                          </span>
+                        </td>
+                        <td className="p-4 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{mName}</td>
+                        <td className="p-4 font-extrabold truncate max-w-[120px] text-slate-850 dark:text-slate-100 whitespace-nowrap">{entry.buyer}</td>
+                        <td className="p-4 font-mono text-slate-450 dark:text-slate-500 whitespace-nowrap">{entry.job_no}</td>
+                        <td className="p-4 font-mono text-slate-500 whitespace-nowrap">{entry.po_no || "-"}</td>
+                        <td className="p-4 font-medium whitespace-nowrap">{entry.color}</td>
+                        <td className="p-4 font-medium whitespace-nowrap">{entry.item}</td>
+                        <td className="p-4 font-mono font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">{entry.cut_no}</td>
+                        <td className="p-4 text-right font-mono font-bold whitespace-nowrap">{entry.lay}</td>
+                        <td className="p-4 text-right font-mono font-bold whitespace-nowrap">{entry.ratio}</td>
+                        <td className="p-4 text-right font-mono font-black text-[#2563EB] whitespace-nowrap">{totalCutQty}</td>
+                        <td className="p-4 font-mono font-medium whitespace-nowrap">{entry.table_no}</td>
+                        <td className="p-4 font-medium whitespace-nowrap">{entry.fabric_type}</td>
+                        <td className="p-4 font-medium whitespace-nowrap max-w-[140px] truncate" title={entry.parts}>{entry.parts}</td>
+                        <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{entry.fabric_used_kg} kg</td>
+                        <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{remnantsWeight.toFixed(1)} kg</td>
+                        <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{spreadWeight.toFixed(1)} kg</td>
+                        <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">{spreadingScrap} kg</td>
+                        <td className="p-4 text-right font-mono text-slate-550 whitespace-nowrap">{entry.cutting_scrap_weight_kg} kg</td>
+                        <td className="p-4 text-right font-mono text-slate-550 whitespace-nowrap">{entry.marker_length_inch} in</td>
+                        <td className="p-4 text-right font-mono text-slate-550 whitespace-nowrap">{entry.marker_efficiency_percent}%</td>
+                        <td className="p-4 text-right font-mono font-bold text-[#2563EB] whitespace-nowrap">{totalMarkerLength.toFixed(1)} in</td>
+                        <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{totalFabricUsedInch.toFixed(1)} in</td>
+                        <td className="p-4 text-right font-mono text-slate-550 whitespace-nowrap">{scrapPercentAsPerMarker}%</td>
+                        <td className={`p-4 text-right font-mono font-bold whitespace-nowrap ${percentageOfCuttingScrap > 5 ? "text-amber-600" : "text-slate-500 dark:text-slate-400"}`}>
+                          {percentageOfCuttingScrap.toFixed(2)}%
+                        </td>
+                        <td className="p-4 text-center whitespace-nowrap">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] uppercase font-black border ${
+                            entry.status === 'approved' 
+                              ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900"
+                              : entry.status === 'submitted'
+                              ? "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900"
+                              : "bg-slate-50 dark:bg-slate-800/40 text-slate-550 dark:text-slate-400 border-slate-200 dark:border-slate-800"
+                          }`}>
+                            {entry.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right pr-5 whitespace-nowrap print:hidden">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            
+                            {/* Operator/S&A: Submit Draft Action Button */}
+                            {entry.status === "draft" && (
+                              (currentProfile.role === "operator" && entry.created_by.toLowerCase() === currentProfile.email.toLowerCase()) || 
+                              (currentProfile.role === "supervisor" || currentProfile.role === "admin")
+                            ) && onSubmitDraft && (
+                              <button
+                                onClick={() => {
+                                  onSubmitDraft(entry);
+                                }}
+                                className="text-blue-600 hover:text-white hover:bg-blue-600 bg-blue-50/40 p-1.5 rounded-lg transition cursor-pointer border border-blue-200/50"
+                                title="Commit & Submit (Auto-Approve)"
+                              >
+                                <Send size={13} className="stroke-[2.5]" />
+                              </button>
+                            )}
+  
+                            {/* S&A: Approve Action Button */}
+                            {entry.status !== "approved" && entry.status !== "draft" && (currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                              <button
+                                onClick={() => {
+                                  onApproveEntry(entry.id);
+                                }}
+                                className="text-emerald-600 hover:text-white hover:bg-[#10B981] bg-emerald-50/40 p-1.5 rounded-lg transition cursor-pointer border border-emerald-200/50"
+                                title="Approve Cutting Card"
+                              >
+                                <CheckCircle size={13} className="stroke-[2.5]" />
+                              </button>
+                            )}
+  
+                            {/* Only Admin and Officer (supervisor) can edit records */}
+                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                              <button
+                                onClick={() => onSelectEditEntry && onSelectEditEntry(entry)}
+                                className="text-slate-700 hover:text-white hover:bg-slate-800 bg-slate-100 p-1.5 rounded-lg transition cursor-pointer border border-slate-200"
+                                title="Edit Log"
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                            )}
+  
+                            {/* S&A: Delete Action Button */}
+                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                              <button
+                                onClick={() => {
+                                  setEntryToDelete(entry);
+                                }}
+                                className="text-rose-600 hover:text-white hover:bg-rose-500 bg-rose-500/10 p-1.5 rounded-lg transition cursor-pointer"
+                                title="Delete Record"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+  
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs min-w-[1500px]">
+              <thead>
+                <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
+                  <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
+                    Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 whitespace-nowrap">Buyer</th>
+                  <th className="p-4 whitespace-nowrap">Job</th>
+                  <th className="p-4 whitespace-nowrap">PO</th>
+                  <th className="p-4 whitespace-nowrap">Color</th>
+                  <th className="p-4 whitespace-nowrap">Item</th>
+                  <th className="p-4 whitespace-nowrap">Cut Num</th>
+                  <th className="p-4 text-right whitespace-nowrap">Cutting Qty</th>
+                  <th className="p-4 text-right whitespace-nowrap">Booking Consumption</th>
+                  <th className="p-4 text-right whitespace-nowrap">Marker Cons</th>
+                  <th className="p-4 text-right whitespace-nowrap">Booking vs Marker Con</th>
+                  <th className="p-4 text-right whitespace-nowrap">Cutting Con</th>
+                  <th className="p-4 text-right whitespace-nowrap">Booking vs Cut Con</th>
+                  <th className="p-4 whitespace-nowrap">Supervisor</th>
+                  <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                {paginatedEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={15} className="text-center p-12 text-xs text-slate-400">
+                      No matching cutting logs resolved the active filter options.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedEntries.map(entry => {
+                    const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+                    const bookingCons = entry.booking_consumption !== undefined && entry.booking_consumption !== null ? Number(entry.booking_consumption) : null;
+                    const markerCons = (entry.marker_consumption !== undefined && entry.marker_consumption !== null) ? Number(entry.marker_consumption) : null;
+                    const cuttingCons = totalCutQty > 0 ? (Number(entry.fabric_used_kg) / totalCutQty) * 12 : null;
 
-                          {/* S&A: Approve Action Button */}
-                          {entry.status !== "approved" && entry.status !== "draft" && (currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
-                            <button
-                              onClick={() => {
-                                onApproveEntry(entry.id);
-                              }}
-                              className="text-emerald-600 hover:text-white hover:bg-[#10B981] bg-emerald-50/40 p-1.5 rounded-lg transition cursor-pointer border border-emerald-200/50"
-                              title="Approve Cutting Card"
-                            >
-                              <CheckCircle size={13} className="stroke-[2.5]" />
-                            </button>
-                          )}
+                    const bookingVsMarker = (bookingCons !== null && markerCons !== null) ? (bookingCons - markerCons) : null;
+                    const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
 
-                          {/* Only Admin and Officer (supervisor) can edit records */}
-                          {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
-                            <button
-                              onClick={() => onSelectEditEntry && onSelectEditEntry(entry)}
-                              className="text-slate-700 hover:text-white hover:bg-slate-800 bg-slate-100 p-1.5 rounded-lg transition cursor-pointer border border-slate-200"
-                              title="Edit Log"
-                            >
-                              <Edit3 size={13} />
-                            </button>
-                          )}
-
-                          {/* S&A: Delete Action Button */}
-                          {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
-                            <button
-                              onClick={() => {
-                                setEntryToDelete(entry);
-                              }}
-                              className="text-rose-600 hover:text-white hover:bg-rose-500 bg-rose-500/10 p-1.5 rounded-lg transition cursor-pointer"
-                              title="Delete Record"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                    return (
+                      <tr 
+                        key={entry.id} 
+                        className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 text-slate-600 dark:text-slate-300 transition-colors"
+                      >
+                        <td className="p-4 pl-5 font-bold whitespace-nowrap">{entry.entry_date}</td>
+                        <td className="p-4 font-extrabold truncate max-w-[120px] text-slate-850 dark:text-slate-100 whitespace-nowrap">{entry.buyer}</td>
+                        <td className="p-4 font-mono text-slate-450 dark:text-slate-500 whitespace-nowrap">{entry.job_no}</td>
+                        <td className="p-4 font-mono text-slate-500 whitespace-nowrap">{entry.po_no || "-"}</td>
+                        <td className="p-4 font-medium whitespace-nowrap">{entry.color}</td>
+                        <td className="p-4 font-medium whitespace-nowrap">{entry.item}</td>
+                        <td className="p-4 font-mono font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">{entry.cut_no}</td>
+                        <td className="p-4 text-right font-mono font-black text-[#2563EB] whitespace-nowrap">{totalCutQty}</td>
+                        <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                          {bookingCons !== null ? bookingCons.toFixed(3) : "-"}
+                        </td>
+                        <td className="p-4 text-right font-mono text-slate-500 whitespace-nowrap">
+                          {markerCons !== null ? markerCons.toFixed(3) : "-"}
+                        </td>
+                        <td className={`p-4 text-right font-mono font-extrabold whitespace-nowrap ${bookingVsMarker !== null && bookingVsMarker < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                          {bookingVsMarker !== null ? (
+                            bookingVsMarker < 0 
+                              ? `Loss (${bookingVsMarker.toFixed(3)})` 
+                              : `Save (+${bookingVsMarker.toFixed(3)})`
+                          ) : "-"}
+                        </td>
+                        <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                          {cuttingCons !== null ? cuttingCons.toFixed(3) : "-"}
+                        </td>
+                        <td className={`p-4 text-right font-mono font-extrabold whitespace-nowrap ${bookingVsCut !== null && bookingVsCut < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                          {bookingVsCut !== null ? (
+                            bookingVsCut < 0 
+                              ? `Loss (${bookingVsCut.toFixed(3)})` 
+                              : `Save (+${bookingVsCut.toFixed(3)})`
+                          ) : "-"}
+                        </td>
+                        <td className="p-4 font-semibold text-slate-700 dark:text-slate-350 whitespace-nowrap">
+                          {entry.supervisor_name || "-"}
+                        </td>
+                        <td className="p-4 text-right pr-5 whitespace-nowrap print:hidden">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                              <button
+                                onClick={() => onSelectEditEntry && onSelectEditEntry(entry)}
+                                className="text-slate-700 hover:text-white hover:bg-slate-800 bg-slate-100 p-1.5 rounded-lg transition cursor-pointer border border-slate-200"
+                                title="Edit Log"
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                            )}
+                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                              <button
+                                onClick={() => {
+                                  setEntryToDelete(entry);
+                                }}
+                                className="text-rose-600 hover:text-white hover:bg-rose-500 bg-rose-500/10 p-1.5 rounded-lg transition cursor-pointer"
+                                title="Delete Record"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pagination controls footer */}

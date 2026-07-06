@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     buyer VARCHAR(100) NOT NULL,
     job_no VARCHAR(100) NOT NULL,
     color VARCHAR(100) NOT NULL,
+    po_no VARCHAR(100),
     item VARCHAR(100) NOT NULL,
     cut_no VARCHAR(50) NOT NULL,
     lay INT NOT NULL CHECK (lay > 0),
@@ -57,12 +58,16 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     parts VARCHAR(255) NOT NULL,
     fabric_used_kg NUMERIC(10, 3) NOT NULL CHECK (fabric_used_kg >= 0),
     remnant_weight_kg NUMERIC(10, 3) NOT NULL CHECK (remnant_weight_kg >= 0),
+    booking_consumption NUMERIC(10, 3),
+    cutting_consumption NUMERIC(10, 3),
     cutting_scrap_weight_kg NUMERIC(10, 3) NOT NULL CHECK (cutting_scrap_weight_kg >= 0),
     reject_qty INT NOT NULL DEFAULT 0 CHECK (reject_qty >= 0),
     remnants_scrap_weight_kg NUMERIC(10, 3) NOT NULL DEFAULT 0.000 CHECK (remnants_scrap_weight_kg >= 0),
     marker_length_inch NUMERIC(10, 2) NOT NULL CHECK (marker_length_inch > 0),
+    marker_consumption NUMERIC(10, 3),
     marker_efficiency_percent NUMERIC(5, 2) NOT NULL CHECK (marker_efficiency_percent > 0 AND marker_efficiency_percent <= 100),
     remarks TEXT,
+    supervisor_name VARCHAR(150),
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved')),
@@ -118,7 +123,20 @@ CREATE TRIGGER update_cutting_entries_modtime
     FOR EACH ROW
     EXECUTE PROCEDURE update_modified_column();
 
--- 7. Buyers Table
+-- 8. System Settings Table
+CREATE TABLE IF NOT EXISTS public.settings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Seed Settings
+INSERT INTO public.settings (key, value)
+VALUES ('app_settings', '{"job_no_digits": 7, "is_po_number_required": false}')
+ON CONFLICT (key) DO NOTHING;
+
+-- Buyers Table
 CREATE TABLE IF NOT EXISTS public.buyers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL UNIQUE,

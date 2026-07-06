@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     buyer VARCHAR(100) NOT NULL,
     job_no VARCHAR(100) NOT NULL,
     color VARCHAR(100) NOT NULL,
+    po_no VARCHAR(100),
     item VARCHAR(100) NOT NULL,
     cut_no VARCHAR(50) NOT NULL,
     lay INT NOT NULL CHECK (lay > 0),
@@ -57,12 +58,15 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     parts VARCHAR(255) NOT NULL,
     fabric_used_kg NUMERIC(10, 3) NOT NULL CHECK (fabric_used_kg >= 0),
     remnant_weight_kg NUMERIC(10, 3) NOT NULL CHECK (remnant_weight_kg >= 0),
+    booking_consumption NUMERIC(10, 3),
+    cutting_consumption NUMERIC(10, 3),
     cutting_scrap_weight_kg NUMERIC(10, 3) NOT NULL CHECK (cutting_scrap_weight_kg >= 0),
     reject_qty INT NOT NULL DEFAULT 0 CHECK (reject_qty >= 0),
     remnants_scrap_weight_kg NUMERIC(10, 3) NOT NULL DEFAULT 0.000 CHECK (remnants_scrap_weight_kg >= 0),
     marker_length_inch NUMERIC(10, 2) NOT NULL CHECK (marker_length_inch > 0),
     marker_efficiency_percent NUMERIC(5, 2) NOT NULL CHECK (marker_efficiency_percent > 0 AND marker_efficiency_percent <= 100),
     remarks TEXT,
+    supervisor_name VARCHAR(150),
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved')),
@@ -92,6 +96,12 @@ VALUES
     ('LEVI''S CO.'),
     ('ADIDAS AG')
 ON CONFLICT (name) DO NOTHING;
+
+-- MIGRATION FOR EXISTING SYSTEMS:
+-- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS po_no VARCHAR(100);
+-- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS booking_consumption NUMERIC(10, 3);
+-- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS cutting_consumption NUMERIC(10, 3);
+-- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS supervisor_name VARCHAR(150);
 `;
 
 export const RLS_DDL_STRING = `-- ====================================================================

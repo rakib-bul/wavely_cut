@@ -118,6 +118,7 @@ const supabase = createClient(
 let settingsFilePath = path.join(process.cwd(), "settings.json");
 let systemSettings = {
   job_no_digits: 7,
+  is_po_number_required: false,
   whats_new_title: "",
   whats_new_content: "",
   whats_new_updated_at: ""
@@ -643,6 +644,7 @@ app.post("/api/entries", async (req, res) => {
       buyer: data.buyer,
       job_no: data.job_no,
       color: data.color,
+      po_no: data.po_no || null,
       item: data.item,
       cut_no: data.cut_no,
       lay: layNum,
@@ -652,10 +654,14 @@ app.post("/api/entries", async (req, res) => {
       parts: data.parts || "",
       fabric_used_kg: Number(data.fabric_used_kg) || 0,
       remnant_weight_kg: Number(data.remnant_weight_kg) || 0,
+      booking_consumption: data.booking_consumption !== undefined && data.booking_consumption !== null && data.booking_consumption !== "" ? Number(data.booking_consumption) : null,
+      cutting_consumption: data.cutting_consumption !== undefined && data.cutting_consumption !== null && data.cutting_consumption !== "" ? Number(data.cutting_consumption) : null,
       cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg) || 0,
       marker_length_inch: Number(data.marker_length_inch) || 1,
+      marker_consumption: data.marker_consumption !== undefined && data.marker_consumption !== null && data.marker_consumption !== "" ? Number(data.marker_consumption) : null,
       marker_efficiency_percent: Number(data.marker_efficiency_percent) || 80,
       remarks: data.remarks || "",
+      supervisor_name: data.supervisor_name || null,
       status: finalStatus,
       created_by: profId,
       approved_by: finalStatus === "approved" ? profId : null
@@ -781,6 +787,7 @@ app.post("/api/entries/bulk", async (req, res) => {
         buyer: item.buyer,
         job_no: item.job_no,
         color: item.color || "Default",
+        po_no: item.po_no || null,
         item: item.item || "Tee",
         cut_no: item.cut_no,
         lay: Number(item.lay) || 1,
@@ -790,10 +797,14 @@ app.post("/api/entries/bulk", async (req, res) => {
         parts: item.parts || "Body",
         fabric_used_kg: Number(item.fabric_used_kg) || 0,
         remnant_weight_kg: Number(item.remnant_weight_kg) || 0,
+        booking_consumption: item.booking_consumption !== undefined && item.booking_consumption !== null && item.booking_consumption !== "" ? Number(item.booking_consumption) : null,
+        cutting_consumption: item.cutting_consumption !== undefined && item.cutting_consumption !== null && item.cutting_consumption !== "" ? Number(item.cutting_consumption) : null,
         cutting_scrap_weight_kg: Number(item.cutting_scrap_weight_kg) || 0,
         marker_length_inch: Number(item.marker_length_inch) || 1,
+        marker_consumption: item.marker_consumption !== undefined && item.marker_consumption !== null && item.marker_consumption !== "" ? Number(item.marker_consumption) : null,
         marker_efficiency_percent: Number(item.marker_efficiency_percent) || 80,
         remarks: item.remarks || "Bulk imported",
+        supervisor_name: item.supervisor_name || null,
         status: "approved",
         created_by: profId,
         approved_by: profId
@@ -939,6 +950,7 @@ app.put("/api/entries/:id", async (req, res) => {
         buyer: data.buyer,
         job_no: data.job_no,
         color: data.color,
+        po_no: data.po_no || null,
         item: data.item,
         cut_no: data.cut_no,
         lay: Number(data.lay),
@@ -948,10 +960,14 @@ app.put("/api/entries/:id", async (req, res) => {
         parts: data.parts,
         fabric_used_kg: Number(data.fabric_used_kg),
         remnant_weight_kg: Number(data.remnant_weight_kg),
+        booking_consumption: data.booking_consumption !== undefined && data.booking_consumption !== null && data.booking_consumption !== "" ? Number(data.booking_consumption) : null,
+        cutting_consumption: data.cutting_consumption !== undefined && data.cutting_consumption !== null && data.cutting_consumption !== "" ? Number(data.cutting_consumption) : null,
         cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg),
         marker_length_inch: Number(data.marker_length_inch),
+        marker_consumption: data.marker_consumption !== undefined && data.marker_consumption !== null && data.marker_consumption !== "" ? Number(data.marker_consumption) : null,
         marker_efficiency_percent: Number(data.marker_efficiency_percent),
         remarks: data.remarks,
+        supervisor_name: data.supervisor_name || null,
         status: finalStatus,
         approved_by: approvedBy
       })
@@ -1537,7 +1553,7 @@ app.post("/api/settings", async (req, res) => {
     return res.status(403).json({ error: "Only Admins can modify system configurations." });
   }
 
-  const { job_no_digits, whats_new_title, whats_new_content, whats_new_updated_at } = req.body;
+  const { job_no_digits, is_po_number_required, whats_new_title, whats_new_content, whats_new_updated_at } = req.body;
   if (job_no_digits === undefined || typeof job_no_digits !== "number" || job_no_digits <= 0 || job_no_digits > 20) {
     return res.status(400).json({ error: "Job No digits must be a positive integer between 1 and 20." });
   }
@@ -1545,6 +1561,7 @@ app.post("/api/settings", async (req, res) => {
   const old_value = { ...systemSettings };
   const success = saveSettings({
     job_no_digits,
+    is_po_number_required: typeof is_po_number_required === "boolean" ? is_po_number_required : (systemSettings.is_po_number_required || false),
     whats_new_title: typeof whats_new_title === "string" ? whats_new_title : (systemSettings.whats_new_title || ""),
     whats_new_content: typeof whats_new_content === "string" ? whats_new_content : (systemSettings.whats_new_content || ""),
     whats_new_updated_at: typeof whats_new_updated_at === "string" ? whats_new_updated_at : (systemSettings.whats_new_updated_at || "")
