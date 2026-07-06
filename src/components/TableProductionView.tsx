@@ -20,9 +20,9 @@ interface TableProductionViewProps {
   entries: CuttingEntry[];
 }
 
-interface TableStats {
-  tableId: number;
-  tableName: string;
+interface ProductionStats {
+  id: string | number;
+  name: string;
   totalLays: number;
   totalPieces: number;
   totalFabricUsedKg: number;
@@ -58,6 +58,7 @@ function getTableIndex(tableNo: string | undefined | null): number | null {
 }
 
 export default function TableProductionView({ entries }: TableProductionViewProps) {
+  const [viewMode, setViewMode] = useState<"table" | "supervisor">("table");
   const [timeFrame, setTimeFrame] = useState<"daily" | "weekly" | "monthly">("daily");
 
   // Determine latest operational entry date as the relative anchor for our relative filters
@@ -109,89 +110,149 @@ export default function TableProductionView({ entries }: TableProductionViewProp
     return `Period: ${formatDate(startDate)} to ${latestEntryDateStr}`;
   }, [latestEntryDateStr, timeFrame]);
 
-  // Process the 7 tables and build their scorecards using filtered entries
-  const tableStatsList = useMemo<TableStats[]>(() => {
-    const stats: TableStats[] = Array.from({ length: 7 }, (_, i) => ({
-      tableId: i + 1,
-      tableName: `Table ${i + 1}`,
-      totalLays: 0,
-      totalPieces: 0,
-      totalFabricUsedKg: 0,
-      totalCuttingScrapKg: 0,
-      avgMarkerEfficiency: 0,
-      totalEntries: 0,
-      lastActiveBuyer: "N/A",
-      lastActiveJob: "N/A",
-      lastActiveDate: "",
-      isActive: false
-    }));
+  // Process the 7 tables or supervisors and build their scorecards using filtered entries
+  const productionStatsList = useMemo<ProductionStats[]>(() => {
+    if (viewMode === "table") {
+      const stats: ProductionStats[] = Array.from({ length: 7 }, (_, i) => ({
+        id: i + 1,
+        name: `Table ${i + 1}`,
+        totalLays: 0,
+        totalPieces: 0,
+        totalFabricUsedKg: 0,
+        totalCuttingScrapKg: 0,
+        avgMarkerEfficiency: 0,
+        totalEntries: 0,
+        lastActiveBuyer: "N/A",
+        lastActiveJob: "N/A",
+        lastActiveDate: "",
+        isActive: false
+      }));
 
-    // Group filtered entries into tables
-    const tableEntriesMap: Record<number, CuttingEntry[]> = {};
-    for (let i = 1; i <= 7; i++) {
-      tableEntriesMap[i] = [];
-    }
-
-    filteredEntries.forEach(entry => {
-      const tIdx = getTableIndex(entry.table_no);
-      if (tIdx && tIdx >= 1 && tIdx <= 7) {
-        tableEntriesMap[tIdx].push(entry);
+      // Group filtered entries into tables
+      const tableEntriesMap: Record<number, CuttingEntry[]> = {};
+      for (let i = 1; i <= 7; i++) {
+        tableEntriesMap[i] = [];
       }
-    });
 
-    // Compute stats for each table
-    stats.forEach(stat => {
-      const tEntries = tableEntriesMap[stat.tableId];
-      if (tEntries.length === 0) return;
-
-      let sumLays = 0;
-      let sumPieces = 0;
-      let sumFabric = 0;
-      let sumScrap = 0;
-      let sumEfficiency = 0;
-      let validEfficiencyCount = 0;
-
-      // Sort entries by date to find latest active
-      const sortedEntries = [...tEntries].sort((a, b) => {
-        const dateA = new Date(a.entry_date + "T00:00:00");
-        const dateB = new Date(b.entry_date + "T00:00:00");
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      tEntries.forEach(e => {
-        sumLays += Number(e.lay) || 0;
-        sumPieces += (Number(e.lay) || 0) * (Number(e.ratio) || 0);
-        sumFabric += Number(e.fabric_used_kg) || 0;
-        sumScrap += Number(e.cutting_scrap_weight_kg) || 0;
-        
-        if (e.marker_efficiency_percent) {
-          sumEfficiency += Number(e.marker_efficiency_percent);
-          validEfficiencyCount++;
+      filteredEntries.forEach(entry => {
+        const tIdx = getTableIndex(entry.table_no);
+        if (tIdx && tIdx >= 1 && tIdx <= 7) {
+          tableEntriesMap[tIdx].push(entry);
         }
       });
 
-      stat.totalLays = sumLays;
-      stat.totalPieces = sumPieces;
-      stat.totalFabricUsedKg = sumFabric;
-      stat.totalCuttingScrapKg = sumScrap;
-      stat.totalEntries = tEntries.length;
-      stat.avgMarkerEfficiency = validEfficiencyCount > 0 ? (sumEfficiency / validEfficiencyCount) : 0;
-      
-      const latestEntry = sortedEntries[0];
-      if (latestEntry) {
-        stat.lastActiveBuyer = latestEntry.buyer || "Unknown";
-        stat.lastActiveJob = latestEntry.job_no || "N/A";
-        stat.lastActiveDate = latestEntry.entry_date;
-        stat.isActive = true;
-      }
-    });
+      // Compute stats for each table
+      stats.forEach(stat => {
+        const tEntries = tableEntriesMap[stat.id as number];
+        if (tEntries.length === 0) return;
 
-    return stats;
-  }, [filteredEntries]);
+        let sumLays = 0;
+        let sumPieces = 0;
+        let sumFabric = 0;
+        let sumScrap = 0;
+        let sumEfficiency = 0;
+        let validEfficiencyCount = 0;
+
+        // Sort entries by date to find latest active
+        const sortedEntries = [...tEntries].sort((a, b) => {
+          const dateA = new Date(a.entry_date + "T00:00:00");
+          const dateB = new Date(b.entry_date + "T00:00:00");
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        tEntries.forEach(e => {
+          sumLays += Number(e.lay) || 0;
+          sumPieces += (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+          sumFabric += Number(e.fabric_used_kg) || 0;
+          sumScrap += Number(e.cutting_scrap_weight_kg) || 0;
+          
+          if (e.marker_efficiency_percent) {
+            sumEfficiency += Number(e.marker_efficiency_percent);
+            validEfficiencyCount++;
+          }
+        });
+
+        stat.totalLays = sumLays;
+        stat.totalPieces = sumPieces;
+        stat.totalFabricUsedKg = sumFabric;
+        stat.totalCuttingScrapKg = sumScrap;
+        stat.totalEntries = tEntries.length;
+        stat.avgMarkerEfficiency = validEfficiencyCount > 0 ? (sumEfficiency / validEfficiencyCount) : 0;
+        
+        const latestEntry = sortedEntries[0];
+        if (latestEntry) {
+          stat.lastActiveBuyer = latestEntry.buyer || "Unknown";
+          stat.lastActiveJob = latestEntry.job_no || "N/A";
+          stat.lastActiveDate = latestEntry.entry_date;
+          stat.isActive = true;
+        }
+      });
+
+      return stats;
+    } else {
+      // Supervisor mode
+      const supervisorMap = new Map<string, CuttingEntry[]>();
+      filteredEntries.forEach(entry => {
+        const sup = (entry.supervisor_name || "Unknown").trim();
+        if (!supervisorMap.has(sup)) {
+          supervisorMap.set(sup, []);
+        }
+        supervisorMap.get(sup)!.push(entry);
+      });
+
+      const stats: ProductionStats[] = [];
+      supervisorMap.forEach((tEntries, supName) => {
+        let sumLays = 0;
+        let sumPieces = 0;
+        let sumFabric = 0;
+        let sumScrap = 0;
+        let sumEfficiency = 0;
+        let validEfficiencyCount = 0;
+
+        const sortedEntries = [...tEntries].sort((a, b) => {
+          const dateA = new Date(a.entry_date + "T00:00:00");
+          const dateB = new Date(b.entry_date + "T00:00:00");
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        tEntries.forEach(e => {
+          sumLays += Number(e.lay) || 0;
+          sumPieces += (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+          sumFabric += Number(e.fabric_used_kg) || 0;
+          sumScrap += Number(e.cutting_scrap_weight_kg) || 0;
+          
+          if (e.marker_efficiency_percent) {
+            sumEfficiency += Number(e.marker_efficiency_percent);
+            validEfficiencyCount++;
+          }
+        });
+
+        const latestEntry = sortedEntries[0];
+
+        stats.push({
+          id: supName,
+          name: supName,
+          totalLays: sumLays,
+          totalPieces: sumPieces,
+          totalFabricUsedKg: sumFabric,
+          totalCuttingScrapKg: sumScrap,
+          avgMarkerEfficiency: validEfficiencyCount > 0 ? (sumEfficiency / validEfficiencyCount) : 0,
+          totalEntries: tEntries.length,
+          lastActiveBuyer: latestEntry ? (latestEntry.buyer || "Unknown") : "N/A",
+          lastActiveJob: latestEntry ? (latestEntry.job_no || "N/A") : "N/A",
+          lastActiveDate: latestEntry ? latestEntry.entry_date : "",
+          isActive: true
+        });
+      });
+      
+      // Sort by total pieces descending
+      return stats.sort((a, b) => b.totalPieces - a.totalPieces);
+    }
+  }, [filteredEntries, viewMode]);
 
   // Overall metrics & High performers
   const comparativeMetrics = useMemo(() => {
-    const populatedTables = tableStatsList.filter(t => t.totalEntries > 0);
+    const populatedTables = productionStatsList.filter(t => t.totalEntries > 0);
     
     // Sort by pieces cut
     const volumeLeader = populatedTables.length > 0 
@@ -204,14 +265,14 @@ export default function TableProductionView({ entries }: TableProductionViewProp
       : null;
 
     // Total pieces across all tables
-    const totalOutputPieces = tableStatsList.reduce((acc, t) => acc + t.totalPieces, 0);
+    const totalOutputPieces = productionStatsList.reduce((acc, t) => acc + t.totalPieces, 0);
 
     return {
       volumeLeader,
       efficiencyLeader,
       totalOutputPieces
     };
-  }, [tableStatsList]);
+  }, [productionStatsList]);
 
   return (
     <div className="space-y-8 font-sans animate-fade-in">
@@ -229,7 +290,7 @@ export default function TableProductionView({ entries }: TableProductionViewProp
               {comparativeMetrics.totalOutputPieces.toLocaleString()}
             </div>
             <p className="text-[10px] text-slate-400">
-              Total garments cut across all 7 operational tables
+              {viewMode === "table" ? "Total garments cut across all 7 operational tables" : "Total garments cut across all supervisors"}
             </p>
           </div>
           <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400">
@@ -243,8 +304,8 @@ export default function TableProductionView({ entries }: TableProductionViewProp
             <span className="text-[10px] uppercase font-black tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               <Trophy size={11} /> Volume Leader
             </span>
-            <div className="text-lg font-extrabold text-slate-850 dark:text-white">
-              {comparativeMetrics.volumeLeader ? comparativeMetrics.volumeLeader.tableName : "N/A"}
+            <div className="text-lg font-extrabold text-slate-850 dark:text-white max-w-[140px] truncate">
+              {comparativeMetrics.volumeLeader ? comparativeMetrics.volumeLeader.name : "N/A"}
             </div>
             <p className="text-xs text-slate-500 font-mono">
               {comparativeMetrics.volumeLeader 
@@ -263,8 +324,8 @@ export default function TableProductionView({ entries }: TableProductionViewProp
             <span className="text-[10px] uppercase font-black tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
               <Award size={11} /> Efficiency Leader
             </span>
-            <div className="text-lg font-extrabold text-slate-850 dark:text-white">
-              {comparativeMetrics.efficiencyLeader ? comparativeMetrics.efficiencyLeader.tableName : "N/A"}
+            <div className="text-lg font-extrabold text-slate-850 dark:text-white max-w-[140px] truncate">
+              {comparativeMetrics.efficiencyLeader ? comparativeMetrics.efficiencyLeader.name : "N/A"}
             </div>
             <p className="text-xs text-slate-500 font-mono">
               {comparativeMetrics.efficiencyLeader 
@@ -283,11 +344,11 @@ export default function TableProductionView({ entries }: TableProductionViewProp
       {comparativeMetrics.totalOutputPieces > 0 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
           <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Activity size={14} className="text-blue-600" /> Output Share Distribution across 7 Tables
+            <Activity size={14} className="text-blue-600" /> Output Share Distribution {viewMode === "table" ? "across 7 Tables" : "across Supervisors"}
           </h3>
           <div className="space-y-3">
             <div className="h-4 flex rounded-full overflow-hidden bg-slate-100 dark:bg-slate-950 border border-slate-200/40 dark:border-slate-800">
-              {tableStatsList.map((stat, idx) => {
+              {productionStatsList.map((stat, idx) => {
                 const percentage = comparativeMetrics.totalOutputPieces > 0 
                   ? (stat.totalPieces / comparativeMetrics.totalOutputPieces) * 100 
                   : 0;
@@ -301,17 +362,17 @@ export default function TableProductionView({ entries }: TableProductionViewProp
 
                 return (
                   <div 
-                    key={stat.tableId}
+                    key={stat.id}
                     style={{ width: `${percentage}%` }}
                     className={`${bgColors[idx % bgColors.length]} transition-all duration-500`}
-                    title={`${stat.tableName}: ${stat.totalPieces.toLocaleString()} Pcs (${percentage.toFixed(1)}%)`}
+                    title={`${stat.name}: ${stat.totalPieces.toLocaleString()} Pcs (${percentage.toFixed(1)}%)`}
                   />
                 );
               })}
             </div>
             
             <div className="flex flex-wrap gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-              {tableStatsList.map((stat, idx) => {
+              {productionStatsList.map((stat, idx) => {
                 const percentage = comparativeMetrics.totalOutputPieces > 0 
                   ? (stat.totalPieces / comparativeMetrics.totalOutputPieces) * 100 
                   : 0;
@@ -322,9 +383,9 @@ export default function TableProductionView({ entries }: TableProductionViewProp
                 ];
 
                 return (
-                  <div key={stat.tableId} className="flex items-center gap-1.5">
+                  <div key={stat.id} className="flex items-center gap-1.5">
                     <span className={`w-2.5 h-2.5 rounded-xs border-2 ${borderColors[idx % borderColors.length]}`} />
-                    <span>{stat.tableName}: {stat.totalPieces.toLocaleString()} ({percentage.toFixed(1)}%)</span>
+                    <span>{stat.name}: {stat.totalPieces.toLocaleString()} ({percentage.toFixed(1)}%)</span>
                   </div>
                 );
               })}
@@ -339,50 +400,76 @@ export default function TableProductionView({ entries }: TableProductionViewProp
           <div className="space-y-1">
             <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Calendar size={13} className="text-blue-500" />
-              Operational Table Score Cards (Comparative Ledger)
+              {viewMode === "table" ? "Operational Table Score Cards" : "Supervisor Performance Score Cards"} (Comparative Ledger)
             </h3>
             <p className="text-[11px] text-slate-400 font-medium">
               Real-time roll aggregation, marker efficiency ratings, and active cutting layouts. {dateRangeLabel && <span className="font-mono font-bold text-blue-600 dark:text-blue-400">({dateRangeLabel})</span>}
             </p>
           </div>
 
-          {/* Timeframe Selectors */}
-          <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 self-start sm:self-auto font-sans shadow-xs">
-            <button
-              onClick={() => setTimeFrame("daily")}
-              className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                timeFrame === "daily"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
-            >
-              Daily
-            </button>
-            <button
-              onClick={() => setTimeFrame("weekly")}
-              className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                timeFrame === "weekly"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
-            >
-              Weekly
-            </button>
-            <button
-              onClick={() => setTimeFrame("monthly")}
-              className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                timeFrame === "monthly"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
-            >
-              Monthly
-            </button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* View Mode Selectors */}
+            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 font-sans shadow-xs">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                Table-Wise
+              </button>
+              <button
+                onClick={() => setViewMode("supervisor")}
+                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === "supervisor"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                Supervisor-Wise
+              </button>
+            </div>
+
+            {/* Timeframe Selectors */}
+            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 font-sans shadow-xs">
+              <button
+                onClick={() => setTimeFrame("daily")}
+                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFrame === "daily"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                onClick={() => setTimeFrame("weekly")}
+                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFrame === "weekly"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setTimeFrame("monthly")}
+                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFrame === "monthly"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {tableStatsList.map((stat) => {
+          {productionStatsList.map((stat) => {
             const hasData = stat.totalEntries > 0;
             const scrapPercent = stat.totalFabricUsedKg > 0 
               ? (stat.totalCuttingScrapKg / stat.totalFabricUsedKg) * 100 
@@ -403,7 +490,7 @@ export default function TableProductionView({ entries }: TableProductionViewProp
 
             return (
               <div 
-                key={stat.tableId} 
+                key={stat.id} 
                 className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-xs transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 flex flex-col justify-between ${
                   stat.isActive 
                     ? "border-slate-200 dark:border-slate-850" 
@@ -415,14 +502,14 @@ export default function TableProductionView({ entries }: TableProductionViewProp
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-slate-100 dark:bg-slate-950 rounded-lg flex items-center justify-center font-black text-xs text-slate-700 dark:text-slate-300 border border-slate-200/40 dark:border-slate-800">
-                        {stat.tableId}
+                        {viewMode === "table" ? stat.id : stat.name.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-sm text-slate-850 dark:text-white leading-none">
-                          {stat.tableName}
+                        <h4 className="font-extrabold text-sm text-slate-850 dark:text-white leading-none max-w-[140px] truncate">
+                          {stat.name}
                         </h4>
                         <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider font-mono">
-                          ID: TBL-0{stat.tableId}
+                          {viewMode === "table" ? `ID: TBL-0${stat.id}` : `Role: Supervisor`}
                         </span>
                       </div>
                     </div>

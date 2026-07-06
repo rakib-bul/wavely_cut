@@ -568,7 +568,7 @@ export default function ReportsModule({
     if (reportSubView === 'consumption') {
       const headersList = [
         "Date", "Buyer", "Job", "Color", "Item", "PO", "Cut Num", "Cutting Qty",
-        "Booking Consumption", "Marker Cons", "Booking Vs Marker Con", "Cutting Con", "Booking vs Cut con", "Super Visor"
+        "Booking Consumption", "Marker Consumption", "Booking Vs Marker Con", "Cutting Con", "Booking vs Cut con", "Super Visor"
       ];
 
       const html = `
@@ -621,7 +621,7 @@ export default function ReportsModule({
               ${filteredEntries.map((e, idx) => {
                 const totalCutQty = (e.lay || 0) * (e.ratio || 0);
                 const bookingCons = e.booking_consumption !== undefined && e.booking_consumption !== null ? Number(e.booking_consumption) : null;
-                const markerConsumption = (e.marker_consumption !== undefined && e.marker_consumption !== null) ? Number(e.marker_consumption) : (e.marker_length_inch !== undefined && e.marker_length_inch !== null ? Number(e.marker_length_inch) : null);
+                const markerConsumption = (e.marker_consumption !== undefined && e.marker_consumption !== null) ? Number(e.marker_consumption) : null;
                 const cuttingCons = totalCutQty > 0 ? (Number(e.fabric_used_kg) / totalCutQty) * 12 : null;
 
                 const bookingVsMarker = (bookingCons !== null && markerConsumption !== null) ? (bookingCons - markerConsumption) : null;
@@ -638,8 +638,8 @@ export default function ReportsModule({
                     <td class="align-left">${e.buyer}</td>
                     <td class="align-center">${e.job_no}</td>
                     <td class="align-left">${e.color}</td>
-                    <td class="align-left">${e.po_no || "-"}</td>
                     <td class="align-left">${e.item}</td>
+                    <td class="align-left">${e.po_no || "-"}</td>
                     <td class="align-center">${e.cut_no}</td>
                     <td class="align-right">${totalCutQty}</td>
                     <td class="align-right">${bookingCons !== null ? bookingCons.toFixed(3) : "-"}</td>
@@ -669,7 +669,7 @@ export default function ReportsModule({
     }
 
     const headers = [
-      "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "Cut No",
+      "Entry Date", "Shift", "Machine Name", "Buyer", "Job No", "Color", "Item", "PO No", "Cut No",
       "Lay Plies", "Size Ratio", "Total Cut Qty", "Table No", "Fabric Type", "Parts To Cut",
       "Fabric Weight Used (KG)", "Remnants Weight Issued (KG)", "Remnants Fabric Used (KG)", "Remnants Scrap (KG)", "Reject Pieces (Pcs)", "Spread Fabric (KG)", "Spreading Scrap (KG)", "Cutting Scrap (KG)",
       "Marker Length Inch", "Marker Efficiency %", "Total Marker Length(inch)", "Total Used Fabric (Inch)",
@@ -699,6 +699,7 @@ export default function ReportsModule({
         job: e.job_no,
         color: e.color,
         item: e.item,
+        po: e.po_no || "-",
         cutNo: e.cut_no,
         lay: e.lay,
         ratio: e.ratio,
@@ -972,9 +973,9 @@ export default function ReportsModule({
       </head>
       <body>
         <table>
-          <tr><td colspan="28" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">GARMENTS CUTTING LEDGER REPORT</td></tr>
-          <tr><td colspan="28" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
-          <tr><td colspan="28" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
+          <tr><td colspan="29" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">GARMENTS CUTTING LEDGER REPORT</td></tr>
+          <tr><td colspan="29" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+          <tr><td colspan="29" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
         </table>
 
         <table>
@@ -1021,7 +1022,7 @@ export default function ReportsModule({
         </table>
 
         <table>
-          <tr><td colspan="28" class="section-header">DETAILED LEDGER RECORDS</td></tr>
+          <tr><td colspan="29" class="section-header">DETAILED LEDGER RECORDS</td></tr>
         </table>
 
         <table>
@@ -1040,6 +1041,7 @@ export default function ReportsModule({
                 <td class="align-center">${r.job}</td>
                 <td class="align-left">${r.color}</td>
                 <td class="align-left">${r.item}</td>
+                <td class="align-left">${r.po}</td>
                 <td class="align-center">${r.cutNo}</td>
                 <td class="align-right">${r.lay}</td>
                 <td class="align-right">${r.ratio}</td>

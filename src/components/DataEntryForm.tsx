@@ -17,6 +17,7 @@ import {
   Cpu
 } from "lucide-react";
 import { Machine, CuttingEntry, Buyer, UserRole } from "../types";
+import { getCurrentProductionDateAndShift } from "../utils/calculations";
 
 interface DataEntryFormProps {
   machines: Machine[];
@@ -85,9 +86,10 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
 
   // --- Single Entry Form State ---
+  const { entry_date: defaultDate, shift: defaultShift } = getCurrentProductionDateAndShift();
   const initialFormState = {
-    entry_date: new Date().toISOString().substring(0, 10),
-    shift: "A",
+    entry_date: defaultDate,
+    shift: defaultShift,
     machine_id: machines[0]?.id || "",
     buyer: "",
     job_no: "",
@@ -104,6 +106,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     booking_consumption: "",
     cutting_scrap_weight_kg: "",
     marker_length_inch: "",
+    marker_consumption: "",
     marker_efficiency_percent: "",
     remarks: "",
     po_no: "",
@@ -251,6 +254,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         cutting_consumption: (Number(formData.lay) * Number(formData.ratio)) > 0 ? (Number(formData.fabric_used_kg) / (Number(formData.lay) * Number(formData.ratio))) * 12 : 0,
         cutting_scrap_weight_kg: Number(formData.cutting_scrap_weight_kg) || 0,
         marker_length_inch: Number(formData.marker_length_inch) || 1,
+        marker_consumption: formData.marker_consumption !== "" ? Number(formData.marker_consumption) : undefined,
         marker_efficiency_percent: Number(formData.marker_efficiency_percent) || 80,
         remarks: formData.remarks.trim(),
         supervisor_name: formData.supervisor_name || undefined,
@@ -793,6 +797,19 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
+
+              {/* Marker Length Inch */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Length Inch</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="marker_length_inch"
+                  value={formData.marker_length_inch}
+                  onChange={handleInputChange}
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+                />
+              </div>
               
               {/* 15. Marker Efficiency % */}
               <div>
@@ -832,13 +849,15 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
               </div>
-              {/* 14. Marker Consumption (Inches) */}
+
+              {/* Marker Consumption */}
               <div>
-                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Consumption (Inches)</label>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Marker Consumption</label>
                 <input
                   type="number"
-                  name="marker_length_inch"
-                  value={formData.marker_length_inch}
+                  step="0.001"
+                  name="marker_consumption"
+                  value={formData.marker_consumption}
                   onChange={handleInputChange}
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />

@@ -17,6 +17,7 @@ import {
   Printer
 } from "lucide-react";
 import { CuttingEntry, Machine } from "../types";
+import { getCurrentProductionDateAndShift } from "../utils/calculations";
 
 interface DailyReportProps {
   entries: CuttingEntry[];
@@ -37,11 +38,7 @@ export default function DailyReport({ entries, machines }: DailyReportProps) {
 
   // Get current date string in local timezone (YYYY-MM-DD) as a fallback
   const todayStr = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return getCurrentProductionDateAndShift().entry_date;
   }, []);
 
   // 2. Default state for selected date: latest available date with entries, or today

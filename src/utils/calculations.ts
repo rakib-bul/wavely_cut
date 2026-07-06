@@ -1,5 +1,28 @@
 import { CuttingEntry } from '../types';
 
+export function getCurrentProductionDateAndShift() {
+  const now = new Date();
+  const hours = now.getHours();
+  let shift = "A"; 
+  let prodDate = new Date(now);
+  
+  if (hours >= 0 && hours < 8) {
+    prodDate.setDate(prodDate.getDate() - 1);
+    shift = "B";
+  } else if (hours >= 20 && hours <= 23) {
+    shift = "B";
+  }
+  
+  const year = prodDate.getFullYear();
+  const month = String(prodDate.getMonth() + 1).padStart(2, '0');
+  const day = String(prodDate.getDate()).padStart(2, '0');
+  
+  return {
+    entry_date: `${year}-${month}-${day}`,
+    shift
+  };
+}
+
 /**
  * Perform automatic industrial calculations on a CuttingEntry.
  * Returns the entry populated with the calculated fields.
@@ -143,7 +166,7 @@ export function compileDashboardKPIs(entries: CuttingEntry[]) {
   // --- Date-wise Calculations ---
   const dates = targetEntries.map(e => e.entry_date).filter(Boolean);
   const uniqueSortedDates = Array.from(new Set(dates)).sort();
-  const latestDateStr = uniqueSortedDates.length > 0 ? uniqueSortedDates[uniqueSortedDates.length - 1] : new Date().toISOString().slice(0, 10);
+  const latestDateStr = uniqueSortedDates.length > 0 ? uniqueSortedDates[uniqueSortedDates.length - 1] : getCurrentProductionDateAndShift().entry_date;
   
   const latestIndex = uniqueSortedDates.indexOf(latestDateStr);
   const yesterdayDateStr = latestIndex > 0 ? uniqueSortedDates[latestIndex - 1] : null;

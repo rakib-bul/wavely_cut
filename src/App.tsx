@@ -1880,24 +1880,24 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Efficiency %</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Length Inch</label>
                 <input 
                   type="number"
-                  step="0.1"
-                  value={editingEntry.marker_efficiency_percent}
-                  onChange={e => setEditingEntry({ ...editingEntry, marker_efficiency_percent: Number(e.target.value) })}
+                  step="0.01"
+                  value={editingEntry.marker_length_inch}
+                  onChange={e => setEditingEntry({ ...editingEntry, marker_length_inch: Number(e.target.value) })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Length (Inch)</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Marker Efficiency %</label>
                 <input 
                   type="number"
-                  step="0.01"
-                  value={editingEntry.marker_length_inch}
-                  onChange={e => setEditingEntry({ ...editingEntry, marker_length_inch: Number(e.target.value) })}
+                  step="0.1"
+                  value={editingEntry.marker_efficiency_percent}
+                  onChange={e => setEditingEntry({ ...editingEntry, marker_efficiency_percent: Number(e.target.value) })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
                   required
                 />

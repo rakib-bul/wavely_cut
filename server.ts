@@ -564,7 +564,7 @@ app.get("/api/entries", async (req, res) => {
     
     const mappedEntries = (entries || []).map(e => ({
       ...e,
-      total_length_inch: Number(e.total_length_inch) || (Number(e.marker_length_inch) * Number(e.lay)),
+      total_length_inch: Number(e.total_length_inch) || 0,
       spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
       scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - Number(e.marker_efficiency_percent)),
       created_by: profileMap.get(e.created_by) || e.created_by || user_email,
@@ -686,7 +686,7 @@ app.post("/api/entries", async (req, res) => {
       ...insertedEntry,
       created_by: user_email,
       approved_by: insertedEntry.status === "approved" ? user_email : null,
-      total_length_inch: Number(insertedEntry.total_length_inch) || (Number(insertedEntry.marker_length_inch) * Number(insertedEntry.lay)),
+      total_length_inch: Number(insertedEntry.total_length_inch) || 0,
       spreading_scrap_kg: Number(insertedEntry.spreading_scrap_kg) || (Number(insertedEntry.fabric_used_kg) * 0.025),
       scrap_percent_per_marker: Number(insertedEntry.scrap_percent_per_marker) || (100.00 - Number(insertedEntry.marker_efficiency_percent))
     };
@@ -830,7 +830,7 @@ app.post("/api/entries/bulk", async (req, res) => {
         ...insertedEntry,
         created_by: user_email,
         approved_by: user_email,
-        total_length_inch: Number(insertedEntry.total_length_inch) || (Number(insertedEntry.marker_length_inch) * Number(insertedEntry.lay)),
+        total_length_inch: Number(insertedEntry.total_length_inch) || 0,
         spreading_scrap_kg: Number(insertedEntry.spreading_scrap_kg) || (Number(insertedEntry.fabric_used_kg) * 0.025),
         scrap_percent_per_marker: Number(insertedEntry.scrap_percent_per_marker) || (100.00 - Number(insertedEntry.marker_efficiency_percent))
       };
@@ -988,7 +988,7 @@ app.put("/api/entries/:id", async (req, res) => {
       ...updatedEntry,
       created_by: creatorEmail,
       approved_by: updatedEntry.status === "approved" ? (profileMap.get(updatedEntry.approved_by) || user_email) : null,
-      total_length_inch: Number(updatedEntry.total_length_inch) || (Number(updatedEntry.marker_length_inch) * Number(updatedEntry.lay)),
+      total_length_inch: Number(updatedEntry.total_length_inch) || 0,
       spreading_scrap_kg: Number(updatedEntry.spreading_scrap_kg) || (Number(updatedEntry.fabric_used_kg) * 0.025),
       scrap_percent_per_marker: Number(updatedEntry.scrap_percent_per_marker) || (100.00 - Number(updatedEntry.marker_efficiency_percent))
     };
@@ -1094,7 +1094,7 @@ app.post("/api/entries/:id/approve", async (req, res) => {
       ...updatedEntry,
       created_by: profileMap.get(updatedEntry.created_by) || updatedEntry.created_by || user_email,
       approved_by: user_email,
-      total_length_inch: Number(updatedEntry.total_length_inch) || (Number(updatedEntry.marker_length_inch) * Number(updatedEntry.lay)),
+      total_length_inch: Number(updatedEntry.total_length_inch) || 0,
       spreading_scrap_kg: Number(updatedEntry.spreading_scrap_kg) || (Number(updatedEntry.fabric_used_kg) * 0.025),
       scrap_percent_per_marker: Number(updatedEntry.scrap_percent_per_marker) || (100.00 - Number(updatedEntry.marker_efficiency_percent))
     };
@@ -1461,7 +1461,7 @@ app.get("/api/sync", async (req, res) => {
       
       const mappedEntries = (entries || []).map(e => ({
         ...e,
-        total_length_inch: Number(e.total_length_inch) || (Number(e.marker_length_inch) * Number(e.lay)),
+        total_length_inch: Number(e.total_length_inch) || 0,
         spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
         scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - Number(e.marker_efficiency_percent)),
         created_by: profileMap.get(e.created_by) || e.created_by || user_email,
