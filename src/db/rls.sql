@@ -134,3 +134,31 @@ CREATE POLICY insert_audit_logs ON public.audit_logs
     FOR INSERT
     TO authenticated
     WITH CHECK (true);
+
+-- ==========================================
+-- 5. POLY ENTRIES TABLE POLICIES
+-- ==========================================
+
+ALTER TABLE public.poly_entries ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: All authenticated users can view poly entries
+CREATE POLICY select_poly_entries ON public.poly_entries
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- INSERT: Officers and Admins can insert poly entries
+CREATE POLICY insert_poly_entries ON public.poly_entries
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        public.get_user_role() IN ('officer', 'admin')
+    );
+
+-- DELETE: Officers and Admins can delete poly entries
+CREATE POLICY delete_poly_entries ON public.poly_entries
+    FOR DELETE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('officer', 'admin')
+    );

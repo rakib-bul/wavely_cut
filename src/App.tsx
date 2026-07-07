@@ -1623,6 +1623,8 @@ export default function App() {
                         selectedDate={activeMainSelectedDate}
                         setSelectedDate={setMainSelectedDate}
                         availableDates={mainAvailableDates}
+                        polyEntries={polyEntries}
+                        polyPrice={polyPrice}
                       />
                       <DailyReport 
                         entries={mainEntries} 
@@ -1642,7 +1644,12 @@ export default function App() {
                           CAD-to-physical efficiency mapping, total scrap margins, buyer yields, and knit quality trends.
                         </p>
                       </div>
-                      <KPICards metrics={compiledMainKPIs} group="monthly" />
+                      <KPICards 
+                        metrics={compiledMainKPIs} 
+                        group="monthly" 
+                        polyEntries={polyEntries}
+                        polyPrice={polyPrice}
+                      />
                       <DashboardCharts entries={mainEntries} machines={machines} />
                     </div>
                   </div>
@@ -1671,6 +1678,8 @@ export default function App() {
                     selectedDate={activeStripeSelectedDate}
                     setSelectedDate={setStripeSelectedDate}
                     availableDates={stripeAvailableDates}
+                    polyEntries={polyEntries}
+                    polyPrice={polyPrice}
                   />
                   <DailyReport 
                     entries={stripeEntries} 
@@ -1690,7 +1699,12 @@ export default function App() {
                       Stripe fabric efficiency trends, cumulative scrap statistics, and buyer roll-end allocations.
                     </p>
                   </div>
-                  <KPICards metrics={compiledStripeKPIs} group="monthly" />
+                  <KPICards 
+                    metrics={compiledStripeKPIs} 
+                    group="monthly" 
+                    polyEntries={polyEntries}
+                    polyPrice={polyPrice}
+                  />
                   <DashboardCharts entries={stripeEntries} machines={machines} />
                 </div>
 

@@ -175,6 +175,33 @@ function saveSettings(settings: any) {
 // Call loadSettings on startup
 loadSettings();
 
+// Sync settings with Supabase
+async function syncSettingsWithDB() {
+  try {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "app_settings")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Failed to fetch settings from DB:", error.message);
+      return;
+    }
+    
+    if (data && data.value) {
+      systemSettings = { ...systemSettings, ...data.value };
+      console.log("Merged settings from DB:", systemSettings);
+      saveSettings(systemSettings);
+    } else {
+      await supabase.from("settings").insert({ key: "app_settings", value: systemSettings });
+    }
+  } catch (err: any) {
+    console.warn("Failed to sync settings with DB:", err.message);
+  }
+}
+syncSettingsWithDB();
+
 // In-memory cache for database buyers
 let cachedBuyers: any[] | null = null;
 
@@ -1755,7 +1782,7 @@ app.post("/api/settings", async (req, res) => {
   }
 
   const old_value = { ...systemSettings };
-  const success = saveSettings({
+  const newSettings = {
     ...systemSettings,
     job_no_digits,
     is_po_number_required: typeof is_po_number_required === "boolean" ? is_po_number_required : (systemSettings.is_po_number_required || false),
@@ -1763,10 +1790,24 @@ app.post("/api/settings", async (req, res) => {
     whats_new_content: typeof whats_new_content === "string" ? whats_new_content : (systemSettings.whats_new_content || ""),
     whats_new_updated_at: typeof whats_new_updated_at === "string" ? whats_new_updated_at : (systemSettings.whats_new_updated_at || ""),
     poly_price: newPolyPrice
-  });
+  };
+
+  const success = saveSettings(newSettings);
 
   if (!success) {
-    return res.status(500).json({ error: "Failed to persist new system settings." });
+    return res.status(500).json({ error: "Failed to persist new system settings locally." });
+  }
+
+  // Also sync to DB
+  try {
+    const { error: dbError } = await supabase
+      .from("settings")
+      .upsert({ key: "app_settings", value: newSettings }, { onConflict: "key" });
+    if (dbError) {
+      console.warn("Failed to persist settings to DB:", dbError.message);
+    }
+  } catch (err: any) {
+    console.warn("Exception persisting settings to DB:", err.message);
   }
 
   // Audit log setting change

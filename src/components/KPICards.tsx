@@ -16,8 +16,10 @@ import {
   LayoutGrid,
   Table,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Coins
 } from "lucide-react";
+import { PolyEntry } from "../types";
 
 interface KPICardsProps {
   metrics: {
@@ -80,6 +82,8 @@ interface KPICardsProps {
   selectedDate?: string;
   setSelectedDate?: (date: string) => void;
   availableDates?: string[];
+  polyEntries?: PolyEntry[];
+  polyPrice?: number;
 }
 
 export default function KPICards({ 
@@ -87,9 +91,63 @@ export default function KPICards({
   group = "all", 
   selectedDate, 
   setSelectedDate, 
-  availableDates 
+  availableDates,
+  polyEntries = [],
+  polyPrice = 1.50
 }: KPICardsProps) {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
+
+  // Poly Tracking Stats calculation
+  const polyStats = React.useMemo(() => {
+    if (!polyEntries || polyEntries.length === 0) {
+      return {
+        dailyReceived: 0,
+        dailyReused: 0,
+        dailyEfficiency: 0,
+        dailySaved: 0,
+        cumulativeReceived: 0,
+        cumulativeReused: 0,
+        cumulativeEfficiency: 0,
+        cumulativeSaved: 0
+      };
+    }
+
+    // Daily
+    const todayPoly = polyEntries.find(e => e.entry_date === selectedDate);
+    const dailyReceived = todayPoly ? (Number(todayPoly.total_received_poly) || 0) : 0;
+    const dailyReused = todayPoly ? (Number(todayPoly.total_reused_poly) || 0) : 0;
+    const dailyEfficiency = dailyReceived > 0 ? (dailyReused / dailyReceived) * 100 : 0;
+    const todayPriceVal = todayPoly && todayPoly.price !== undefined ? Number(todayPoly.price) : polyPrice;
+    const dailySaved = todayPoly ? (todayPoly.save !== undefined ? Number(todayPoly.save) : (dailyReused * todayPriceVal)) : 0;
+
+    // Cumulative
+    let cumulativeReceived = 0;
+    let cumulativeReused = 0;
+    let cumulativeSaved = 0;
+
+    polyEntries.forEach(entry => {
+      const rec = Number(entry.total_received_poly) || 0;
+      const reu = Number(entry.total_reused_poly) || 0;
+      const prc = entry.price !== undefined ? Number(entry.price) : polyPrice;
+      cumulativeReceived += rec;
+      cumulativeReused += reu;
+      cumulativeSaved += entry.save !== undefined ? Number(entry.save) : (reu * prc);
+    });
+
+    const cumulativeEfficiency = cumulativeReceived > 0 ? (cumulativeReused / cumulativeReceived) * 100 : 0;
+
+    return {
+      dailyReceived,
+      dailyReused,
+      dailyEfficiency,
+      dailySaved,
+      cumulativeReceived,
+      cumulativeReused,
+      cumulativeEfficiency,
+      cumulativeSaved
+    };
+  }, [polyEntries, selectedDate, polyPrice]);
+
   const kpis = [
     {
       id: "gross-fabric",
@@ -503,6 +561,24 @@ export default function KPICards({
       color: (metrics.today_booking_vs_cut || 0) < 0 ? "text-rose-600 bg-rose-500/10" : "text-emerald-600 bg-emerald-500/10",
       statusText: (metrics.today_booking_vs_cut || 0) < 0 ? "Loss" : "Save",
       statusColor: (metrics.today_booking_vs_cut || 0) < 0 ? "bg-rose-500/15 text-rose-600 border-rose-500/20" : "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+    },
+    {
+      id: "poly-summary",
+      title: group === "daily" ? "Today's Poly Re-Use" : "Cumulative Poly Re-Use",
+      amount: group === "daily" 
+        ? "৳" + polyStats.dailySaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : "৳" + polyStats.cumulativeSaved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      unit: "Saved",
+      desc: group === "daily"
+        ? `Price: ৳${polyPrice.toFixed(2)}/bag. Received: ${polyStats.dailyReceived} | Re-Used: ${polyStats.dailyReused}`
+        : `Price: ৳${polyPrice.toFixed(2)}/bag. Total Received: ${polyStats.cumulativeReceived} | Re-Used: ${polyStats.cumulativeReused}`,
+      icon: Coins,
+      color: "text-emerald-600 bg-emerald-500/10",
+      statusText: group === "daily" 
+        ? `${polyStats.dailyEfficiency.toFixed(1)}% Eff`
+        : `${polyStats.cumulativeEfficiency.toFixed(1)}% Eff`,
+      statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+      highlight: true
     }
   ];
 
@@ -526,7 +602,8 @@ export default function KPICards({
     "today-booking-vs-cut",
     "daily-trend",
     "daily-avg",
-    "recent-quality"
+    "recent-quality",
+    "poly-summary"
   ];
   const dailyKpis = dailyKeys.map(key => kpis.find(k => k.id === key)).filter((k): k is typeof kpis[0] => !!k);
 
@@ -536,7 +613,7 @@ export default function KPICards({
       "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch",
       "total-fabric-save-loss-pct", "total-fabric-save-loss-kg",
       "total-remnants-issued", "total-remnants-used", "total-remnants-scrap",
-      "total-remnants-utilization", "total-reject-qty"
+      "total-remnants-utilization", "total-reject-qty", "poly-summary"
     ].includes(kpi.id)
   );
 
@@ -794,11 +871,11 @@ export default function KPICards({
         <div>
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2">
             <h3 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Cumulative Remnants Analytics & Quality Rejects
+              Cumulative Remnants, Poly Analytics & Quality Rejects
             </h3>
           </div>
           <div className="mt-4">
-            {renderCardGrid(monthlyKpis.filter(kpi => ["total-remnants-issued", "total-remnants-used", "total-remnants-scrap", "total-remnants-utilization", "total-reject-qty"].includes(kpi.id)))}
+            {renderCardGrid(monthlyKpis.filter(kpi => ["total-remnants-issued", "total-remnants-used", "total-remnants-scrap", "total-remnants-utilization", "total-reject-qty", "poly-summary"].includes(kpi.id)))}
           </div>
         </div>
       </div>

@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
 
 -- Seed Settings
 INSERT INTO public.settings (key, value)
-VALUES ('app_settings', '{"job_no_digits": 7, "is_po_number_required": false}')
+VALUES ('app_settings', '{"job_no_digits": 7, "is_po_number_required": false, "poly_price": 1.50}')
 ON CONFLICT (key) DO NOTHING;
 
 -- Buyers Table
@@ -153,4 +153,15 @@ VALUES
     ('LEVI''S CO.'),
     ('ADIDAS AG')
 ON CONFLICT (name) DO NOTHING;
+
+-- 9. Poly Entries Table
+CREATE TABLE IF NOT EXISTS public.poly_entries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entry_date DATE NOT NULL,
+    total_received_poly NUMERIC NOT NULL DEFAULT 0,
+    total_reused_poly NUMERIC NOT NULL DEFAULT 0,
+    price NUMERIC,
+    save NUMERIC,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
