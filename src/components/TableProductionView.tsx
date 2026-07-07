@@ -12,7 +12,9 @@ import {
   Percent,
   CheckCircle2,
   AlertCircle,
-  Calendar
+  Calendar,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { CuttingEntry } from "../types";
 
@@ -61,24 +63,67 @@ export default function TableProductionView({ entries }: TableProductionViewProp
   const [viewMode, setViewMode] = useState<"table" | "supervisor">("table");
   const [timeFrame, setTimeFrame] = useState<"daily" | "weekly" | "monthly">("daily");
 
-  // Determine latest operational entry date as the relative anchor for our relative filters
-  const latestEntryDateStr = useMemo(() => {
-    if (entries.length === 0) return "";
-    let maxDate = "";
+  // Determine all unique dates that have entries, sorted descending
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>();
     entries.forEach(e => {
-      if (e.entry_date && e.entry_date > maxDate) {
-        maxDate = e.entry_date;
+      if (e.entry_date) {
+        dates.add(e.entry_date);
       }
     });
-    return maxDate;
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
   }, [entries]);
 
-  // Dynamically filter entries based on chosen time frame
+  const [selectedDate, setSelectedDate] = useState<string>("");
+
+  // Determine active selected date: latest available date, or fallback to today
+  const activeSelectedDate = useMemo(() => {
+    if (selectedDate) return selectedDate;
+    if (availableDates.length > 0) return availableDates[0];
+    return new Date().toISOString().split("T")[0];
+  }, [selectedDate, availableDates]);
+
+  // Navigate dates
+  const handlePrevDate = () => {
+    if (availableDates.length === 0) {
+      const d = new Date(activeSelectedDate);
+      d.setDate(d.getDate() - 1);
+      setSelectedDate(d.toISOString().split("T")[0]);
+      return;
+    }
+    const currentIndex = availableDates.indexOf(activeSelectedDate);
+    if (currentIndex !== -1 && currentIndex < availableDates.length - 1) {
+      setSelectedDate(availableDates[currentIndex + 1]);
+    } else {
+      const d = new Date(activeSelectedDate);
+      d.setDate(d.getDate() - 1);
+      setSelectedDate(d.toISOString().split("T")[0]);
+    }
+  };
+
+  const handleNextDate = () => {
+    if (availableDates.length === 0) {
+      const d = new Date(activeSelectedDate);
+      d.setDate(d.getDate() + 1);
+      setSelectedDate(d.toISOString().split("T")[0]);
+      return;
+    }
+    const currentIndex = availableDates.indexOf(activeSelectedDate);
+    if (currentIndex > 0) {
+      setSelectedDate(availableDates[currentIndex - 1]);
+    } else {
+      const d = new Date(activeSelectedDate);
+      d.setDate(d.getDate() + 1);
+      setSelectedDate(d.toISOString().split("T")[0]);
+    }
+  };
+
+  // Dynamically filter entries based on chosen time frame relative to activeSelectedDate
   const filteredEntries = useMemo(() => {
     if (entries.length === 0) return [];
-    if (!latestEntryDateStr) return entries;
+    if (!activeSelectedDate) return entries;
 
-    const refDate = new Date(latestEntryDateStr + "T00:00:00");
+    const refDate = new Date(activeSelectedDate + "T00:00:00");
 
     return entries.filter(entry => {
       if (!entry.entry_date) return false;
@@ -87,7 +132,7 @@ export default function TableProductionView({ entries }: TableProductionViewProp
       const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
       if (timeFrame === "daily") {
-        return entry.entry_date === latestEntryDateStr;
+        return entry.entry_date === activeSelectedDate;
       } else if (timeFrame === "weekly") {
         return diffDays >= 0 && diffDays < 7;
       } else if (timeFrame === "monthly") {
@@ -95,20 +140,20 @@ export default function TableProductionView({ entries }: TableProductionViewProp
       }
       return true;
     });
-  }, [entries, latestEntryDateStr, timeFrame]);
+  }, [entries, activeSelectedDate, timeFrame]);
 
   // Format a friendly display range label for user feedback
   const dateRangeLabel = useMemo(() => {
-    if (!latestEntryDateStr) return "";
-    const refDate = new Date(latestEntryDateStr + "T00:00:00");
+    if (!activeSelectedDate) return "";
+    const refDate = new Date(activeSelectedDate + "T00:00:00");
     if (timeFrame === "daily") {
-      return `Reporting Date: ${latestEntryDateStr}`;
+      return `Reporting Date: ${activeSelectedDate}`;
     }
     const days = timeFrame === "weekly" ? 6 : 29;
     const startDate = new Date(refDate.getTime() - days * 24 * 60 * 60 * 1000);
     const formatDate = (d: Date) => d.toISOString().split("T")[0];
-    return `Period: ${formatDate(startDate)} to ${latestEntryDateStr}`;
-  }, [latestEntryDateStr, timeFrame]);
+    return `Period: ${formatDate(startDate)} to ${activeSelectedDate}`;
+  }, [activeSelectedDate, timeFrame]);
 
   // Process the 7 tables or supervisors and build their scorecards using filtered entries
   const productionStatsList = useMemo<ProductionStats[]>(() => {
@@ -463,6 +508,32 @@ export default function TableProductionView({ entries }: TableProductionViewProp
                 }`}
               >
                 Monthly
+              </button>
+            </div>
+
+            {/* Date Calendar Picker */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/60 h-9 shadow-xs">
+              <button
+                onClick={handlePrevDate}
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer text-slate-600 dark:text-slate-400 flex items-center justify-center w-7 h-7"
+                title="Previous Date"
+              >
+                <ChevronLeft size={14} className="stroke-[2.5]" />
+              </button>
+              
+              <input
+                type="date"
+                value={activeSelectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none cursor-pointer px-1 w-28 text-center"
+              />
+
+              <button
+                onClick={handleNextDate}
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer text-slate-600 dark:text-slate-400 flex items-center justify-center w-7 h-7"
+                title="Next Date"
+              >
+                <ChevronRight size={14} className="stroke-[2.5]" />
               </button>
             </div>
           </div>

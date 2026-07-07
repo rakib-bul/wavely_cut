@@ -265,6 +265,8 @@ export default function ReportsModule({
   const [filterShift, setFilterShift] = useState("");
   const [filterOperator, setFilterOperator] = useState("");
   const [filterColor, setFilterColor] = useState("");
+  const [filterTable, setFilterTable] = useState("");
+  const [filterSupervisor, setFilterSupervisor] = useState("");
 
   // --- Search Query ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -278,7 +280,7 @@ export default function ReportsModule({
   const itemsPerPage = 8;
 
   // --- Reports Tab State ---
-  const [activeReportsTab, setActiveReportsTab] = useState<'ledger' | 'remnants'>('ledger');
+  const [activeReportsTab, setActiveReportsTab] = useState<'ledger' | 'cutting_ledger' | 'consumption_report' | 'remnants'>('ledger');
   const [reportSubView, setReportSubView] = useState<'ledger' | 'consumption'>('ledger');
 
   // --- Clear filters ---
@@ -292,6 +294,8 @@ export default function ReportsModule({
     setFilterShift("");
     setFilterOperator("");
     setFilterColor("");
+    setFilterTable("");
+    setFilterSupervisor("");
     setSearchQuery("");
   };
 
@@ -301,13 +305,15 @@ export default function ReportsModule({
 
     // Search query
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       result = result.filter(e => 
         e.buyer.toLowerCase().includes(q) ||
         e.job_no.toLowerCase().includes(q) ||
         e.cut_no.toLowerCase().includes(q) ||
         e.item.toLowerCase().includes(q) ||
-        e.color.toLowerCase().includes(q)
+        e.color.toLowerCase().includes(q) ||
+        (e.table_no && e.table_no.toLowerCase().includes(q)) ||
+        (e.supervisor_name && e.supervisor_name.toLowerCase().includes(q))
       );
     }
 
@@ -338,6 +344,12 @@ export default function ReportsModule({
     if (excludeFilter !== "color" && filterColor) {
       result = result.filter(e => e.color === filterColor);
     }
+    if (excludeFilter !== "table" && filterTable) {
+      result = result.filter(e => e.table_no && e.table_no.trim() === filterTable.trim());
+    }
+    if (excludeFilter !== "supervisor" && filterSupervisor) {
+      result = result.filter(e => e.supervisor_name && e.supervisor_name.trim().toLowerCase() === filterSupervisor.trim().toLowerCase());
+    }
 
     return result;
   };
@@ -345,17 +357,17 @@ export default function ReportsModule({
   const dynamicMachines = useMemo(() => {
     const matchingEntries = getFilteredEntriesForFacet("machine");
     const activeMachineIds = new Set(matchingEntries.map(e => e.machine_id));
-    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterBuyer || filterFabricType || filterShift || filterOperator || filterColor);
+    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterBuyer || filterFabricType || filterShift || filterOperator || filterColor || filterTable || filterSupervisor);
     if (!hasOtherActiveFilters) {
       return machines;
     }
     return machines.filter(m => activeMachineIds.has(m.id));
-  }, [entries, machines, searchQuery, dateStart, dateEnd, filterBuyer, filterFabricType, filterShift, filterOperator, filterColor]);
+  }, [entries, machines, searchQuery, dateStart, dateEnd, filterBuyer, filterFabricType, filterShift, filterOperator, filterColor, filterTable, filterSupervisor]);
 
   const dynamicBuyers = useMemo(() => {
     const matchingEntries = getFilteredEntriesForFacet("buyer");
     const set = new Set<string>();
-    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterMachine || filterFabricType || filterShift || filterOperator || filterColor);
+    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterMachine || filterFabricType || filterShift || filterOperator || filterColor || filterTable || filterSupervisor);
     
     if (!hasOtherActiveFilters && buyers && buyers.length > 0) {
       buyers.forEach(b => {
@@ -366,36 +378,53 @@ export default function ReportsModule({
       if (e.buyer) set.add(e.buyer.toUpperCase().trim());
     });
     return Array.from(set).filter(Boolean).sort();
-  }, [entries, buyers, searchQuery, dateStart, dateEnd, filterMachine, filterFabricType, filterShift, filterOperator, filterColor]);
+  }, [entries, buyers, searchQuery, dateStart, dateEnd, filterMachine, filterFabricType, filterShift, filterOperator, filterColor, filterTable, filterSupervisor]);
 
   const dynamicFabricTypes = useMemo(() => {
     const matchingEntries = getFilteredEntriesForFacet("fabricType");
     const set = new Set(matchingEntries.map(e => e.fabric_type || ""));
     return Array.from(set).filter(Boolean).sort();
-  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterShift, filterOperator, filterColor]);
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterShift, filterOperator, filterColor, filterTable, filterSupervisor]);
 
   const dynamicShifts = useMemo(() => {
     const matchingEntries = getFilteredEntriesForFacet("shift");
     const set = new Set(matchingEntries.map(e => e.shift || ""));
     const list = Array.from(set).filter(Boolean).sort();
     return list.length > 0 ? list : ["A", "B"];
-  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterOperator, filterColor]);
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterOperator, filterColor, filterTable, filterSupervisor]);
 
   const dynamicColors = useMemo(() => {
     const matchingEntries = getFilteredEntriesForFacet("color");
     const set = new Set(matchingEntries.map(e => e.color || ""));
     return Array.from(set).filter(Boolean).sort();
-  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterOperator]);
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterOperator, filterTable, filterSupervisor]);
 
   const dynamicOperators = useMemo(() => {
     const matchingEntries = getFilteredEntriesForFacet("operator");
     const activeOperatorEmails = new Set(matchingEntries.map(e => e.created_by.toLowerCase().trim()));
-    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterBuyer || filterMachine || filterFabricType || filterShift || filterColor);
+    const hasOtherActiveFilters = !!(searchQuery.trim() || dateStart || dateEnd || filterBuyer || filterMachine || filterFabricType || filterShift || filterColor || filterTable || filterSupervisor);
     if (!hasOtherActiveFilters) {
       return profiles.filter(p => p.role === 'operator');
     }
     return profiles.filter(p => p.role === 'operator' && activeOperatorEmails.has(p.email.toLowerCase().trim()));
-  }, [entries, profiles, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterColor]);
+  }, [entries, profiles, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterColor, filterTable, filterSupervisor]);
+
+  const dynamicTables = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("table");
+    const set = new Set(matchingEntries.map(e => e.table_no ? e.table_no.trim() : ""));
+    return Array.from(set).filter(Boolean).sort((a, b) => {
+      const na = parseInt(a, 10);
+      const nb = parseInt(b, 10);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterOperator, filterColor, filterSupervisor]);
+
+  const dynamicSupervisors = useMemo(() => {
+    const matchingEntries = getFilteredEntriesForFacet("supervisor");
+    const set = new Set(matchingEntries.map(e => e.supervisor_name ? e.supervisor_name.trim() : ""));
+    return Array.from(set).filter(Boolean).sort();
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterMachine, filterFabricType, filterShift, filterOperator, filterColor, filterTable]);
 
   // --- Apply Filters, Sorting & Search ---
   const filteredEntries = useMemo(() => {
@@ -403,13 +432,15 @@ export default function ReportsModule({
 
     // Search query match helper
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       result = result.filter(e => 
         e.buyer.toLowerCase().includes(q) ||
         e.job_no.toLowerCase().includes(q) ||
         e.cut_no.toLowerCase().includes(q) ||
         e.item.toLowerCase().includes(q) ||
-        e.color.toLowerCase().includes(q)
+        e.color.toLowerCase().includes(q) ||
+        (e.table_no && e.table_no.toLowerCase().includes(q)) ||
+        (e.supervisor_name && e.supervisor_name.toLowerCase().includes(q))
       );
     }
 
@@ -440,6 +471,12 @@ export default function ReportsModule({
     }
     if (filterColor) {
       result = result.filter(e => e.color === filterColor);
+    }
+    if (filterTable) {
+      result = result.filter(e => e.table_no && e.table_no.trim() === filterTable.trim());
+    }
+    if (filterSupervisor) {
+      result = result.filter(e => e.supervisor_name && e.supervisor_name.trim().toLowerCase() === filterSupervisor.trim().toLowerCase());
     }
 
     // Sort
@@ -1199,6 +1236,32 @@ export default function ReportsModule({
             </select>
           </div>
 
+          {/* Table wise filter */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Operational Table</label>
+            <select
+              value={filterTable}
+              onChange={e => { setFilterTable(e.target.value); setCurrentPage(1); }}
+              className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
+            >
+              <option value="">All Tables</option>
+              {dynamicTables.map(t => <option key={t} value={t}>Table {t}</option>)}
+            </select>
+          </div>
+
+          {/* Supervisor wise filter */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Supervisor</label>
+            <select
+              value={filterSupervisor}
+              onChange={e => { setFilterSupervisor(e.target.value); setCurrentPage(1); }}
+              className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition cursor-pointer shadow-xs"
+            >
+              <option value="">All Supervisors</option>
+              {dynamicSupervisors.map(sv => <option key={sv} value={sv}>{sv}</option>)}
+            </select>
+          </div>
+
           {/* Operator */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Created By</label>
@@ -1233,10 +1296,10 @@ export default function ReportsModule({
       </div>
 
       {/* REPORTS SUB-TAB NAVIGATION */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 text-xs font-black uppercase tracking-wider pb-px print:hidden mt-2 mb-6">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 text-xs font-black uppercase tracking-wider pb-px print:hidden mt-2 mb-6 overflow-x-auto whitespace-nowrap scrollbar-none">
         <button
           onClick={() => setActiveReportsTab('ledger')}
-          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
             activeReportsTab === 'ledger'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
@@ -1245,9 +1308,40 @@ export default function ReportsModule({
           <BarChart size={14} className="stroke-[2.5]" />
           Ledger & Performance Audits
         </button>
+
+        <button
+          onClick={() => {
+            setActiveReportsTab('cutting_ledger');
+            setReportSubView('ledger');
+          }}
+          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+            activeReportsTab === 'cutting_ledger'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
+          }`}
+        >
+          <FileSpreadsheet size={14} className="stroke-[2.5]" />
+          Garments Cutting Ledger Report
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveReportsTab('consumption_report');
+            setReportSubView('consumption');
+          }}
+          className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+            activeReportsTab === 'consumption_report'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
+          }`}
+        >
+          <FileSpreadsheet size={14} className="stroke-[2.5]" />
+          Daily Consumption Tracking Report
+        </button>
+
         {currentProfile.can_access_remnant_entry === false ? (
           <div 
-            className="pb-3 border-b-2 border-transparent text-slate-300 dark:text-slate-600 flex items-center gap-2 cursor-not-allowed select-none"
+            className="pb-3 border-b-2 border-transparent text-slate-300 dark:text-slate-600 flex items-center gap-2 cursor-not-allowed select-none shrink-0"
             title="Remnant Entry requires active Remnants clearance."
           >
             <Lock size={14} className="stroke-[2.5]" />
@@ -1256,7 +1350,7 @@ export default function ReportsModule({
         ) : (
           <button
             onClick={() => setActiveReportsTab('remnants')}
-            className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            className={`pb-3 border-b-2 transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
               activeReportsTab === 'remnants'
                 ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-650 dark:hover:text-slate-350'
@@ -1387,31 +1481,21 @@ export default function ReportsModule({
         </div>
 
       </div>
+      </>
+      )}
 
-      {/* MAIN DATA TABLES & ACTION LEDGERS */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-        
-        {/* Table Title and Export */}
-        <div className="p-5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <h3 className="font-sans font-black text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              Report View:
-            </h3>
-            <div className="flex bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] font-bold">
-              <button
-                onClick={() => { setReportSubView('ledger'); setCurrentPage(1); }}
-                className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${reportSubView === 'ledger' ? 'bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-550 dark:text-slate-400 hover:text-slate-800'}`}
-              >
-                Garments Cutting Ledger Report
-              </button>
-              <button
-                onClick={() => { setReportSubView('consumption'); setCurrentPage(1); }}
-                className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${reportSubView === 'consumption' ? 'bg-white dark:bg-slate-950 text-[#2563EB] dark:text-blue-400 shadow-sm' : 'text-slate-550 dark:text-slate-400 hover:text-slate-800'}`}
-              >
-                Daily Consumption Tracking Report
-              </button>
+      {(activeReportsTab === 'cutting_ledger' || activeReportsTab === 'consumption_report') && (
+        <>
+        {/* MAIN DATA TABLES & ACTION LEDGERS */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs animate-fade-in">
+          
+          {/* Table Title and Export */}
+          <div className="p-5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <h3 className="font-sans font-black text-xs uppercase tracking-wider text-slate-850 dark:text-slate-100 whitespace-nowrap">
+                {activeReportsTab === 'cutting_ledger' ? 'Garments Cutting Ledger Report' : 'Daily Consumption Tracking Report'}
+              </h3>
             </div>
-          </div>
           <div className="flex flex-wrap items-center gap-3 print:hidden">
             <button
               onClick={() => window.print()}
