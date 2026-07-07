@@ -583,6 +583,32 @@ export default function App() {
     }
   };
 
+  const handleUpdatePolyEntry = async (id: string, total_received_poly: number, total_reused_poly: number) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/poly-entries/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ total_received_poly, total_reused_poly })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to update poly tracking entry.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error updating poly entry:", err);
+      throw err;
+    }
+  };
+
   // --- DELETE ENTRY ACTION ---
   const handleDeleteEntry = async (id: string) => {
     try {
@@ -1779,6 +1805,7 @@ export default function App() {
                   polyEntries={polyEntries}
                   currentProfile={currentProfile!}
                   onSubmitPolyEntry={handleAddPolyEntry}
+                  onUpdatePolyEntry={handleUpdatePolyEntry}
                   onDeletePolyEntry={handleDeletePolyEntry}
                   polyPrice={polyPrice}
                 />

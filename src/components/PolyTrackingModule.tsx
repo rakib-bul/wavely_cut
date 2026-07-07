@@ -20,6 +20,7 @@ interface PolyTrackingModuleProps {
   polyEntries: PolyEntry[];
   currentProfile: Profile;
   onSubmitPolyEntry: (entry_date: string, received: number, reused: number) => Promise<void>;
+  onUpdatePolyEntry: (id: string, received: number, reused: number) => Promise<void>;
   onDeletePolyEntry: (id: string) => Promise<void>;
   polyPrice?: number;
 }
@@ -28,6 +29,7 @@ export default function PolyTrackingModule({
   polyEntries,
   currentProfile,
   onSubmitPolyEntry,
+  onUpdatePolyEntry,
   onDeletePolyEntry,
   polyPrice = 1.50
 }: PolyTrackingModuleProps) {
@@ -48,6 +50,12 @@ export default function PolyTrackingModule({
   // Filter states
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  // Editing state tracking
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editReceivedPoly, setEditReceivedPoly] = useState<string>("");
+  const [editReusedPoly, setEditReusedPoly] = useState<string>("");
+  const [isSavingEdit, setIsSavingEdit] = useState<string | null>(null);
 
   // Deleting state tracking
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -237,6 +245,48 @@ export default function PolyTrackingModule({
       alert(err.message || "Failed to delete entry");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleEdit = (entry: PolyEntry) => {
+    setEditingId(entry.id);
+    setEditReceivedPoly(String(entry.total_received_poly));
+    setEditReusedPoly(String(entry.total_reused_poly));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditReceivedPoly("");
+    setEditReusedPoly("");
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    const receivedNum = parseFloat(editReceivedPoly);
+    const reusedNum = parseFloat(editReusedPoly);
+
+    if (isNaN(receivedNum) || receivedNum < 0) {
+      alert("Total Received Poly must be a non-negative number.");
+      return;
+    }
+
+    if (isNaN(reusedNum) || reusedNum < 0) {
+      alert("Total Re-Used Poly must be a non-negative number.");
+      return;
+    }
+
+    if (reusedNum > receivedNum) {
+      alert("Total Re-Used Poly cannot be greater than Total Received Poly.");
+      return;
+    }
+
+    setIsSavingEdit(id);
+    try {
+      await onUpdatePolyEntry(id, receivedNum, reusedNum);
+      setEditingId(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to update entry");
+    } finally {
+      setIsSavingEdit(null);
     }
   };
 
@@ -517,17 +567,39 @@ export default function PolyTrackingModule({
                     return (
                       <tr 
                         key={entry.id || entry.entry_date} 
-                        className="hover:bg-slate-50/60 dark:hover:bg-slate-850/40 text-slate-700 dark:text-slate-300 font-medium transition"
+                        className={`hover:bg-slate-50/60 dark:hover:bg-slate-850/40 text-slate-700 dark:text-slate-300 font-medium transition ${editingId === entry.id ? 'bg-slate-50 dark:bg-slate-800/50' : ''}`}
                       >
                         <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
                           <Calendar size={13} className="text-slate-400 shrink-0" />
                           <span>{entry.entry_date}</span>
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                          {received.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                          {editingId === entry.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editReceivedPoly}
+                              onChange={e => setEditReceivedPoly(e.target.value)}
+                              className="w-20 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 text-xs outline-none focus:border-indigo-500"
+                            />
+                          ) : (
+                            received.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                          {reused.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                          {editingId === entry.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editReusedPoly}
+                              onChange={e => setEditReusedPoly(e.target.value)}
+                              className="w-20 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 text-xs outline-none focus:border-indigo-500"
+                            />
+                          ) : (
+                            reused.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono">
                           <span className={`inline-flex px-2 py-0.5 rounded-lg text-[10px] font-black ${
@@ -547,18 +619,47 @@ export default function PolyTrackingModule({
                           ৳{saveVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => handleDelete(entry.id || entry.entry_date, entry.entry_date)}
-                            disabled={deletingId === entry.id}
-                            className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 text-slate-400 rounded-lg cursor-pointer transition shrink-0 inline-flex items-center justify-center disabled:opacity-50"
-                            title="Delete entry"
-                          >
-                            {deletingId === entry.id ? (
-                              <Loader2 size={13} className="animate-spin text-rose-500" />
-                            ) : (
-                              <Trash2 size={13} />
-                            )}
-                          </button>
+                          {editingId === entry.id ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleSaveEdit(entry.id)}
+                                disabled={isSavingEdit === entry.id}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px] disabled:opacity-50"
+                              >
+                                {isSavingEdit === entry.id ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                disabled={isSavingEdit === entry.id}
+                                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded font-bold text-[10px] disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleEdit(entry)}
+                                disabled={deletingId === entry.id}
+                                className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 text-slate-400 rounded-lg cursor-pointer transition shrink-0 inline-flex items-center justify-center disabled:opacity-50"
+                                title="Edit entry"
+                              >
+                                <ClipboardList size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(entry.id || entry.entry_date, entry.entry_date)}
+                                disabled={deletingId === entry.id}
+                                className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 text-slate-400 rounded-lg cursor-pointer transition shrink-0 inline-flex items-center justify-center disabled:opacity-50"
+                                title="Delete entry"
+                              >
+                                {deletingId === entry.id ? (
+                                  <Loader2 size={13} className="animate-spin text-rose-500" />
+                                ) : (
+                                  <Trash2 size={13} />
+                                )}
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

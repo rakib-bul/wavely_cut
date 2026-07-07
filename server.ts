@@ -1695,6 +1695,96 @@ app.post("/api/poly-entries", async (req, res) => {
   }
 });
 
+app.put("/api/poly-entries/:id", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = req.headers["x-user-email"] as string;
+
+    if (!["officer", "supervisor", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Officers and Admins can edit poly entries." });
+    }
+
+    const { id } = req.params;
+    const { total_received_poly, total_reused_poly } = req.body;
+
+    const numReceived = parseFloat(total_received_poly);
+    const numReused = parseFloat(total_reused_poly);
+
+    if (isNaN(numReceived) || numReceived < 0) {
+      return res.status(400).json({ error: "Total Received Poly must be a non-negative number." });
+    }
+
+    if (isNaN(numReused) || numReused < 0) {
+      return res.status(400).json({ error: "Total Re-Used Poly must be a non-negative number." });
+    }
+
+    if (numReused > numReceived) {
+      return res.status(400).json({ error: "Total Re-Used Poly cannot be greater than Total Received Poly." });
+    }
+
+    let updatedData = null;
+
+    // Supabase update
+    try {
+      // First get current price
+      const { data: currentEntry } = await supabase.from("poly_entries").select("price").eq("id", id).single();
+      const currentPrice = currentEntry?.price !== undefined && currentEntry.price !== null ? currentEntry.price : ((systemSettings as any).poly_price || 1.50);
+      const saveValue = numReused * currentPrice;
+
+      const { data, error } = await supabase
+        .from("poly_entries")
+        .update({
+          total_received_poly: numReceived,
+          total_reused_poly: numReused,
+          save: saveValue,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id)
+        .select();
+
+      if (error) throw error;
+      updatedData = data;
+    } catch (dbError: any) {
+      console.warn("Database save failed for poly entries, falling back to local settings.json:", dbError.message || dbError);
+      
+      if ((systemSettings as any).poly_entries) {
+        const existingIndex = (systemSettings as any).poly_entries.findIndex((e: any) => e.id === id || e.entry_date === id);
+        
+        if (existingIndex >= 0) {
+          const oldEntry = (systemSettings as any).poly_entries[existingIndex];
+          const currentPrice = oldEntry.price !== undefined ? oldEntry.price : ((systemSettings as any).poly_price || 1.50);
+          const saveValue = numReused * currentPrice;
+
+          (systemSettings as any).poly_entries[existingIndex] = {
+            ...oldEntry,
+            total_received_poly: numReceived,
+            total_reused_poly: numReused,
+            save: saveValue,
+            updated_at: new Date().toISOString()
+          };
+          saveSettings(systemSettings);
+          updatedData = [(systemSettings as any).poly_entries[existingIndex]];
+        }
+      }
+    }
+
+    await addAuditLog(
+      user_email,
+      "edit",
+      "poly_entry",
+      id,
+      null,
+      { total_received_poly: numReceived, total_reused_poly: numReused }
+    );
+
+    return res.json({ success: true, message: "Poly tracking entry updated successfully.", data: updatedData?.[0] });
+
+  } catch (err: any) {
+    console.error("Failed to update poly entry:", err.message);
+    return res.status(500).json({ error: "Failed to update poly entry: " + err.message });
+  }
+});
+
 app.delete("/api/poly-entries/:id", async (req, res) => {
   const { id } = req.params;
   const user_role = req.headers["x-user-role"] as UserRole;

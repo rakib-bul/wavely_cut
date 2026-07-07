@@ -1,14 +1,15 @@
-export const SCHEMA_DDL_STRING = `-- ====================================================================
+export const SCHEMA_DDL_STRING = `
+-- ====================================================================
 -- PRODUCTION-READY GARMENTS CUTTING MANAGEMENT SYSTEM SCHEMA
 -- TARGET DATABASE: PostgreSQL (Supabase / Cloud SQL)
--- AUTHOR: Platform
+-- AUTHOR: Rakib Hasan
 -- TIMESTAMP: 2026-06-23
 -- ====================================================================
 
--- Enable UUID Extension if not exists
+-- 1. Enable UUID Extension if not exists
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Profiles Table (Linked with Supabase auth.users)
+-- 2. Profiles Table (Linked with Supabase auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name VARCHAR(255) NOT NULL,
@@ -22,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Machines Table
+-- 3. Machines Table
 CREATE TABLE IF NOT EXISTS public.machines (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     machine_name VARCHAR(100) NOT NULL UNIQUE,
@@ -39,7 +40,7 @@ VALUES
     ('Stripe Cutting', 'Stripe')
 ON CONFLICT (machine_name) DO NOTHING;
 
--- Cutting Entries Table
+-- 4. Cutting Entries Table
 CREATE TABLE IF NOT EXISTS public.cutting_entries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     entry_date DATE NOT NULL,
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     reject_qty INT NOT NULL DEFAULT 0 CHECK (reject_qty >= 0),
     remnants_scrap_weight_kg NUMERIC(10, 3) NOT NULL DEFAULT 0.000 CHECK (remnants_scrap_weight_kg >= 0),
     marker_length_inch NUMERIC(10, 2) NOT NULL CHECK (marker_length_inch > 0),
+    marker_consumption NUMERIC(10, 3),
     marker_efficiency_percent NUMERIC(5, 2) NOT NULL CHECK (marker_efficiency_percent > 0 AND marker_efficiency_percent <= 100),
     remarks TEXT,
     supervisor_name VARCHAR(150),
@@ -79,6 +81,62 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     scrap_percent_per_marker NUMERIC(5, 2) GENERATED ALWAYS AS (100.00 - marker_efficiency_percent) STORED
 );
 
+-- Indexes for performance filtering (thousands of records per month)
+CREATE INDEX IF NOT EXISTS idx_entries_date ON public.cutting_entries(entry_date);
+CREATE INDEX IF NOT EXISTS idx_entries_buyer ON public.cutting_entries(buyer);
+CREATE INDEX IF NOT EXISTS idx_entries_job_no ON public.cutting_entries(job_no);
+CREATE INDEX IF NOT EXISTS idx_entries_machine_id ON public.cutting_entries(machine_id);
+CREATE INDEX IF NOT EXISTS idx_entries_fabric_type ON public.cutting_entries(fabric_type);
+CREATE INDEX IF NOT EXISTS idx_entries_status ON public.cutting_entries(status);
+
+-- 5. Audit Logs Table
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    user_email VARCHAR(255) NOT NULL,
+    action VARCHAR(50) NOT NULL CHECK (action IN ('create', 'edit', 'delete', 'approve')),
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id UUID NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Index for Audit logs view
+CREATE INDEX IF NOT EXISTS idx_audit_created_at ON public.audit_logs(created_at DESC);
+
+-- 6. Trigger to automatically update updated_at timestamps
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_profiles_modtime
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_modified_column();
+
+CREATE TRIGGER update_cutting_entries_modtime
+    BEFORE UPDATE ON public.cutting_entries
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_modified_column();
+
+-- 8. System Settings Table
+CREATE TABLE IF NOT EXISTS public.settings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Seed Settings
+INSERT INTO public.settings (key, value)
+VALUES ('app_settings', '{"job_no_digits": 7, "is_po_number_required": false, "poly_price": 1.50}')
+ON CONFLICT (key) DO NOTHING;
+
 -- Buyers Table
 CREATE TABLE IF NOT EXISTS public.buyers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -86,7 +144,7 @@ CREATE TABLE IF NOT EXISTS public.buyers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Seed Buyers
+-- Seed Buyers Data
 INSERT INTO public.buyers (name)
 VALUES 
     ('ZARA CO.'),
@@ -97,32 +155,23 @@ VALUES
     ('ADIDAS AG')
 ON CONFLICT (name) DO NOTHING;
 
--- Poly Entries Table
+-- 9. Poly Entries Table
 CREATE TABLE IF NOT EXISTS public.poly_entries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    entry_date DATE NOT NULL UNIQUE,
-    total_received_poly NUMERIC(10, 2) NOT NULL CHECK (total_received_poly >= 0),
-    total_reused_poly NUMERIC(10, 2) NOT NULL CHECK (total_reused_poly >= 0),
-    price NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (price >= 0),
-    save NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (save >= 0),
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    entry_date DATE NOT NULL,
+    total_received_poly NUMERIC NOT NULL DEFAULT 0,
+    total_reused_poly NUMERIC NOT NULL DEFAULT 0,
+    price NUMERIC,
+    save NUMERIC,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- MIGRATION FOR EXISTING SYSTEMS:
--- ALTER TABLE public.poly_entries ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (price >= 0);
--- ALTER TABLE public.poly_entries ADD COLUMN IF NOT EXISTS save NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (save >= 0);
--- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS po_no VARCHAR(100);
--- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS booking_consumption NUMERIC(10, 3);
--- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS cutting_consumption NUMERIC(10, 3);
--- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS supervisor_name VARCHAR(150);
 `;
-
-export const RLS_DDL_STRING = `-- ====================================================================
+export const RLS_DDL_STRING = `
+-- ====================================================================
 -- SUPABASE ROW LEVEL SECURITY (RLS) POLICIES
 -- TARGET DATABASE: PostgreSQL
--- AUTHOR: Platform
+-- AUTHOR: Rakib Hasan
 -- TIMESTAMP: 2026-06-23
 -- ====================================================================
 
@@ -130,6 +179,60 @@ export const RLS_DDL_STRING = `-- ==============================================
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cutting_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- Helper function to get current user's role from public.profiles
+CREATE OR REPLACE FUNCTION public.get_user_role()
+RETURNS VARCHAR AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+-- ==========================================
+-- 1. PROFILES TABLE POLICIES
+-- ==========================================
+
+-- Admins can do anything on profiles
+CREATE POLICY admin_all_profiles ON public.profiles
+    FOR ALL
+    USING (public.get_user_role() = 'admin')
+    WITH CHECK (public.get_user_role() = 'admin');
+
+-- All authenticated users can read profiles (needed for displays/approvals)
+CREATE POLICY all_read_profiles ON public.profiles
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- User can update their own profile details (excluding role)
+CREATE POLICY user_update_own_profile ON public.profiles
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+
+-- ==========================================
+-- 2. MACHINES TABLE POLICIES
+-- ==========================================
+
+-- All users can view machines list
+CREATE POLICY all_read_machines ON public.machines
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Admins and Supervisors can insert/update/delete machines
+CREATE POLICY admin_super_write_machines ON public.machines
+    FOR ALL
+    TO authenticated
+    USING (public.get_user_role() IN ('admin', 'supervisor'))
+    WITH CHECK (public.get_user_role() IN ('admin', 'supervisor'));
+
+
+-- ==========================================
+-- 3. CUTTING ENTRIES TABLE POLICIES
+-- ==========================================
 
 -- SELECT: All authenticated users can view all entries (unified access policy)
 CREATE POLICY select_cutting_entries ON public.cutting_entries
@@ -147,6 +250,7 @@ CREATE POLICY insert_cutting_entries ON public.cutting_entries
         public.get_user_role() IN ('operator', 'supervisor', 'admin')
     );
 
+-- UPDATE:
 -- Operator can only edit their OWN entry, and ONLY if it is still a 'draft'
 CREATE POLICY operator_update_own_draft ON public.cutting_entries
     FOR UPDATE
@@ -155,5 +259,84 @@ CREATE POLICY operator_update_own_draft ON public.cutting_entries
         public.get_user_role() = 'operator' 
         AND created_by = auth.uid() 
         AND status = 'draft'
+    )
+    WITH CHECK (
+        public.get_user_role() = 'operator' 
+        AND created_by = auth.uid() 
+        AND status IN ('draft', 'submitted')
     );
-`;
+
+-- Supervisor & Admin can update any entries (and approve them)
+CREATE POLICY supervisor_admin_update_all ON public.cutting_entries
+    FOR UPDATE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('supervisor', 'admin')
+    )
+    WITH CHECK (
+        public.get_user_role() IN ('supervisor', 'admin')
+    );
+
+-- DELETE:
+-- Only Supervisors and Admins can delete entries
+CREATE POLICY delete_cutting_entries ON public.cutting_entries
+    FOR DELETE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('supervisor', 'admin')
+    );
+
+
+-- ==========================================
+-- 4. AUDIT LOGS TABLE POLICIES
+-- ==========================================
+
+-- SELECT: Only Admins can select audit logs
+CREATE POLICY select_audit_logs ON public.audit_logs
+    FOR SELECT
+    TO authenticated
+    USING (
+        public.get_user_role() = 'admin'
+    );
+
+-- INSERT: System can write audit logs (automatic trigger or service backend)
+CREATE POLICY insert_audit_logs ON public.audit_logs
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+-- ==========================================
+-- 5. POLY ENTRIES TABLE POLICIES
+-- ==========================================
+
+ALTER TABLE public.poly_entries ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: All authenticated users can view poly entries
+CREATE POLICY select_poly_entries ON public.poly_entries
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- INSERT: Officers and Admins can insert poly entries
+CREATE POLICY insert_poly_entries ON public.poly_entries
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+    );
+
+-- UPDATE: Officers, Supervisors, and Admins can update poly entries
+CREATE POLICY update_poly_entries ON public.poly_entries
+    FOR UPDATE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+    );
+
+-- DELETE: Officers and Admins can delete poly entries
+CREATE POLICY delete_poly_entries ON public.poly_entries
+    FOR DELETE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+    );`;

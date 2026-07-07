@@ -152,7 +152,15 @@ CREATE POLICY insert_poly_entries ON public.poly_entries
     FOR INSERT
     TO authenticated
     WITH CHECK (
-        public.get_user_role() IN ('officer', 'admin')
+        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+    );
+
+-- UPDATE: Officers, Supervisors, and Admins can update poly entries
+CREATE POLICY update_poly_entries ON public.poly_entries
+    FOR UPDATE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('officer', 'supervisor', 'admin')
     );
 
 -- DELETE: Officers and Admins can delete poly entries
@@ -160,5 +168,5 @@ CREATE POLICY delete_poly_entries ON public.poly_entries
     FOR DELETE
     TO authenticated
     USING (
-        public.get_user_role() IN ('officer', 'admin')
+        public.get_user_role() IN ('officer', 'supervisor', 'admin')
     );
