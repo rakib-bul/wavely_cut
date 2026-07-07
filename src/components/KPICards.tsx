@@ -239,9 +239,9 @@ export default function KPICards({
     // Cumulative/Overall KPIs
     {
       id: "total-lots",
-      title: "Total Cutting Lots",
+      title: "Total Lay Cut",
       amount: (metrics.total_cutting_lots || 0).toLocaleString(),
-      unit: "Lots",
+      unit: "Cuts",
       desc: `Weight: ${(metrics.total_fabric_used || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} KG`,
       icon: Scissors,
       color: "text-blue-600 bg-blue-50 dark:bg-blue-500/10",

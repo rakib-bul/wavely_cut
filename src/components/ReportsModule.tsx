@@ -150,6 +150,7 @@ function RemnantsRow({
       <td className="p-4 font-medium whitespace-nowrap">{entry.buyer}</td>
       <td className="p-4 font-mono font-bold whitespace-nowrap">{entry.job_no}</td>
       <td className="p-4 font-medium whitespace-nowrap">{entry.color}</td>
+      <td className="p-4 font-mono font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">{entry.po_no || "N/A"}</td>
       <td className="p-4 font-medium whitespace-nowrap">{entry.item}</td>
       <td className="p-4 font-mono font-black text-slate-800 dark:text-slate-100 whitespace-nowrap">{entry.cut_no}</td>
       <td className="p-4 text-right font-mono font-black text-[#2563EB] whitespace-nowrap">{totalCutQty}</td>
@@ -1878,6 +1879,7 @@ export default function ReportsModule({
                     <th className="p-4 whitespace-nowrap">Buyer</th>
                     <th className="p-4 whitespace-nowrap">Job No</th>
                     <th className="p-4 whitespace-nowrap">Color</th>
+                    <th className="p-4 whitespace-nowrap">PO Number</th>
                     <th className="p-4 whitespace-nowrap">Item</th>
                     <th className="p-4 whitespace-nowrap">Cut No</th>
                     <th className="p-4 text-right whitespace-nowrap">Total Cut Qty</th>
@@ -1893,7 +1895,7 @@ export default function ReportsModule({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
                   {paginatedEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={16} className="text-center p-12 text-xs text-slate-400">
+                      <td colSpan={17} className="text-center p-12 text-xs text-slate-400">
                         No matching cutting logs found for remnants entries.
                       </td>
                     </tr>

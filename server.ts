@@ -121,7 +121,8 @@ let systemSettings = {
   is_po_number_required: false,
   whats_new_title: "",
   whats_new_content: "",
-  whats_new_updated_at: ""
+  whats_new_updated_at: "",
+  poly_price: 1.50
 };
 
 function loadSettings() {
@@ -1507,12 +1508,30 @@ app.get("/api/sync", async (req, res) => {
     })();
 
     // Fetch everything concurrently via parallel promise resolution
-    const [machines, buyers, entries, auditLogs, profiles] = await Promise.all([
+    const polyPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("poly_entries")
+          .select("*")
+          .order("entry_date", { ascending: false });
+        if (error) {
+          console.warn("Could not fetch poly_entries from Supabase, returning local setting fallback:", error.message);
+          return (systemSettings as any).poly_entries || [];
+        }
+        return data || [];
+      } catch (err: any) {
+        console.warn("Could not fetch poly_entries from Supabase, returning local setting fallback:", err.message);
+        return (systemSettings as any).poly_entries || [];
+      }
+    })();
+
+    const [machines, buyers, entries, auditLogs, profiles, polyEntries] = await Promise.all([
       machinesPromise,
       buyersPromise,
       entriesPromise,
       logsPromise,
-      profilesPromise
+      profilesPromise,
+      polyPromise
     ]);
 
     return res.json({
@@ -1521,6 +1540,7 @@ app.get("/api/sync", async (req, res) => {
       entries,
       auditLogs,
       profiles,
+      polyEntries,
       settings: systemSettings,
       version: res.locals.server_version || ""
     });
@@ -1528,6 +1548,177 @@ app.get("/api/sync", async (req, res) => {
   } catch (err: any) {
     console.error("Dashboard sync API error:", err.message);
     return res.status(500).json({ error: "Failed to perform synchronized load: " + err.message });
+  }
+});
+
+// ==========================================
+// POLY ENTRIES (DAILY POLY RECEIVED & RE-USE SUMMARY)
+// ==========================================
+
+app.post("/api/poly-entries", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  // Verify role permission (Only supervisor / officer and admin can edit/write)
+  if (user_role !== "supervisor" && user_role !== "admin") {
+    return res.status(403).json({ error: "Access Denied. Only Officers and Admins can log daily poly received & re-use data." });
+  }
+
+  const { entry_date, total_received_poly, total_reused_poly } = req.body;
+  if (!entry_date || total_received_poly === undefined || total_reused_poly === undefined) {
+    return res.status(400).json({ error: "Missing required fields (Date, Total Received Poly, Total Re-Used Poly)" });
+  }
+
+  const numReceived = parseFloat(total_received_poly);
+  const numReused = parseFloat(total_reused_poly);
+
+  if (isNaN(numReceived) || numReceived < 0) {
+    return res.status(400).json({ error: "Total Received Poly must be a non-negative number." });
+  }
+  if (isNaN(numReused) || numReused < 0) {
+    return res.status(400).json({ error: "Total Re-Used Poly must be a non-negative number." });
+  }
+
+  try {
+    // 1. Try resolving profile UUID from email to record creator
+    let creatorId: string | null = null;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+      if (prof) {
+        creatorId = prof.id;
+      }
+    } catch {}
+
+    const currentPrice = (systemSettings as any).poly_price !== undefined ? parseFloat((systemSettings as any).poly_price) : 1.50;
+    const saveValue = parseFloat((numReused * currentPrice).toFixed(2));
+
+    // 2. Insert or update in Supabase
+    const payload = {
+      entry_date,
+      total_received_poly: numReceived,
+      total_reused_poly: numReused,
+      price: currentPrice,
+      save: saveValue,
+      created_by: creatorId,
+      updated_at: new Date().toISOString()
+    };
+
+    let dbError: any = null;
+    let insertedData: any = null;
+    try {
+      const { data, error } = await supabase
+        .from("poly_entries")
+        .upsert(payload, { onConflict: "entry_date" })
+        .select();
+      dbError = error;
+      insertedData = data;
+    } catch (err: any) {
+      dbError = err;
+    }
+
+    // 3. Fallback to settings.json if table isn't created or Supabase is not available
+    if (dbError) {
+      console.warn("Database save failed for poly entries, falling back to local settings.json:", dbError.message || dbError);
+      
+      if (!(systemSettings as any).poly_entries) {
+        (systemSettings as any).poly_entries = [];
+      }
+      
+      const existingIndex = (systemSettings as any).poly_entries.findIndex((e: any) => e.entry_date === entry_date);
+      const uuidPlaceholder = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      const newLocalEntry = {
+        id: existingIndex >= 0 ? (systemSettings as any).poly_entries[existingIndex].id : uuidPlaceholder,
+        entry_date,
+        total_received_poly: numReceived,
+        total_reused_poly: numReused,
+        price: currentPrice,
+        save: saveValue,
+        created_by: user_email,
+        created_at: existingIndex >= 0 ? (systemSettings as any).poly_entries[existingIndex].created_at : new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (existingIndex >= 0) {
+        (systemSettings as any).poly_entries[existingIndex] = newLocalEntry;
+      } else {
+        (systemSettings as any).poly_entries.push(newLocalEntry);
+      }
+
+      // Save system settings locally
+      saveSettings(systemSettings);
+      insertedData = [newLocalEntry];
+    }
+
+    // 4. Log Audit Trail
+    await addAuditLog(
+      user_email,
+      "create",
+      "poly_entry",
+      insertedData?.[0]?.id || entry_date,
+      null,
+      { entry_date, total_received_poly: numReceived, total_reused_poly: numReused }
+    );
+
+    return res.json({ success: true, message: "Daily poly received and re-use logged successfully.", data: insertedData?.[0] });
+
+  } catch (err: any) {
+    console.error("Failed to log daily poly entry:", err.message);
+    return res.status(500).json({ error: "Failed to log daily poly entry: " + err.message });
+  }
+});
+
+app.delete("/api/poly-entries/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  // Verify role permission (Only supervisor / officer and admin)
+  if (user_role !== "supervisor" && user_role !== "admin") {
+    return res.status(403).json({ error: "Access Denied. Only Officers and Admins can delete poly entries." });
+  }
+
+  try {
+    let dbError: any = null;
+    let deletedCount = 0;
+    try {
+      let query = supabase.from("poly_entries").delete();
+      if (id.includes("-") && id.length > 10) {
+        query = query.eq("id", id);
+      } else {
+        query = query.eq("entry_date", id);
+      }
+      const { data, error } = await query.select();
+      dbError = error;
+      if (data && data.length > 0) {
+        deletedCount = data.length;
+      }
+    } catch (err: any) {
+      dbError = err;
+    }
+
+    // Fallback to local settings.json
+    if (dbError || deletedCount === 0) {
+      if ((systemSettings as any).poly_entries) {
+        const initialLength = (systemSettings as any).poly_entries.length;
+        (systemSettings as any).poly_entries = (systemSettings as any).poly_entries.filter((e: any) => e.id !== id && e.entry_date !== id);
+        if ((systemSettings as any).poly_entries.length < initialLength) {
+          saveSettings(systemSettings);
+          deletedCount = 1;
+        }
+      }
+    }
+
+    if (deletedCount > 0) {
+      await addAuditLog(user_email, "delete", "poly_entry", id, null, null);
+      return res.json({ success: true, message: "Poly tracking entry deleted successfully." });
+    } else {
+      return res.status(404).json({ error: "Poly tracking entry not found." });
+    }
+
+  } catch (err: any) {
+    console.error("Failed to delete poly entry:", err.message);
+    return res.status(500).json({ error: "Failed to delete poly entry: " + err.message });
   }
 });
 
@@ -1553,18 +1744,25 @@ app.post("/api/settings", async (req, res) => {
     return res.status(403).json({ error: "Only Admins can modify system configurations." });
   }
 
-  const { job_no_digits, is_po_number_required, whats_new_title, whats_new_content, whats_new_updated_at } = req.body;
+  const { job_no_digits, is_po_number_required, whats_new_title, whats_new_content, whats_new_updated_at, poly_price } = req.body;
   if (job_no_digits === undefined || typeof job_no_digits !== "number" || job_no_digits <= 0 || job_no_digits > 20) {
     return res.status(400).json({ error: "Job No digits must be a positive integer between 1 and 20." });
   }
 
+  const newPolyPrice = poly_price !== undefined ? parseFloat(poly_price) : ((systemSettings as any).poly_price || 1.50);
+  if (isNaN(newPolyPrice) || newPolyPrice < 0) {
+    return res.status(400).json({ error: "Poly price must be a non-negative number." });
+  }
+
   const old_value = { ...systemSettings };
   const success = saveSettings({
+    ...systemSettings,
     job_no_digits,
     is_po_number_required: typeof is_po_number_required === "boolean" ? is_po_number_required : (systemSettings.is_po_number_required || false),
     whats_new_title: typeof whats_new_title === "string" ? whats_new_title : (systemSettings.whats_new_title || ""),
     whats_new_content: typeof whats_new_content === "string" ? whats_new_content : (systemSettings.whats_new_content || ""),
-    whats_new_updated_at: typeof whats_new_updated_at === "string" ? whats_new_updated_at : (systemSettings.whats_new_updated_at || "")
+    whats_new_updated_at: typeof whats_new_updated_at === "string" ? whats_new_updated_at : (systemSettings.whats_new_updated_at || ""),
+    poly_price: newPolyPrice
   });
 
   if (!success) {

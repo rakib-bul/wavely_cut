@@ -97,7 +97,22 @@ VALUES
     ('ADIDAS AG')
 ON CONFLICT (name) DO NOTHING;
 
+-- Poly Entries Table
+CREATE TABLE IF NOT EXISTS public.poly_entries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entry_date DATE NOT NULL UNIQUE,
+    total_received_poly NUMERIC(10, 2) NOT NULL CHECK (total_received_poly >= 0),
+    total_reused_poly NUMERIC(10, 2) NOT NULL CHECK (total_reused_poly >= 0),
+    price NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (price >= 0),
+    save NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (save >= 0),
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- MIGRATION FOR EXISTING SYSTEMS:
+-- ALTER TABLE public.poly_entries ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (price >= 0);
+-- ALTER TABLE public.poly_entries ADD COLUMN IF NOT EXISTS save NUMERIC(10, 2) DEFAULT 0.00 NOT NULL CHECK (save >= 0);
 -- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS po_no VARCHAR(100);
 -- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS booking_consumption NUMERIC(10, 3);
 -- ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS cutting_consumption NUMERIC(10, 3);

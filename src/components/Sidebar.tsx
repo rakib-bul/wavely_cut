@@ -13,7 +13,8 @@ import {
   Code2,
   Phone,
   Mail,
-  Lock
+  Lock,
+  RefreshCw
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -49,6 +50,7 @@ export default function Sidebar({
     { id: "data_entry", label: "Cutting Entries", icon: ListPlus, roles: ["operator", "supervisor", "admin"] },
     { id: "reports", label: "Ledgers & Reports", icon: FileSpreadsheet, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["supervisor", "manager", "admin"] },
+    { id: "poly_tracking", label: "Poly Tracking", icon: RefreshCw, roles: ["supervisor", "admin"] },
     { id: "admin", label: "Factory & IAM Admin", icon: ShieldAlert, roles: ["admin"] }
   ];
 

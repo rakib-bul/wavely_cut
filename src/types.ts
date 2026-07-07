@@ -82,3 +82,15 @@ export interface AuditLog {
   new_value?: string; // JSON string
   created_at: string;
 }
+
+export interface PolyEntry {
+  id: string;
+  entry_date: string; // YYYY-MM-DD
+  total_received_poly: number;
+  total_reused_poly: number;
+  price: number;
+  save: number;
+  created_by?: string; // profile_id / email
+  created_at?: string;
+  updated_at?: string;
+}

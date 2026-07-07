@@ -350,9 +350,9 @@ export default function DailyReport({
           </thead>
           <tbody>
             <tr>
-              <td class="align-left">Total Cutting Lots</td>
+              <td class="align-left">Total Lay Cut</td>
               <td class="align-right" style="font-weight: bold;">${stats.totalCuttingLots}</td>
-              <td class="align-center">Lots</td>
+              <td class="align-center">Cuts</td>
             </tr>
             <tr>
               <td class="align-left">Total Lay Layers</td>
@@ -627,8 +627,8 @@ export default function DailyReport({
                 </div>
                 <div className="space-y-3 font-sans">
                   <div className="flex justify-between items-center text-xs font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">Total Cutting Lots:</span>
-                    <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.totalCuttingLots} <span className="text-[10px] text-slate-400 font-bold uppercase">Lots</span></span>
+                    <span className="text-slate-500 dark:text-slate-400">Total Lay Cut:</span>
+                    <span className="font-mono font-extrabold text-slate-900 dark:text-white">{stats.totalCuttingLots} <span className="text-[10px] text-slate-400 font-bold uppercase">Cuts</span></span>
                   </div>
                   <div className="flex justify-between items-center text-xs font-medium">
                     <span className="text-slate-500 dark:text-slate-400">Total Lay Layers:</span>

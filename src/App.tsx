@@ -8,8 +8,9 @@ import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import TableProductionView from "./components/TableProductionView";
-import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole } from "./types";
+import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry } from "./types";
 import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
+import PolyTrackingModule from "./components/PolyTrackingModule";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -75,6 +76,14 @@ export default function App() {
       return 7;
     }
   });
+  const [polyPrice, setPolyPrice] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_poly_price");
+      return saved ? Number(saved) : 1.50;
+    } catch {
+      return 1.50;
+    }
+  });
   const [isPoNumberRequired, setIsPoNumberRequired] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("erp_cached_is_po_number_required");
@@ -114,6 +123,15 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
     try {
       const saved = localStorage.getItem("erp_cached_audit_logs");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [polyEntries, setPolyEntries] = useState<PolyEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_poly_entries");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -288,9 +306,23 @@ export default function App() {
           } catch (e) {}
         }
 
+        // Update poly entries state
+        if (syncData.polyEntries) {
+          setPolyEntries(syncData.polyEntries);
+          try {
+            localStorage.setItem("erp_cached_poly_entries", JSON.stringify(syncData.polyEntries));
+          } catch (e) {}
+        }
+
         // Update system settings state
         if (syncData.settings) {
           const settingsData = syncData.settings;
+          if (settingsData.poly_price !== undefined) {
+            setPolyPrice(Number(settingsData.poly_price));
+            try {
+              localStorage.setItem("erp_cached_poly_price", String(settingsData.poly_price));
+            } catch (e) {}
+          }
           if (typeof settingsData.is_po_number_required === "boolean") {
             setIsPoNumberRequired(settingsData.is_po_number_required);
             try {
@@ -396,7 +428,8 @@ export default function App() {
     const protectedRolesMap: { [tab: string]: UserRole[] } = {
       admin: ["admin"],
       analytics: ["supervisor", "manager", "admin"],
-      data_entry: ["operator", "supervisor", "admin"]
+      data_entry: ["operator", "supervisor", "admin"],
+      poly_tracking: ["supervisor", "admin"]
     };
 
     const allowedRoles = protectedRolesMap[activeTab];
@@ -495,6 +528,58 @@ export default function App() {
       await fetchData();
     } catch (err: any) {
       alert("Network submission failed: " + err.message);
+    }
+  };
+
+  // --- POLY ENTRIES ACTIONS ---
+  const handleAddPolyEntry = async (entry_date: string, received: number, reused: number) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch("/api/poly-entries", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ entry_date, total_received_poly: received, total_reused_poly: reused })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to log poly data.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error submitting poly entry:", err);
+      throw err;
+    }
+  };
+
+  const handleDeletePolyEntry = async (id: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/poly-entries/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete poly tracking entry.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error deleting poly entry:", err);
+      throw err;
     }
   };
 
@@ -662,6 +747,36 @@ export default function App() {
       await fetchData();
     } catch (err: any) {
       alert("Failed to update system settings: " + err.message);
+    }
+  };
+
+  const handleUpdatePolyPrice = async (price: number) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ job_no_digits: jobNoDigits, poly_price: price })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Setting update failed.");
+        return;
+      }
+
+      const updated = await res.json();
+      if (updated.poly_price !== undefined) {
+        setPolyPrice(Number(updated.poly_price));
+      }
+      await fetchData(true);
+    } catch (err: any) {
+      alert("Failed to update poly price: " + err.message);
     }
   };
 
@@ -1259,6 +1374,8 @@ export default function App() {
         return "Advanced Floor Analytics";
       case "admin":
         return "IAM & Machine Admin";
+      case "poly_tracking":
+        return "Poly Tracking & Re-Use";
       default:
         return "Cutting Dashboard";
     }
@@ -1641,6 +1758,19 @@ export default function App() {
               </div>
             )}
 
+            {/* TAB 4.5: POLY RECEIVED & RE-USE */}
+            {activeTab === "poly_tracking" && (
+              <div className="animate-fade-in">
+                <PolyTrackingModule
+                  polyEntries={polyEntries}
+                  currentProfile={currentProfile!}
+                  onSubmitPolyEntry={handleAddPolyEntry}
+                  onDeletePolyEntry={handleDeletePolyEntry}
+                  polyPrice={polyPrice}
+                />
+              </div>
+            )}
+
             {/* TAB 5: ADMIN / IAM SETTINGS */}
             {activeTab === "admin" && (
               <div className="animate-fade-in">
@@ -1667,6 +1797,8 @@ export default function App() {
                   whatsNewContent={whatsNewContent}
                   whatsNewUpdatedAt={whatsNewUpdatedAt}
                   onUpdateWhatsNew={handleUpdateWhatsNew}
+                  polyPrice={polyPrice}
+                  onUpdatePolyPrice={handleUpdatePolyPrice}
                 />
               </div>
             )}

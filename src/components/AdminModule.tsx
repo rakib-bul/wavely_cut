@@ -19,7 +19,8 @@ import {
   Megaphone,
   Camera,
   ImagePlus,
-  X
+  X,
+  Coins
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -46,6 +47,8 @@ interface AdminModuleProps {
   whatsNewContent?: string;
   whatsNewUpdatedAt?: string;
   onUpdateWhatsNew?: (title: string, content: string) => Promise<void>;
+  polyPrice?: number;
+  onUpdatePolyPrice?: (price: number) => Promise<void>;
 }
 
 export default function AdminModule({
@@ -70,7 +73,9 @@ export default function AdminModule({
   whatsNewTitle = "",
   whatsNewContent = "",
   whatsNewUpdatedAt = "",
-  onUpdateWhatsNew
+  onUpdateWhatsNew,
+  polyPrice = 1.50,
+  onUpdatePolyPrice
 }: AdminModuleProps) {
   // --- Admin Views State ---
   const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'settings' | 'logs' | 'ddl'>('iam');
@@ -78,10 +83,18 @@ export default function AdminModule({
   const [localDigits, setLocalDigits] = useState(jobNoDigits);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Poly Price States
+  const [localPolyPrice, setLocalPolyPrice] = useState(String(polyPrice));
+  const [isSavingPolyPrice, setIsSavingPolyPrice] = useState(false);
+
   // Whats New Editor States
   const [localTitle, setLocalTitle] = useState(whatsNewTitle);
   const [localContent, setLocalContent] = useState(whatsNewContent);
   const [isSavingWhatsNew, setIsSavingWhatsNew] = useState(false);
+
+  React.useEffect(() => {
+    setLocalPolyPrice(String(polyPrice));
+  }, [polyPrice]);
 
   React.useEffect(() => {
     setLocalTitle(whatsNewTitle);
@@ -854,6 +867,65 @@ export default function AdminModule({
               >
                 <div className={`w-4 h-4 rounded-full bg-white transition-all transform ${isPoNumberRequired ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
+            </div>
+          </div>
+
+          {/* Poly Price Financial Rate Configuration */}
+          <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-850">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Coins size={16} className="text-emerald-600 dark:text-emerald-400" /> Poly Re-Use Financial Metrics Setting
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-6 font-medium">
+              Configure the assigned price value of a re-used poly bag. This value is used to calculate the saved money metrics inside the Daily Poly Received and Re-Use module.
+              <span className="block mt-1 font-bold text-slate-700 dark:text-slate-300">Saved Money = Re-used Poly Bags × Assigned Price Rate</span>
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-150 dark:border-slate-800 shadow-xs max-w-md">
+              <div className="flex-1 w-full">
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">Assigned Price Per Bag (BDT ৳)</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-400">৳</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={localPolyPrice}
+                    onChange={e => setLocalPolyPrice(e.target.value)}
+                    placeholder="1.50"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-xs text-slate-850 dark:text-slate-100 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4">
+              <button
+                onClick={async () => {
+                  const parsed = parseFloat(localPolyPrice);
+                  if (isNaN(parsed) || parsed < 0) {
+                    alert("Please enter a valid non-negative price value.");
+                    return;
+                  }
+                  setIsSavingPolyPrice(true);
+                  try {
+                    await onUpdatePolyPrice?.(parsed);
+                    alert("Poly bag price setting updated successfully.");
+                  } catch (err: any) {
+                    alert("Failed to update poly price: " + err.message);
+                  } finally {
+                    setIsSavingPolyPrice(false);
+                  }
+                }}
+                disabled={isSavingPolyPrice}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isSavingPolyPrice ? "Saving Price..." : "Save Price Rate"}
+              </button>
+              {localPolyPrice !== String(polyPrice) && (
+                <span className="text-xs text-amber-500 font-semibold animate-pulse">
+                  Unsaved price adjustments.
+                </span>
+              )}
             </div>
           </div>
 
