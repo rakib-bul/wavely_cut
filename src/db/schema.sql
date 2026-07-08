@@ -165,3 +165,79 @@ CREATE TABLE IF NOT EXISTS public.poly_entries (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 10. Heat Seal Operators Table
+CREATE TABLE IF NOT EXISTS public.heat_seal_operators (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    operator_name VARCHAR(255) NOT NULL,
+    operator_id VARCHAR(100) NOT NULL UNIQUE,
+    designation VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Seed Heat Seal Operators
+INSERT INTO public.heat_seal_operators (operator_name, operator_id, designation)
+VALUES 
+    ('John Doe', 'HS-001', 'Heat-Seal Operator'),
+    ('Jane Smith', 'HS-002', 'Senior Operator'),
+    ('Robert Johnson', 'HS-003', 'Junior Operator'),
+    ('Emily Davis', 'HS-004', 'Heat-Seal Operator')
+ON CONFLICT (operator_id) DO NOTHING;
+
+-- 11. Heat Seal Targets Table
+CREATE TABLE IF NOT EXISTS public.heat_seal_targets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    target_date DATE NOT NULL,
+    shift CHAR(1) NOT NULL CHECK (shift IN ('A', 'B', 'C', 'D', 'N')),
+    operator_id VARCHAR(100) NOT NULL REFERENCES public.heat_seal_operators(operator_id) ON DELETE CASCADE,
+    operator_name VARCHAR(255) NOT NULL,
+    job_no VARCHAR(100) NOT NULL,
+    color VARCHAR(100) NOT NULL,
+    po_no VARCHAR(100) NOT NULL,
+    hourly_target INT NOT NULL DEFAULT 100,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_heat_seal_target_date ON public.heat_seal_targets(target_date);
+
+-- 12. Heat Seal Entries Table
+CREATE TABLE IF NOT EXISTS public.heat_seal_entries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entry_date DATE NOT NULL,
+    shift CHAR(1) NOT NULL CHECK (shift IN ('A', 'B', 'C', 'D', 'N')),
+    operator_name VARCHAR(255) NOT NULL,
+    operator_id VARCHAR(100) NOT NULL,
+    designation VARCHAR(100) NOT NULL,
+    job_no VARCHAR(100),
+    color VARCHAR(100),
+    po_no VARCHAR(100),
+    target_id UUID REFERENCES public.heat_seal_targets(id) ON DELETE SET NULL,
+    hourly_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_heat_seal_date ON public.heat_seal_entries(entry_date);
+CREATE INDEX IF NOT EXISTS idx_heat_seal_status ON public.heat_seal_entries(status);
+
+CREATE TRIGGER update_heat_seal_entries_modtime
+    BEFORE UPDATE ON public.heat_seal_entries
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_modified_column();
+
+CREATE OR REPLACE FUNCTION update_heat_seal_targets_modtime_fn()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_heat_seal_targets_modtime
+    BEFORE UPDATE ON public.heat_seal_targets
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_heat_seal_targets_modtime_fn();
+

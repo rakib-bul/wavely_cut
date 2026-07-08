@@ -20,7 +20,8 @@ import {
   Camera,
   ImagePlus,
   X,
-  Coins
+  Coins,
+  AlertTriangle
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -185,6 +186,13 @@ export default function AdminModule({
   // Code Copy State helpers
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [copiedRls, setCopiedRls] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
 
   const handleCopy = (text: string, type: 'schema' | 'rls') => {
     navigator.clipboard.writeText(text);
@@ -1001,19 +1009,26 @@ export default function AdminModule({
 
                 {whatsNewTitle && (
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (!onUpdateWhatsNew) return;
-                      if (!confirm("Are you sure you want to clear and disable the active launcher announcement?")) return;
-                      setIsSavingWhatsNew(true);
-                      try {
-                        await onUpdateWhatsNew("", "");
-                        setLocalTitle("");
-                        setLocalContent("");
-                      } catch (err: any) {
-                        alert("Error clearing announcement: " + err.message);
-                      } finally {
-                        setIsSavingWhatsNew(false);
-                      }
+                      setConfirmDialog({
+                        isOpen: true,
+                        title: "Clear Announcement",
+                        message: "Are you sure you want to clear and disable the active launcher announcement?",
+                        onConfirm: async () => {
+                          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                          setIsSavingWhatsNew(true);
+                          try {
+                            await onUpdateWhatsNew("", "");
+                            setLocalTitle("");
+                            setLocalContent("");
+                          } catch (err: any) {
+                            alert("Error clearing announcement: " + err.message);
+                          } finally {
+                            setIsSavingWhatsNew(false);
+                          }
+                        }
+                      });
                     }}
                     disabled={isSavingWhatsNew}
                     className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
@@ -1218,19 +1233,26 @@ export default function AdminModule({
               {selectedProfileForAvatar.avatar_url && (
                 <button
                   type="button"
-                  onClick={async () => {
+                  onClick={() => {
                     if (!onUpdateAvatar) return;
-                    if (!confirm("Remove profile picture for this user?")) return;
-                    setIsSavingAvatar(true);
-                    try {
-                      await onUpdateAvatar(selectedProfileForAvatar.id, "");
-                      setSelectedProfileForAvatar(null);
-                      setAvatarUrlInputValue('');
-                    } catch (err: any) {
-                      alert("Failed to remove avatar: " + err.message);
-                    } finally {
-                      setIsSavingAvatar(false);
-                    }
+                    setConfirmDialog({
+                      isOpen: true,
+                      title: "Remove Avatar",
+                      message: "Remove profile picture for this user?",
+                      onConfirm: async () => {
+                        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                        setIsSavingAvatar(true);
+                        try {
+                          await onUpdateAvatar(selectedProfileForAvatar.id, "");
+                          setSelectedProfileForAvatar(null);
+                          setAvatarUrlInputValue('');
+                        } catch (err: any) {
+                          alert("Failed to remove avatar: " + err.message);
+                        } finally {
+                          setIsSavingAvatar(false);
+                        }
+                      }
+                    });
                   }}
                   disabled={isSavingAvatar}
                   className="px-4 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-rose-200 dark:border-rose-950/50 hover:border-rose-300 text-rose-600 dark:text-rose-400 rounded-xl transition font-bold text-[11px] flex items-center gap-1 shadow-sm cursor-pointer mr-auto"
@@ -1276,6 +1298,37 @@ export default function AdminModule({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full text-xs space-y-4 shadow-xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-lg">
+                <AlertTriangle size={18} />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-sm text-slate-800">{confirmDialog.title}</h3>
+              </div>
+            </div>
+            <p className="text-slate-600 font-sans">{confirmDialog.message}</p>
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="px-3.5 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition font-bold flex items-center gap-1 cursor-pointer"
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       )}

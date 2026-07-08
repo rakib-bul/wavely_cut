@@ -12,7 +12,8 @@ import {
   Lock,
   Sparkles,
   Coins,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertTriangle
 } from "lucide-react";
 import { PolyEntry, Profile } from "../types";
 
@@ -59,6 +60,19 @@ export default function PolyTrackingModule({
 
   // Deleting state tracking
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
+
+  const [alertDialog, setAlertDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({ isOpen: false, title: "", message: "" });
 
   // Filtering entries based on selected date range
   const filteredEntries = useMemo(() => {
@@ -234,18 +248,23 @@ export default function PolyTrackingModule({
     }
   };
 
-  const handleDelete = async (id: string, date: string) => {
-    if (!window.confirm(`Are you sure you want to delete the poly entry for ${date}?`)) {
-      return;
-    }
-    setDeletingId(id);
-    try {
-      await onDeletePolyEntry(id);
-    } catch (err: any) {
-      alert(err.message || "Failed to delete entry");
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDelete = (id: string, date: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Poly Entry",
+      message: `Are you sure you want to delete the poly entry for ${date}?`,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setDeletingId(id);
+        try {
+          await onDeletePolyEntry(id);
+        } catch (err: any) {
+          setAlertDialog({ isOpen: true, title: "Operation Failed", message: err.message || "Failed to delete entry" });
+        } finally {
+          setDeletingId(null);
+        }
+      }
+    });
   };
 
   const handleEdit = (entry: PolyEntry) => {
@@ -265,17 +284,17 @@ export default function PolyTrackingModule({
     const reusedNum = parseFloat(editReusedPoly);
 
     if (isNaN(receivedNum) || receivedNum < 0) {
-      alert("Total Received Poly must be a non-negative number.");
+      setAlertDialog({ isOpen: true, title: "Validation Error", message: "Total Received Poly must be a non-negative number." });
       return;
     }
 
     if (isNaN(reusedNum) || reusedNum < 0) {
-      alert("Total Re-Used Poly must be a non-negative number.");
+      setAlertDialog({ isOpen: true, title: "Validation Error", message: "Total Re-Used Poly must be a non-negative number." });
       return;
     }
 
     if (reusedNum > receivedNum) {
-      alert("Total Re-Used Poly cannot be greater than Total Received Poly.");
+      setAlertDialog({ isOpen: true, title: "Validation Error", message: "Total Re-Used Poly cannot be greater than Total Received Poly." });
       return;
     }
 
@@ -284,7 +303,7 @@ export default function PolyTrackingModule({
       await onUpdatePolyEntry(id, receivedNum, reusedNum);
       setEditingId(null);
     } catch (err: any) {
-      alert(err.message || "Failed to update entry");
+      setAlertDialog({ isOpen: true, title: "Operation Failed", message: err.message || "Failed to update entry" });
     } finally {
       setIsSavingEdit(null);
     }
@@ -680,6 +699,60 @@ export default function PolyTrackingModule({
 
       </div>
 
+      {/* Modals */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full text-xs space-y-4 shadow-xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-lg">
+                <AlertTriangle size={18} />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-sm text-slate-800">{confirmDialog.title}</h3>
+              </div>
+            </div>
+            <p className="text-slate-600 font-sans">{confirmDialog.message}</p>
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="px-3.5 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition font-bold flex items-center gap-1 cursor-pointer"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full text-xs space-y-4 shadow-xl">
+            <div className="flex items-center gap-3 text-indigo-600">
+              <div className="p-2 bg-indigo-50 rounded-lg">
+                <AlertTriangle size={18} />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-sm text-slate-800">{alertDialog.title}</h3>
+              </div>
+            </div>
+            <p className="text-slate-600 font-sans">{alertDialog.message}</p>
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setAlertDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-3.5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium cursor-pointer"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

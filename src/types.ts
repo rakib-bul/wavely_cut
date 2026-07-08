@@ -94,3 +94,52 @@ export interface PolyEntry {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface HourlyHeatSealData {
+  hour_slot: string; // "8-9 AM", "9-10 AM"
+  target: number;
+  production: number;
+  shortfall: number;
+  efficiency: number;
+}
+
+export interface HeatSealOperator {
+  id: string;
+  operator_name: string;
+  operator_id: string; // unique company code
+  designation: string;
+  created_at?: string;
+}
+
+export interface HeatSealTarget {
+  id: string;
+  target_date: string;
+  shift: 'A' | 'B' | 'C' | 'D' | 'N';
+  operator_id: string;
+  operator_name: string;
+  job_no: string;
+  color: string;
+  po_no: string;
+  hourly_target: number;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface HeatSealEntry {
+  id: string;
+  entry_date: string; // YYYY-MM-DD
+  shift: 'A' | 'B' | 'C' | 'D' | 'N';
+  operator_name: string;
+  operator_id: string;
+  designation: string;
+  job_no?: string;
+  color?: string;
+  po_no?: string;
+  target_id?: string;
+  hourly_data: HourlyHeatSealData[];
+  created_by?: string;
+  status: 'draft' | 'submitted' | 'approved';
+  created_at?: string;
+  updated_at?: string;
+}

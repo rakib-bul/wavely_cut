@@ -14,7 +14,8 @@ import {
   Phone,
   Mail,
   Lock,
-  RefreshCw
+  RefreshCw,
+  Flame
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -51,6 +52,7 @@ export default function Sidebar({
     { id: "reports", label: "Ledgers & Reports", icon: FileSpreadsheet, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["supervisor", "manager", "admin"] },
     { id: "poly_tracking", label: "Poly Tracking", icon: RefreshCw, roles: ["supervisor", "admin"] },
+    { id: "heat_seal_tracking", label: "Heat Seal Tracking", icon: Flame, roles: ["operator", "supervisor", "admin"] },
     { id: "admin", label: "Factory & IAM Admin", icon: ShieldAlert, roles: ["admin"] }
   ];
 

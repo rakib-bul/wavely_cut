@@ -241,6 +241,25 @@ async function ensureBuyerExists(buyerName: string) {
 }
 
 
+// Helper to map UI shift values ('D', 'N') to DB-compliant shift values ('A', 'B')
+function mapShiftToDb(shift: string | undefined): string | undefined {
+  if (!shift) return shift;
+  const upper = shift.toUpperCase();
+  if (upper === "D") return "A";
+  if (upper === "N") return "B";
+  return shift;
+}
+
+// Helper to map DB-compliant shift values ('A', 'B') to UI-friendly shift values ('D', 'N')
+function mapShiftFromDb(shift: string | undefined): string | undefined {
+  if (!shift) return shift;
+  const upper = shift.toUpperCase();
+  if (upper === "A") return "D";
+  if (upper === "B") return "N";
+  return shift;
+}
+
+
 // Helper to add audit log
 async function addAuditLog(
   user_email: string,
@@ -477,7 +496,7 @@ app.post("/api/machines", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = req.headers["x-user-email"] as string;
 
-  if (user_role !== "admin" && user_role !== "supervisor") {
+  if (user_role !== "admin" && user_role !== "supervisor" && user_role !== "manager") {
     return res.status(403).json({ error: "Permission Denied. Only Admin and Officer can add machines." });
   }
 
@@ -539,7 +558,7 @@ app.post("/api/buyers", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = req.headers["x-user-email"] as string;
 
-  if (user_role !== "admin" && user_role !== "supervisor") {
+  if (user_role !== "admin" && user_role !== "supervisor" && user_role !== "manager") {
     return res.status(403).json({ error: "Only Admin and Officer can register new buyers." });
   }
 
@@ -938,10 +957,10 @@ app.put("/api/entries/:id", async (req, res) => {
       Number(existingEntry.marker_efficiency_percent) === Number(data.marker_efficiency_percent)
     );
 
-    // Role policies: Only Admin and Officer (supervisor) can edit cutting entries
-    if (activeRole !== "admin" && activeRole !== "supervisor") {
+    // Role policies: Only Admin, Officer (supervisor), and Manager can edit cutting entries
+    if (activeRole !== "admin" && activeRole !== "supervisor" && activeRole !== "manager") {
       if (!isOnlyRemarksChanging) {
-        return res.status(403).json({ error: "Permission Denied. Only Admin and Officer roles can edit data." });
+        return res.status(403).json({ error: "Permission Denied. Only Admin, Officer, and Manager roles can edit data." });
       }
       if (!canAccessRemnant) {
         return res.status(403).json({ error: "Access Denied. You do not have permission to enter remnant data." });
@@ -1046,8 +1065,8 @@ app.delete("/api/entries/:id", async (req, res) => {
     }
   } catch {}
 
-  if (activeRole !== "supervisor" && activeRole !== "admin") {
-    return res.status(403).json({ error: "Only Officers or Administrators can delete cutting records." });
+  if (activeRole !== "supervisor" && activeRole !== "admin" && activeRole !== "manager") {
+    return res.status(403).json({ error: "Only Officers, Managers, or Administrators can delete cutting records." });
   }
 
   try {
@@ -1081,8 +1100,8 @@ app.post("/api/entries/:id/approve", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
-  if (user_role !== "supervisor" && user_role !== "admin") {
-    return res.status(403).json({ error: "Only Officers or Administrators can approve cutting logs." });
+  if (user_role !== "supervisor" && user_role !== "admin" && user_role !== "manager") {
+    return res.status(403).json({ error: "Only Officers, Managers, or Administrators can approve cutting logs." });
   }
 
   try {
@@ -1398,7 +1417,14 @@ app.get("/api/sync", async (req, res) => {
       { count: logCount, error: err4 },
       { count: profileCount, error: err5 },
       { count: machineCount, error: err6 },
-      { count: buyerCount, error: err7 }
+      { count: buyerCount, error: err7 },
+      polyMax,
+      polyCount,
+      hsEntryMax,
+      hsEntryCount,
+      hsOpCount,
+      hsTargetMax,
+      hsTargetCount
     ] = await Promise.all([
       supabase.from("cutting_entries").select("updated_at").order("updated_at", { ascending: false }).limit(1),
       supabase.from("cutting_entries").select("created_at").order("created_at", { ascending: false }).limit(1),
@@ -1406,7 +1432,15 @@ app.get("/api/sync", async (req, res) => {
       supabase.from("audit_logs").select("*", { count: "exact", head: true }),
       supabase.from("profiles").select("*", { count: "exact", head: true }),
       supabase.from("machines").select("*", { count: "exact", head: true }),
-      supabase.from("buyers").select("*", { count: "exact", head: true })
+      supabase.from("buyers").select("*", { count: "exact", head: true }),
+      // additional metadata to fix sync cache bypassing
+      supabase.from("poly_entries").select("created_at").order("created_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.created_at || "", () => ""),
+      supabase.from("poly_entries").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("heat_seal_entries").select("updated_at").order("updated_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.updated_at || "", () => ""),
+      supabase.from("heat_seal_entries").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("heat_seal_operators").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("heat_seal_targets").select("updated_at").order("updated_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.updated_at || "", () => ""),
+      supabase.from("heat_seal_targets").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0)
     ]);
 
     let server_version = "";
@@ -1421,6 +1455,13 @@ app.get("/api/sync", async (req, res) => {
         profileCount || 0,
         machineCount || 0,
         buyerCount || 0,
+        polyMax,
+        polyCount,
+        hsEntryMax,
+        hsEntryCount,
+        hsOpCount,
+        hsTargetMax,
+        hsTargetCount,
         systemSettings?.whats_new_updated_at || "",
         user_role || "",
         user_email || ""
@@ -1552,13 +1593,73 @@ app.get("/api/sync", async (req, res) => {
       }
     })();
 
-    const [machines, buyers, entries, auditLogs, profiles, polyEntries] = await Promise.all([
+    const heatSealPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("heat_seal_entries")
+          .select("*")
+          .order("entry_date", { ascending: false });
+        if (error) {
+          console.warn("Could not fetch heat_seal_entries from Supabase:", error.message);
+          return [];
+        }
+        return (data || []).map(item => ({
+          ...item,
+          shift: mapShiftFromDb(item.shift)
+        }));
+      } catch (err: any) {
+        console.warn("Could not fetch heat_seal_entries from Supabase:", err.message);
+        return [];
+      }
+    })();
+
+    const heatSealOperatorsPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("heat_seal_operators")
+          .select("*")
+          .order("operator_name", { ascending: true });
+        if (error) {
+          console.warn("Could not fetch heat_seal_operators from Supabase:", error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err: any) {
+        console.warn("Could not fetch heat_seal_operators from Supabase:", err.message);
+        return [];
+      }
+    })();
+
+    const heatSealTargetsPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("heat_seal_targets")
+          .select("*")
+          .order("target_date", { ascending: false });
+        if (error) {
+          console.warn("Could not fetch heat_seal_targets from Supabase:", error.message);
+          return [];
+        }
+        return (data || []).map(item => ({
+          ...item,
+          shift: mapShiftFromDb(item.shift)
+        }));
+      } catch (err: any) {
+        console.warn("Could not fetch heat_seal_targets from Supabase:", err.message);
+        return [];
+      }
+    })();
+
+    const [machines, buyers, entries, auditLogs, profiles, polyEntries, heatSealEntries, heatSealOperators, heatSealTargets] = await Promise.all([
       machinesPromise,
       buyersPromise,
       entriesPromise,
       logsPromise,
       profilesPromise,
-      polyPromise
+      polyPromise,
+      heatSealPromise,
+      heatSealOperatorsPromise,
+      heatSealTargetsPromise
     ]);
 
     return res.json({
@@ -1568,6 +1669,9 @@ app.get("/api/sync", async (req, res) => {
       auditLogs,
       profiles,
       polyEntries,
+      heatSealEntries,
+      heatSealOperators,
+      heatSealTargets,
       settings: systemSettings,
       version: res.locals.server_version || ""
     });
@@ -1586,9 +1690,9 @@ app.post("/api/poly-entries", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
-  // Verify role permission (Only supervisor / officer and admin can edit/write)
-  if (user_role !== "supervisor" && user_role !== "admin") {
-    return res.status(403).json({ error: "Access Denied. Only Officers and Admins can log daily poly received & re-use data." });
+  // Verify role permission (Only supervisor / officer, manager and admin can edit/write)
+  if (user_role !== "supervisor" && user_role !== "admin" && user_role !== "manager") {
+    return res.status(403).json({ error: "Access Denied. Only Officers, Managers, and Admins can log daily poly received & re-use data." });
   }
 
   const { entry_date, total_received_poly, total_reused_poly } = req.body;
@@ -1700,8 +1804,8 @@ app.put("/api/poly-entries/:id", async (req, res) => {
     const user_role = req.headers["x-user-role"] as string;
     const user_email = req.headers["x-user-email"] as string;
 
-    if (!["officer", "supervisor", "admin"].includes(user_role)) {
-      return res.status(403).json({ error: "Access Denied. Only Officers and Admins can edit poly entries." });
+    if (!["officer", "supervisor", "manager", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Officers, Managers, and Admins can edit poly entries." });
     }
 
     const { id } = req.params;
@@ -1790,9 +1894,9 @@ app.delete("/api/poly-entries/:id", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
-  // Verify role permission (Only supervisor / officer and admin)
-  if (user_role !== "supervisor" && user_role !== "admin") {
-    return res.status(403).json({ error: "Access Denied. Only Officers and Admins can delete poly entries." });
+  // Verify role permission (Only supervisor / officer, manager and admin)
+  if (user_role !== "supervisor" && user_role !== "admin" && user_role !== "manager") {
+    return res.status(403).json({ error: "Access Denied. Only Officers, Managers, and Admins can delete poly entries." });
   }
 
   try {
@@ -1836,6 +1940,395 @@ app.delete("/api/poly-entries/:id", async (req, res) => {
   } catch (err: any) {
     console.error("Failed to delete poly entry:", err.message);
     return res.status(500).json({ error: "Failed to delete poly entry: " + err.message });
+  }
+});
+
+
+// ==========================================
+// HEAT SEAL ENTRIES API
+// ==========================================
+
+app.post("/api/heat-seal-entries", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = req.headers["x-user-email"] as string;
+    if (!["operator", "supervisor", "manager", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied." });
+    }
+    
+    // Use auth data if we have it from profile fetch later, but here just an email is sent in headers
+    // Find the user's UUID
+    let created_by = null;
+    const { data: profile } = await supabase.from("profiles").select("id").ilike("email", user_email).maybeSingle();
+    if (profile) created_by = profile.id;
+
+    const { entry_date, shift, operator_name, operator_id, designation, job_no, color, po_no, target_id, hourly_data, status } = req.body;
+    const dbShift = mapShiftToDb(shift);
+
+    const { data, error } = await supabase
+      .from("heat_seal_entries")
+      .insert([{
+        entry_date, shift: dbShift, operator_name, operator_id, designation, job_no, color, po_no, target_id, hourly_data, status, created_by
+      }])
+      .select();
+
+    if (error) throw error;
+
+    const returnedData = data?.[0] ? { ...data[0], shift: mapShiftFromDb(data[0].shift) } : null;
+    await addAuditLog(user_email, "create", "heat_seal_entry", data?.[0]?.id || "", null, returnedData);
+
+    return res.json({ success: true, message: "Heat Seal Entry created", data: returnedData });
+  } catch (err: any) {
+    console.error("Failed to create heat seal entry:", err.message);
+    return res.status(500).json({ error: "Failed to create heat seal entry: " + err.message });
+  }
+});
+
+app.put("/api/heat-seal-entries/:id", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+    const { id } = req.params;
+    
+    const { data: existing } = await supabase.from("heat_seal_entries").select("*").eq("id", id).single();
+    if (!existing) return res.status(404).json({ error: "Entry not found" });
+
+    // Fetch the actual role from profiles to handle mismatch elegantly
+    let active_role = user_role;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("role").eq("email", user_email).single();
+      if (prof) {
+        active_role = prof.role;
+      }
+    } catch {}
+
+    // RLS in DB also prevents unauthorized updates, but we do basic check here
+    if (active_role === "operator" && existing.status !== "draft") {
+      return res.status(403).json({ error: "Operators can only edit draft entries." });
+    }
+
+    // Safely extract only database-writable columns, discarding read-only metadata or ID keys
+    const {
+      entry_date,
+      shift,
+      operator_name,
+      operator_id,
+      designation,
+      job_no,
+      color,
+      po_no,
+      target_id,
+      hourly_data,
+      status
+    } = req.body;
+
+    const updates: any = {};
+    if (entry_date !== undefined) updates.entry_date = entry_date;
+    if (shift !== undefined) updates.shift = mapShiftToDb(shift);
+    if (operator_name !== undefined) updates.operator_name = operator_name;
+    if (operator_id !== undefined) updates.operator_id = operator_id;
+    if (designation !== undefined) updates.designation = designation;
+    if (job_no !== undefined) updates.job_no = job_no;
+    if (color !== undefined) updates.color = color;
+    if (po_no !== undefined) updates.po_no = po_no;
+    if (target_id !== undefined) updates.target_id = target_id;
+    if (hourly_data !== undefined) updates.hourly_data = hourly_data;
+    if (status !== undefined) updates.status = status;
+    updates.updated_at = new Date().toISOString();
+    
+    const { data, error } = await supabase
+      .from("heat_seal_entries")
+      .update(updates)
+      .eq("id", id)
+      .select();
+
+    if (error) throw error;
+
+    const returnedData = data?.[0] ? { ...data[0], shift: mapShiftFromDb(data[0].shift) } : null;
+    const cleanExisting = { ...existing, shift: mapShiftFromDb(existing.shift) };
+    await addAuditLog(user_email, "edit", "heat_seal_entry", id, cleanExisting, returnedData);
+
+    return res.json({ success: true, message: "Heat Seal Entry updated", data: returnedData });
+  } catch (err: any) {
+    console.error("Failed to update heat seal entry:", err.message);
+    return res.status(500).json({ error: "Failed to update heat seal entry: " + err.message });
+  }
+});
+
+app.delete("/api/heat-seal-entries/:id", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+    
+    // Fetch the actual role from profiles to handle mismatch elegantly
+    let active_role = user_role;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("role").eq("email", user_email).single();
+      if (prof) {
+        active_role = prof.role;
+      }
+    } catch {}
+
+    if (!["supervisor", "manager", "admin"].includes(active_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can delete entries." });
+    }
+    const { id } = req.params;
+
+    const { error } = await supabase.from("heat_seal_entries").delete().eq("id", id);
+    if (error) throw error;
+
+    await addAuditLog(user_email, "delete", "heat_seal_entry", id, null, null);
+
+    return res.json({ success: true, message: "Heat Seal Entry deleted" });
+  } catch (err: any) {
+    console.error("Failed to delete heat seal entry:", err.message);
+    return res.status(500).json({ error: "Failed to delete heat seal entry: " + err.message });
+  }
+});
+
+// ==========================================
+// HEAT SEAL OPERATORS & TARGETS API
+// ==========================================
+
+app.post("/api/heat-seal-operators", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = req.headers["x-user-email"] as string;
+    if (!["supervisor", "manager", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Supervisors, Managers, and Admins can manage operators." });
+    }
+    const { operator_name, operator_id, designation } = req.body;
+    const { data, error } = await supabase
+      .from("heat_seal_operators")
+      .insert([{ operator_name, operator_id, designation }])
+      .select();
+    if (error) throw error;
+    await addAuditLog(user_email, "create", "heat_seal_operator", data?.[0]?.id || "", null, data?.[0]);
+    return res.json({ success: true, data: data?.[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/heat-seal-operators/:id", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = req.headers["x-user-email"] as string;
+    if (!["supervisor", "manager", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied." });
+    }
+    const { id } = req.params;
+    const { error } = await supabase.from("heat_seal_operators").delete().eq("id", id);
+    if (error) throw error;
+    await addAuditLog(user_email, "delete", "heat_seal_operator", id, null, null);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/heat-seal-targets", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = req.headers["x-user-email"] as string;
+    if (!["supervisor", "manager", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can pre-set targets." });
+    }
+
+    let created_by = null;
+    const { data: profile } = await supabase.from("profiles").select("id").ilike("email", user_email).maybeSingle();
+    if (profile) created_by = profile.id;
+
+    const { target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target } = req.body;
+    const dbShift = mapShiftToDb(shift);
+
+    const { data, error } = await supabase
+      .from("heat_seal_targets")
+      .insert([{ target_date, shift: dbShift, operator_id, operator_name, job_no, color, po_no, hourly_target, created_by }])
+      .select();
+    if (error) throw error;
+
+    const returnedData = data?.[0] ? { ...data[0], shift: mapShiftFromDb(data[0].shift) } : null;
+    await addAuditLog(user_email, "create", "heat_seal_target", data?.[0]?.id || "", null, returnedData);
+
+    return res.json({ success: true, data: returnedData });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/heat-seal-targets/:id", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+    
+    // Fetch the actual role from profiles to handle mismatch elegantly
+    let active_role = user_role;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("role").eq("email", user_email).single();
+      if (prof) {
+        active_role = prof.role;
+      }
+    } catch {}
+
+    if (!["supervisor", "manager", "admin"].includes(active_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can update targets." });
+    }
+    const { id } = req.params;
+    const { data: existing } = await supabase.from("heat_seal_targets").select("*").eq("id", id).single();
+    if (!existing) return res.status(404).json({ error: "Target not found" });
+
+    const {
+      target_date,
+      shift,
+      operator_id,
+      operator_name,
+      job_no,
+      color,
+      po_no,
+      hourly_target
+    } = req.body;
+
+    const updates: any = {};
+    if (target_date !== undefined) updates.target_date = target_date;
+    if (shift !== undefined) updates.shift = mapShiftToDb(shift);
+    if (operator_id !== undefined) updates.operator_id = operator_id;
+    if (operator_name !== undefined) updates.operator_name = operator_name;
+    if (job_no !== undefined) updates.job_no = job_no;
+    if (color !== undefined) updates.color = color;
+    if (po_no !== undefined) updates.po_no = po_no;
+    if (hourly_target !== undefined) updates.hourly_target = hourly_target;
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("heat_seal_targets")
+      .update(updates)
+      .eq("id", id)
+      .select();
+    if (error) throw error;
+
+    const returnedData = data?.[0] ? { ...data[0], shift: mapShiftFromDb(data[0].shift) } : null;
+    const cleanExisting = { ...existing, shift: mapShiftFromDb(existing.shift) };
+    await addAuditLog(user_email, "edit", "heat_seal_target", id, cleanExisting, returnedData);
+
+    return res.json({ success: true, data: returnedData });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/heat-seal-targets/:id", async (req, res) => {
+  try {
+    const user_role = req.headers["x-user-role"] as string;
+    const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+    
+    // Fetch the actual role from profiles to handle mismatch elegantly
+    let active_role = user_role;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("role").eq("email", user_email).single();
+      if (prof) {
+        active_role = prof.role;
+      }
+    } catch {}
+
+    if (!["supervisor", "manager", "admin"].includes(active_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can delete targets." });
+    }
+    const { id } = req.params;
+    const { error } = await supabase.from("heat_seal_targets").delete().eq("id", id);
+    if (error) throw error;
+    await addAuditLog(user_email, "delete", "heat_seal_target", id, null, null);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// JOB LOOKUP API
+// ==========================================
+app.get("/api/job-lookup/:job_no", async (req, res) => {
+  try {
+    const { job_no } = req.params;
+    if (!job_no) {
+      return res.status(400).json({ error: "Job number is required" });
+    }
+
+    const uniqueCombinations = new Map<string, { color: string; po_no: string }>();
+
+    // 1. Find in cutting_entries
+    const { data: cuttingData } = await supabase
+      .from("cutting_entries")
+      .select("color, po_no")
+      .ilike("job_no", job_no)
+      .limit(100);
+
+    if (cuttingData) {
+      for (const row of cuttingData) {
+        if (row.color) {
+          const col = row.color.trim();
+          const po = (row.po_no || "").trim();
+          const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
+          if (!uniqueCombinations.has(key)) {
+            uniqueCombinations.set(key, { color: col, po_no: po });
+          }
+        }
+      }
+    }
+
+    // 2. Find in heat_seal_targets
+    const { data: targetData } = await supabase
+      .from("heat_seal_targets")
+      .select("color, po_no")
+      .ilike("job_no", job_no)
+      .limit(100);
+
+    if (targetData) {
+      for (const row of targetData) {
+        if (row.color) {
+          const col = row.color.trim();
+          const po = (row.po_no || "").trim();
+          const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
+          if (!uniqueCombinations.has(key)) {
+            uniqueCombinations.set(key, { color: col, po_no: po });
+          }
+        }
+      }
+    }
+
+    // 3. Find in heat_seal_entries
+    const { data: hsData } = await supabase
+      .from("heat_seal_entries")
+      .select("color, po_no")
+      .ilike("job_no", job_no)
+      .limit(100);
+
+    if (hsData) {
+      for (const row of hsData) {
+        if (row.color) {
+          const col = row.color.trim();
+          const po = (row.po_no || "").trim();
+          const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
+          if (!uniqueCombinations.has(key)) {
+            uniqueCombinations.set(key, { color: col, po_no: po });
+          }
+        }
+      }
+    }
+
+    const results = Array.from(uniqueCombinations.values());
+
+    if (results.length > 0) {
+      return res.json({
+        found: true,
+        job_no,
+        results
+      });
+    }
+
+    return res.json({ found: false, results: [] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

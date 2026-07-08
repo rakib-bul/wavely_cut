@@ -56,8 +56,8 @@ CREATE POLICY all_read_machines ON public.machines
 CREATE POLICY admin_super_write_machines ON public.machines
     FOR ALL
     TO authenticated
-    USING (public.get_user_role() IN ('admin', 'supervisor'))
-    WITH CHECK (public.get_user_role() IN ('admin', 'supervisor'));
+    USING (public.get_user_role() IN ('admin', 'supervisor', 'manager'))
+    WITH CHECK (public.get_user_role() IN ('admin', 'supervisor', 'manager'));
 
 
 -- ==========================================
@@ -77,7 +77,7 @@ CREATE POLICY insert_cutting_entries ON public.cutting_entries
     FOR INSERT
     TO authenticated
     WITH CHECK (
-        public.get_user_role() IN ('operator', 'supervisor', 'admin')
+        public.get_user_role() IN ('operator', 'supervisor', 'admin', 'manager')
     );
 
 -- UPDATE:
@@ -101,10 +101,10 @@ CREATE POLICY supervisor_admin_update_all ON public.cutting_entries
     FOR UPDATE
     TO authenticated
     USING (
-        public.get_user_role() IN ('supervisor', 'admin')
+        public.get_user_role() IN ('supervisor', 'admin', 'manager')
     )
     WITH CHECK (
-        public.get_user_role() IN ('supervisor', 'admin')
+        public.get_user_role() IN ('supervisor', 'admin', 'manager')
     );
 
 -- DELETE:
@@ -113,7 +113,7 @@ CREATE POLICY delete_cutting_entries ON public.cutting_entries
     FOR DELETE
     TO authenticated
     USING (
-        public.get_user_role() IN ('supervisor', 'admin')
+        public.get_user_role() IN ('supervisor', 'admin', 'manager')
     );
 
 
@@ -152,21 +152,87 @@ CREATE POLICY insert_poly_entries ON public.poly_entries
     FOR INSERT
     TO authenticated
     WITH CHECK (
-        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+        public.get_user_role() IN ('officer', 'supervisor', 'admin', 'manager')
     );
 
--- UPDATE: Officers, Supervisors, and Admins can update poly entries
+-- UPDATE: Officers, Supervisors, Managers, and Admins can update poly entries
 CREATE POLICY update_poly_entries ON public.poly_entries
     FOR UPDATE
     TO authenticated
     USING (
-        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+        public.get_user_role() IN ('officer', 'supervisor', 'admin', 'manager')
     );
 
--- DELETE: Officers and Admins can delete poly entries
+-- DELETE: Officers, Managers, and Admins can delete poly entries
 CREATE POLICY delete_poly_entries ON public.poly_entries
     FOR DELETE
     TO authenticated
     USING (
-        public.get_user_role() IN ('officer', 'supervisor', 'admin')
+        public.get_user_role() IN ('officer', 'supervisor', 'admin', 'manager')
     );
+
+-- ==========================================
+-- 6. HEAT SEAL ENTRIES TABLE POLICIES
+-- ==========================================
+
+ALTER TABLE public.heat_seal_entries ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: All authenticated users can view heat seal entries
+CREATE POLICY select_heat_seal_entries ON public.heat_seal_entries
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- INSERT: Operators, Supervisors and Admins can insert heat seal entries
+CREATE POLICY insert_heat_seal_entries ON public.heat_seal_entries
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        public.get_user_role() IN ('operator', 'supervisor', 'admin', 'manager')
+    );
+
+-- UPDATE: Operator can only edit their OWN entry, and ONLY if it is still a 'draft'
+CREATE POLICY operator_update_own_draft_heat_seal ON public.heat_seal_entries
+    FOR UPDATE
+    TO authenticated
+    USING (
+        public.get_user_role() = 'operator' 
+        AND created_by = auth.uid() 
+        AND status = 'draft'
+    );
+
+-- UPDATE: Supervisors and Admins can update any heat seal entries
+CREATE POLICY supervisor_admin_update_heat_seal ON public.heat_seal_entries
+    FOR UPDATE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('supervisor', 'admin', 'manager')
+    );
+
+-- DELETE: Supervisors, Managers, and Admins can delete heat seal entries
+CREATE POLICY delete_heat_seal_entries ON public.heat_seal_entries
+    FOR DELETE
+    TO authenticated
+    USING (
+        public.get_user_role() IN ('supervisor', 'admin', 'manager')
+    );
+
+-- ==========================================
+-- 7. HEAT SEAL OPERATORS & TARGETS POLICIES
+-- ==========================================
+
+ALTER TABLE public.heat_seal_operators ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY select_heat_seal_operators ON public.heat_seal_operators
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY all_heat_seal_operators_admin ON public.heat_seal_operators
+    FOR ALL TO authenticated USING (public.get_user_role() IN ('supervisor', 'admin', 'manager'));
+
+ALTER TABLE public.heat_seal_targets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY select_heat_seal_targets ON public.heat_seal_targets
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY all_heat_seal_targets_admin ON public.heat_seal_targets
+    FOR ALL TO authenticated USING (public.get_user_role() IN ('supervisor', 'admin', 'manager'));

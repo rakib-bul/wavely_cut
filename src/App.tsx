@@ -8,9 +8,10 @@ import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import TableProductionView from "./components/TableProductionView";
-import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry } from "./types";
+import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, HeatSealEntry, HeatSealOperator, HeatSealTarget } from "./types";
 import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
 import PolyTrackingModule from "./components/PolyTrackingModule";
+import HeatSealModule from "./components/HeatSealModule";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -132,6 +133,33 @@ export default function App() {
   const [polyEntries, setPolyEntries] = useState<PolyEntry[]>(() => {
     try {
       const saved = localStorage.getItem("erp_cached_poly_entries");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [heatSealEntries, setHeatSealEntries] = useState<HeatSealEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_heat_seal_entries");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [heatSealOperators, setHeatSealOperators] = useState<HeatSealOperator[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_heat_seal_operators");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [heatSealTargets, setHeatSealTargets] = useState<HeatSealTarget[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_heat_seal_targets");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -314,6 +342,30 @@ export default function App() {
           } catch (e) {}
         }
 
+        // Update heat seal entries state
+        if (syncData.heatSealEntries) {
+          setHeatSealEntries(syncData.heatSealEntries);
+          try {
+            localStorage.setItem("erp_cached_heat_seal_entries", JSON.stringify(syncData.heatSealEntries));
+          } catch (e) {}
+        }
+
+        // Update heat seal operators state
+        if (syncData.heatSealOperators) {
+          setHeatSealOperators(syncData.heatSealOperators);
+          try {
+            localStorage.setItem("erp_cached_heat_seal_operators", JSON.stringify(syncData.heatSealOperators));
+          } catch (e) {}
+        }
+
+        // Update heat seal targets state
+        if (syncData.heatSealTargets) {
+          setHeatSealTargets(syncData.heatSealTargets);
+          try {
+            localStorage.setItem("erp_cached_heat_seal_targets", JSON.stringify(syncData.heatSealTargets));
+          } catch (e) {}
+        }
+
         // Update system settings state
         if (syncData.settings) {
           const settingsData = syncData.settings;
@@ -429,7 +481,8 @@ export default function App() {
       admin: ["admin"],
       analytics: ["supervisor", "manager", "admin"],
       data_entry: ["operator", "supervisor", "admin"],
-      poly_tracking: ["supervisor", "admin"]
+      poly_tracking: ["supervisor", "admin"],
+      heat_seal_tracking: ["operator", "supervisor", "admin"]
     };
 
     const allowedRoles = protectedRolesMap[activeTab];
@@ -605,6 +658,213 @@ export default function App() {
       await fetchData(true);
     } catch (err: any) {
       console.error("Error updating poly entry:", err);
+      throw err;
+    }
+  };
+
+  // --- HEAT SEAL ENTRIES ACTIONS ---
+  const handleAddHeatSealEntry = async (entry: Partial<HeatSealEntry>) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch("/api/heat-seal-entries", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(entry)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to log heat seal data.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error submitting heat seal entry:", err);
+      throw err;
+    }
+  };
+
+  const handleUpdateHeatSealEntry = async (id: string, updates: Partial<HeatSealEntry>) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/heat-seal-entries/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(updates)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to update heat seal tracking entry.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error updating heat seal entry:", err);
+      throw err;
+    }
+  };
+
+  const handleDeleteHeatSealEntry = async (id: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/heat-seal-entries/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete heat seal tracking entry.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error deleting heat seal entry:", err);
+      throw err;
+    }
+  };
+
+  // --- HEAT SEAL OPERATORS & TARGETS ACTIONS ---
+  const handleAddHeatSealOperator = async (operator: Partial<HeatSealOperator>) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch("/api/heat-seal-operators", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(operator)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to add operator.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error adding operator:", err);
+      throw err;
+    }
+  };
+
+  const handleDeleteHeatSealOperator = async (id: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/heat-seal-operators/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete operator.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error deleting operator:", err);
+      throw err;
+    }
+  };
+
+  const handleAddHeatSealTarget = async (target: Partial<HeatSealTarget>) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch("/api/heat-seal-targets", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(target)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to create target.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error creating target:", err);
+      throw err;
+    }
+  };
+
+  const handleUpdateHeatSealTarget = async (id: string, updates: Partial<HeatSealTarget>) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/heat-seal-targets/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(updates)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to update target.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error updating target:", err);
+      throw err;
+    }
+  };
+
+  const handleDeleteHeatSealTarget = async (id: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/heat-seal-targets/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete target.");
+      }
+
+      await fetchData(true);
+    } catch (err: any) {
+      console.error("Error deleting target:", err);
       throw err;
     }
   };
@@ -1084,13 +1344,12 @@ export default function App() {
         });
 
         if (newBuyerNames.length === 0) {
-          alert("No new buyers to import from the cache file.");
+          // No alert needed, just silently return or log
+          console.log("No new buyers to import from the cache file.");
           return;
         }
 
-        if (!confirm(`Found ${newBuyerNames.length} new buyer partner(s). Would you like to import them into the database to automatically sync for all users?`)) {
-          return;
-        }
+        // Removed confirm dialog to prevent iframe blocking. Proceeding automatically.
 
         // Register each new buyer in the backend
         let successCount = 0;
@@ -1402,6 +1661,8 @@ export default function App() {
         return "IAM & Machine Admin";
       case "poly_tracking":
         return "Poly Tracking & Re-Use";
+      case "heat_seal_tracking":
+        return "Daily Heat-Seal Production Tracking";
       default:
         return "Cutting Dashboard";
     }
@@ -1808,6 +2069,28 @@ export default function App() {
                   onUpdatePolyEntry={handleUpdatePolyEntry}
                   onDeletePolyEntry={handleDeletePolyEntry}
                   polyPrice={polyPrice}
+                />
+              </div>
+            )}
+
+            {/* TAB 4.6: HEAT SEAL TRACKING */}
+            {activeTab === "heat_seal_tracking" && (
+              <div className="animate-fade-in">
+                <HeatSealModule
+                  entries={heatSealEntries}
+                  operators={heatSealOperators}
+                  targets={heatSealTargets}
+                  currentProfile={currentProfile!}
+                  onSubmitEntry={handleAddHeatSealEntry}
+                  onUpdateEntry={handleUpdateHeatSealEntry}
+                  onDeleteEntry={handleDeleteHeatSealEntry}
+                  onAddOperator={handleAddHeatSealOperator}
+                  onDeleteOperator={handleDeleteHeatSealOperator}
+                  onAddTarget={handleAddHeatSealTarget}
+                  onUpdateTarget={handleUpdateHeatSealTarget}
+                  onDeleteTarget={handleDeleteHeatSealTarget}
+                  schemaDDL={SCHEMA_DDL_STRING}
+                  rlsDDL={RLS_DDL_STRING}
                 />
               </div>
             )}
