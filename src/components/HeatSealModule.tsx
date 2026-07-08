@@ -1581,7 +1581,7 @@ export default function HeatSealModule({
                       <Layers size={18} className="text-indigo-500" />
                       Consolidated Hourly Production Tally
                    </h3>
-                   <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Cross-operator production grid for all active sessions on a specific day.</p>
+                   <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Shift-wise production grid for all active sessions on a specific day.</p>
                 </div>
                 <div className="flex items-center gap-3">
                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Report Date:</label>
@@ -1594,71 +1594,145 @@ export default function HeatSealModule({
                 </div>
              </div>
 
-             {/* Tally Grid Table */}
-             <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-left text-[10px] border-collapse min-w-[1200px]">
-                   <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
-                         <th className="py-3 px-4 font-black text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 border-r border-slate-200 dark:border-slate-700 min-w-[150px] uppercase tracking-tighter">Operator Details</th>
-                         {HOURS_LABELS.map(hour => (
-                            <th key={hour} className="py-3 px-1 font-black text-slate-600 dark:text-slate-300 text-center border-r border-slate-200/30 dark:border-slate-700/30 min-w-[55px] whitespace-nowrap text-[9px]">
-                               {hour.replace(' ', '')}
-                            </th>
-                         ))}
-                         <th className="py-3 px-4 font-black text-slate-700 dark:text-slate-200 bg-indigo-50 dark:bg-indigo-950/40 sticky right-0 z-10 border-l border-slate-200 dark:border-slate-700 text-center uppercase">Total</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {(() => {
-                         const dayEntries = entries.filter(e => e.entry_date === reportDate);
-                         if (dayEntries.length === 0) {
-                            return (
-                               <tr>
-                                  <td colSpan={HOURS_LABELS.length + 2} className="py-24 text-center text-slate-400 italic">
-                                     <div className="flex flex-col items-center gap-2">
-                                        <Calendar size={40} className="opacity-10 mb-2" />
-                                        <p className="font-bold text-sm tracking-widest uppercase">No production records found</p>
-                                        <p className="text-[10px] font-medium opacity-60">There are no tally entries submitted for {new Date(reportDate).toLocaleDateString()}.</p>
-                                     </div>
-                                  </td>
-                               </tr>
-                            );
-                         }
+             {/* Tally Content */}
+             <div className="p-6 space-y-10">
+                {(() => {
+                   const dayEntries = entries.filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'));
+                   const nightEntries = entries.filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'));
+                   
+                   const dayLabels = HOURS_LABELS.slice(0, 12);
+                   const nightLabels = HOURS_LABELS.slice(12, 24);
 
-                         return dayEntries.map(entry => {
-                            const total = entry.hourly_data?.reduce((sum, h) => sum + (Number(h.production) || 0), 0) || 0;
-                            return (
-                               <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                  <td className="py-3 px-4 font-bold text-slate-900 dark:text-white sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-200 dark:border-slate-700 shadow-sm">
-                                     <div className="truncate max-w-[120px] font-sans text-xs" title={entry.operator_name}>{entry.operator_name}</div>
-                                     <div className="flex items-center gap-1.5 mt-1">
-                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${entry.shift === 'D' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'}`}>
-                                          {entry.shift === 'D' ? 'Day' : 'Night'}
-                                        </span>
-                                        <span className="text-[9px] text-slate-400 font-mono">Job: {entry.job_no || '-'}</span>
-                                     </div>
-                                  </td>
-                                  {HOURS_LABELS.map(hour => {
-                                     const hourData = entry.hourly_data?.find(h => h.hour_slot === hour);
-                                     const prod = Number(hourData?.production) || 0;
-                                     // Break is 1-2 PM for Day shift, no break for Night shift as per request
-                                     const isBreak = hour === "1-2 PM" && entry.shift === 'D';
-                                     
-                                     return (
-                                        <td key={hour} className={`py-3 px-1 text-center border-r border-slate-200/10 dark:border-slate-700/10 font-mono text-xs ${prod > 0 ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-slate-200 dark:text-slate-700"} ${isBreak ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}`}>
-                                           {isBreak && prod === 0 ? "—" : prod || 0}
-                                        </td>
-                                     );
-                                  })}
-                                  <td className="py-3 px-4 font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 sticky right-0 z-10 border-l border-slate-200 dark:border-slate-700 text-center text-xs shadow-sm">
-                                     {total}
-                                  </td>
-                               </tr>
-                            );
-                         });
-                      })()}
-                   </tbody>
-                </table>
+                   if (dayEntries.length === 0 && nightEntries.length === 0) {
+                      return (
+                         <div className="py-24 text-center text-slate-400 italic">
+                            <div className="flex flex-col items-center gap-2">
+                               <Calendar size={40} className="opacity-10 mb-2" />
+                               <p className="font-bold text-sm tracking-widest uppercase">No production records found</p>
+                               <p className="text-[10px] font-medium opacity-60">There are no tally entries submitted for {new Date(reportDate).toLocaleDateString()}.</p>
+                            </div>
+                         </div>
+                      );
+                   }
+
+                   return (
+                      <>
+                         {/* Day Shift Section */}
+                         <div className="space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                               <div className="p-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-amber-600 dark:text-amber-400">
+                                  <Sparkles size={16} />
+                               </div>
+                               <div>
+                                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest">Day Shift (08:00 AM - 08:00 PM)</h4>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Lunch Break: 1-2 PM (No entries allowed)</p>
+                               </div>
+                            </div>
+                            
+                            <div className="overflow-x-auto scrollbar-thin border border-slate-100 dark:border-slate-800 rounded-xl">
+                               <table className="w-full text-left text-[10px] border-collapse min-w-[800px]">
+                                  <thead>
+                                     <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800">
+                                        <th className="py-3 px-4 font-black text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 border-r border-slate-100 dark:border-slate-700 min-w-[150px] uppercase">Operator</th>
+                                        {dayLabels.map(hour => (
+                                           <th key={hour} className={`py-3 px-1 font-black text-center border-r border-slate-100/30 dark:border-slate-700/30 min-w-[55px] whitespace-nowrap text-[9px] ${hour === "1-2 PM" ? "bg-amber-50/50 text-amber-600" : "text-slate-600"}`}>
+                                              {hour.replace(' ', '')}
+                                              {hour === "1-2 PM" && <div className="text-[7px] mt-0.5 font-bold">LUNCH</div>}
+                                           </th>
+                                        ))}
+                                        <th className="py-3 px-4 font-black text-slate-700 dark:text-slate-200 bg-indigo-50/30 dark:bg-indigo-950/20 sticky right-0 z-10 border-l border-slate-100 dark:border-slate-700 text-center uppercase">Total</th>
+                                     </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                     {dayEntries.length === 0 ? (
+                                        <tr><td colSpan={14} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest opacity-40">No day shift active sessions</td></tr>
+                                     ) : dayEntries.map(entry => {
+                                        const total = entry.hourly_data?.reduce((sum, h) => sum + (Number(h.production) || 0), 0) || 0;
+                                        return (
+                                           <tr key={entry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition">
+                                              <td className="py-3 px-4 font-bold text-slate-900 dark:text-white sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-700 shadow-xs">
+                                                 <div className="truncate max-w-[120px] font-sans text-xs">{entry.operator_name}</div>
+                                                 <div className="text-[9px] text-slate-400 font-mono mt-0.5">Job: {entry.job_no || '-'}</div>
+                                              </td>
+                                              {dayLabels.map(hour => {
+                                                 const hourData = entry.hourly_data?.find(h => h.hour_slot === hour);
+                                                 const prod = Number(hourData?.production) || 0;
+                                                 const isBreak = hour === "1-2 PM";
+                                                 return (
+                                                    <td key={hour} className={`py-3 px-1 text-center border-r border-slate-100/10 dark:border-slate-700/10 font-mono text-xs ${prod > 0 ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-slate-200 dark:text-slate-700"} ${isBreak ? "bg-amber-50/20 dark:bg-amber-950/5" : ""}`}>
+                                                       {isBreak && prod === 0 ? "—" : prod || 0}
+                                                    </td>
+                                                 );
+                                              })}
+                                              <td className="py-3 px-4 font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 sticky right-0 z-10 border-l border-slate-100 dark:border-slate-700 text-center text-xs shadow-xs">
+                                                 {total}
+                                              </td>
+                                           </tr>
+                                        );
+                                     })}
+                                  </tbody>
+                               </table>
+                            </div>
+                         </div>
+
+                         {/* Night Shift Section */}
+                         <div className="space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                               <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg text-indigo-600 dark:text-indigo-400">
+                                  <Flame size={16} />
+                               </div>
+                               <div>
+                                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest">Night Shift (08:00 PM - 08:00 AM)</h4>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Continuous Operations (No breaks in Night shift)</p>
+                               </div>
+                            </div>
+                            
+                            <div className="overflow-x-auto scrollbar-thin border border-slate-100 dark:border-slate-800 rounded-xl">
+                               <table className="w-full text-left text-[10px] border-collapse min-w-[800px]">
+                                  <thead>
+                                     <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800">
+                                        <th className="py-3 px-4 font-black text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 border-r border-slate-100 dark:border-slate-700 min-w-[150px] uppercase">Operator</th>
+                                        {nightLabels.map(hour => (
+                                           <th key={hour} className="py-3 px-1 font-black text-slate-600 dark:text-slate-300 text-center border-r border-slate-100/30 dark:border-slate-700/30 min-w-[55px] whitespace-nowrap text-[9px]">
+                                              {hour.replace(' ', '')}
+                                           </th>
+                                        ))}
+                                        <th className="py-3 px-4 font-black text-slate-700 dark:text-slate-200 bg-indigo-50/30 dark:bg-indigo-950/20 sticky right-0 z-10 border-l border-slate-100 dark:border-slate-700 text-center uppercase">Total</th>
+                                     </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                     {nightEntries.length === 0 ? (
+                                        <tr><td colSpan={14} className="py-8 text-center text-slate-400 font-bold uppercase tracking-widest opacity-40">No night shift active sessions</td></tr>
+                                     ) : nightEntries.map(entry => {
+                                        const total = entry.hourly_data?.reduce((sum, h) => sum + (Number(h.production) || 0), 0) || 0;
+                                        return (
+                                           <tr key={entry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition">
+                                              <td className="py-3 px-4 font-bold text-slate-900 dark:text-white sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-700 shadow-xs">
+                                                 <div className="truncate max-w-[120px] font-sans text-xs">{entry.operator_name}</div>
+                                                 <div className="text-[9px] text-slate-400 font-mono mt-0.5">Job: {entry.job_no || '-'}</div>
+                                              </td>
+                                              {nightLabels.map(hour => {
+                                                 const hourData = entry.hourly_data?.find(h => h.hour_slot === hour);
+                                                 const prod = Number(hourData?.production) || 0;
+                                                 return (
+                                                    <td key={hour} className={`py-3 px-1 text-center border-r border-slate-100/10 dark:border-slate-700/10 font-mono text-xs ${prod > 0 ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-slate-200 dark:text-slate-700"}`}>
+                                                       {prod || 0}
+                                                    </td>
+                                                 );
+                                              })}
+                                              <td className="py-3 px-4 font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20 sticky right-0 z-10 border-l border-slate-100 dark:border-slate-700 text-center text-xs shadow-xs">
+                                                 {total}
+                                              </td>
+                                           </tr>
+                                        );
+                                     })}
+                                  </tbody>
+                               </table>
+                            </div>
+                         </div>
+                      </>
+                   );
+                })()}
              </div>
              
              {/* Legend & Summary Footer */}
@@ -1670,7 +1744,7 @@ export default function HeatSealModule({
                    </div>
                    <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 bg-amber-100 dark:bg-amber-900/40 rounded-sm"></div>
-                      <span>Day Shift Break</span>
+                      <span>Lunch Break (Day)</span>
                    </div>
                    <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 bg-slate-200 dark:bg-slate-700 rounded-sm opacity-50"></div>
