@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -21,21 +21,23 @@ interface DashboardChartsProps {
 
 export default function DashboardCharts({ entries, machines }: DashboardChartsProps) {
   // Aggregate only APPROVED or recently submitted items for stable chart representation
-  const targetEntries = entries.filter(e => e.status !== 'draft');
+  const targetEntries = useMemo(() => entries.filter(e => e.status !== 'draft'), [entries]);
 
   // --- Aggregate Daily Fabric Usage & Scrap (for last 7 days) ---
-  const dailyDataMap: { [date: string]: { date: string; used: number; scrap: number } } = {};
-  targetEntries.forEach(e => {
-    const d = e.entry_date;
-    if (!dailyDataMap[d]) {
-      dailyDataMap[d] = { date: d, used: 0, scrap: 0 };
-    }
-    dailyDataMap[d].used += e.fabric_used_kg || 0;
-    dailyDataMap[d].scrap += e.cutting_scrap_weight_kg || 0;
-  });
-  const dailyData = Object.values(dailyDataMap)
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .slice(-7); // Last 7 cutting dates
+  const dailyData = useMemo(() => {
+    const dailyDataMap: { [date: string]: { date: string; used: number; scrap: number } } = {};
+    targetEntries.forEach(e => {
+      const d = e.entry_date;
+      if (!dailyDataMap[d]) {
+        dailyDataMap[d] = { date: d, used: 0, scrap: 0 };
+      }
+      dailyDataMap[d].used += e.fabric_used_kg || 0;
+      dailyDataMap[d].scrap += e.cutting_scrap_weight_kg || 0;
+    });
+    return Object.values(dailyDataMap)
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .slice(-7); // Last 7 cutting dates
+  }, [targetEntries]);
 
   // Helper to parse packed remnants data
   const parseRemarks = (remarks: string) => {
@@ -49,69 +51,78 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
   };
 
   // --- Aggregate Daily Remnants Issued, Used & Scrap ---
-  const remnantDailyDataMap: { [date: string]: { date: string; issued: number; scrap: number; used: number } } = {};
-  targetEntries.forEach(e => {
-    const d = e.entry_date;
-    if (!remnantDailyDataMap[d]) {
-      remnantDailyDataMap[d] = { date: d, issued: 0, scrap: 0, used: 0 };
-    }
-    const parsed = parseRemarks(e.remarks || "");
-    remnantDailyDataMap[d].issued += parsed.remnants_weight_kg;
-    remnantDailyDataMap[d].scrap += parsed.remnants_scrap_kg;
-    remnantDailyDataMap[d].used += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
-  });
-  const remnantDailyData = Object.values(remnantDailyDataMap)
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .slice(-7); // Last 7 cutting dates
+  const remnantDailyData = useMemo(() => {
+    const remnantDailyDataMap: { [date: string]: { date: string; issued: number; scrap: number; used: number } } = {};
+    targetEntries.forEach(e => {
+      const d = e.entry_date;
+      if (!remnantDailyDataMap[d]) {
+        remnantDailyDataMap[d] = { date: d, issued: 0, scrap: 0, used: 0 };
+      }
+      const parsed = parseRemarks(e.remarks || "");
+      remnantDailyDataMap[d].issued += parsed.remnants_weight_kg;
+      remnantDailyDataMap[d].scrap += parsed.remnants_scrap_kg;
+      remnantDailyDataMap[d].used += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+    });
+    return Object.values(remnantDailyDataMap)
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .slice(-7); // Last 7 cutting dates
+  }, [targetEntries]);
 
   // --- Aggregate Machine Performance ---
-  const machinePerformances = machines.map(m => {
-    const machineEntries = targetEntries.filter(e => e.machine_id === m.id);
-    const totalFabric = machineEntries.reduce((sum, e) => sum + (e.fabric_used_kg || 0), 0);
-    const totalScrap = machineEntries.reduce((sum, e) => sum + (e.cutting_scrap_weight_kg || 0), 0);
-    const avgEteEff = machineEntries.length > 0
-      ? parseFloat((machineEntries.reduce((sum, e) => sum + (e.actual_physical_marker_efficiency_ete || 0), 0) / machineEntries.length).toFixed(1))
-      : 0;
+  const machinePerformances = useMemo(() => {
+    return machines.map(m => {
+      const machineEntries = targetEntries.filter(e => e.machine_id === m.id);
+      const totalFabric = machineEntries.reduce((sum, e) => sum + (e.fabric_used_kg || 0), 0);
+      const totalScrap = machineEntries.reduce((sum, e) => sum + (e.cutting_scrap_weight_kg || 0), 0);
+      const avgEteEff = machineEntries.length > 0
+        ? parseFloat((machineEntries.reduce((sum, e) => sum + (e.actual_physical_marker_efficiency_ete || 0), 0) / machineEntries.length).toFixed(1))
+        : 0;
 
-    return {
-      name: m.machine_name.replace(" Machine", "").replace("Cutter", "C."),
-      fabricUsed: parseFloat(totalFabric.toFixed(1)),
-      scrapRate: totalFabric > 0 ? parseFloat(((totalScrap / totalFabric) * 100).toFixed(2)) : 0,
-      efficiency: avgEteEff
-    };
-  });
+      return {
+        name: m.machine_name.replace(" Machine", "").replace("Cutter", "C."),
+        fabricUsed: parseFloat(totalFabric.toFixed(1)),
+        scrapRate: totalFabric > 0 ? parseFloat(((totalScrap / totalFabric) * 100).toFixed(2)) : 0,
+        efficiency: avgEteEff
+      };
+    });
+  }, [targetEntries, machines]);
 
   // --- Aggregate Buyer Share ---
-  const buyerDataMap: { [buyer: string]: { name: string; value: number } } = {};
-  targetEntries.forEach(e => {
-    const b = e.buyer.toUpperCase().trim();
-    if (!buyerDataMap[b]) {
-      buyerDataMap[b] = { name: b, value: 0 };
-    }
-    buyerDataMap[b].value += e.fabric_used_kg || 0;
-  });
+  const buyerData = useMemo(() => {
+    const buyerDataMap: { [buyer: string]: { name: string; value: number } } = {};
+    targetEntries.forEach(e => {
+      const b = e.buyer.toUpperCase().trim();
+      if (!buyerDataMap[b]) {
+        buyerDataMap[b] = { name: b, value: 0 };
+      }
+      buyerDataMap[b].value += e.fabric_used_kg || 0;
+    });
+    return Object.values(buyerDataMap).map(b => ({
+      name: b.name,
+      value: parseFloat(b.value.toFixed(1))
+    }));
+  }, [targetEntries]);
+
   const buyerColors = ["#2563EB", "#3B82F6", "#60A5FA", "#1D4ED8", "#93C5FD", "#1E3A8A"];
-  const buyerData = Object.values(buyerDataMap).map(b => ({
-    name: b.name,
-    value: parseFloat(b.value.toFixed(1))
-  }));
 
   // --- Aggregate Fabric Types Analytics ---
-  const fabricDataMap: { [type: string]: { name: string; quantity: number; avgEte: number; count: number } } = {};
-  targetEntries.forEach(e => {
-    const f = e.fabric_type || "Knit Blend";
-    if (!fabricDataMap[f]) {
-      fabricDataMap[f] = { name: f, quantity: 0, avgEte: 0, count: 0 };
-    }
-    fabricDataMap[f].quantity += e.fabric_used_kg || 0;
-    fabricDataMap[f].avgEte += e.actual_physical_marker_efficiency_ete || 0;
-    fabricDataMap[f].count += 1;
-  });
-  const fabricData = Object.values(fabricDataMap).map(f => ({
-    name: f.name.length > 18 ? f.name.substring(0, 15) + "..." : f.name,
-    quantity: parseFloat(f.quantity.toFixed(1)),
-    efficiency: f.count > 0 ? parseFloat((f.avgEte / f.count).toFixed(1)) : 0
-  }));
+  const fabricData = useMemo(() => {
+    const fabricDataMap: { [type: string]: { name: string; quantity: number; avgEte: number; count: number } } = {};
+    targetEntries.forEach(e => {
+      const f = e.fabric_type || "Knit Blend";
+      if (!fabricDataMap[f]) {
+        fabricDataMap[f] = { name: f, quantity: 0, avgEte: 0, count: 0 };
+      }
+      fabricDataMap[f].quantity += e.fabric_used_kg || 0;
+      fabricDataMap[f].avgEte += e.actual_physical_marker_efficiency_ete || 0;
+      fabricDataMap[f].count += 1;
+    });
+    return Object.values(fabricDataMap).map(f => ({
+      name: f.name.length > 18 ? f.name.substring(0, 15) + "..." : f.name,
+      quantity: parseFloat(f.quantity.toFixed(1)),
+      efficiency: f.count > 0 ? parseFloat((f.avgEte / f.count).toFixed(1)) : 0
+    }));
+  }, [targetEntries]);
 
   // Style details for labels to increase contrast:
   // Using slate-700 (#334155) for dark, readable text.

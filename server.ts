@@ -175,6 +175,11 @@ function saveSettings(settings: any) {
 // Call loadSettings on startup
 loadSettings();
 
+// Server-side cache for sync metadata to reduce Supabase hits
+let lastMetadataCheck = 0;
+let cachedMetadata: string | null = null;
+const METADATA_CACHE_TTL = 5000; // 5 seconds cache for metadata checks
+
 // Sync settings with Supabase
 async function syncSettingsWithDB() {
   try {
@@ -1408,8 +1413,19 @@ app.get("/api/sync", async (req, res) => {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
 
     const client_version = req.query.version as string;
+    const now = Date.now();
 
-    // Concurrently fetch metadata counts and timestamps to build a lightweight version token
+    let server_version = "";
+    
+    // Check if we have a valid cached metadata version to skip Supabase hits
+    if (cachedMetadata && (now - lastMetadataCheck < METADATA_CACHE_TTL)) {
+      server_version = [cachedMetadata, user_role || "", user_email || ""].join("|");
+      if (client_version && client_version === server_version) {
+        return res.json({ no_changes: true, version: server_version });
+      }
+    }
+
+    // If cache miss or expired, concurrently fetch metadata counts and timestamps
     const [
       { data: entryMax, error: err1 },
       { data: entryCreatedMax, error: err2 },
@@ -1443,11 +1459,11 @@ app.get("/api/sync", async (req, res) => {
       supabase.from("heat_seal_targets").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0)
     ]);
 
-    let server_version = "";
+    server_version = "";
     if (err1 || err2 || err3 || err4 || err5 || err6 || err7) {
       console.warn("Metadata check bypassed due to a database warning:", { err1, err2, err3, err4, err5, err6, err7 });
     } else {
-      server_version = [
+      const metadataBase = [
         entryMax?.[0]?.updated_at || "",
         entryCreatedMax?.[0]?.created_at || "",
         entryCount || 0,
@@ -1462,10 +1478,14 @@ app.get("/api/sync", async (req, res) => {
         hsOpCount,
         hsTargetMax,
         hsTargetCount,
-        systemSettings?.whats_new_updated_at || "",
-        user_role || "",
-        user_email || ""
+        systemSettings?.whats_new_updated_at || ""
       ].join("|");
+
+      // Update the shared metadata cache
+      cachedMetadata = metadataBase;
+      lastMetadataCheck = now;
+
+      server_version = [metadataBase, user_role || "", user_email || ""].join("|");
 
       if (client_version && client_version === server_version) {
         return res.json({ no_changes: true, version: server_version });
@@ -2526,11 +2546,7 @@ app.post("/api/admin/create-user", async (req, res) => {
 // STATIC FILES & VITE HMR HANDLER
 // ==========================================
 
-if (process.env.VERCEL) {
-  // On Vercel, static files and routing are handled by Vercel CDN using vercel.json.
-  // The Express app is exported to be run as a Serverless Function.
-  console.log("Running in Vercel Serverless environment");
-} else if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production") {
   import("vite").then(({ createServer: createViteServer }) => {
     createViteServer({
       server: { middlewareMode: true },

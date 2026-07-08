@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Plus, Search, Trash2, Calendar, ClipboardList, Loader2, Save, X, Edit, Check, 
   Flame, Users, Target, ShieldAlert, CheckCircle2, AlertTriangle, FileSpreadsheet,
@@ -147,6 +147,18 @@ export default function HeatSealModule({
   }>({ isOpen: false, title: "", message: "" });
 
   const isAdminOrSupervisor = currentProfile.role === "admin" || currentProfile.role === "supervisor";
+
+  const isDayShift = formData.shift === 'D' || formData.shift === 'A';
+  
+  const filteredHourlyData = useMemo(() => {
+    return (formData.hourly_data || []).map((item, idx) => ({
+      ...item,
+      originalIndex: idx
+    })).filter(item => {
+      const slotIndex = HOURS_LABELS.indexOf(item.hour_slot);
+      return isDayShift ? slotIndex < 12 : slotIndex >= 12;
+    });
+  }, [formData.hourly_data, isDayShift]);
 
   // Check and auto-apply target assignments whenever entry_date, shift, or operator_id changes
   useEffect(() => {
@@ -894,19 +906,8 @@ export default function HeatSealModule({
                 </div>
 
                 {/* HORIZONTAL TALLY TABLE */}
-                {(() => {
-                  const isDayShift = formData.shift === 'D' || formData.shift === 'A';
-                  const filteredHourlyData = (formData.hourly_data || []).map((item, idx) => ({
-                    ...item,
-                    originalIndex: idx
-                  })).filter(item => {
-                    const slotIndex = HOURS_LABELS.indexOf(item.hour_slot);
-                    return isDayShift ? slotIndex < 12 : slotIndex >= 12;
-                  });
-
-                  return (
-                    <div className="space-y-6 mt-6">
-                      {/* SHIFT PROGRESSION TIMELINE */}
+                <div className="space-y-6 mt-6">
+                  {/* SHIFT PROGRESSION TIMELINE */}
                       <div className="p-5 bg-slate-50/70 dark:bg-slate-800/20 rounded-2xl border border-slate-200/50 dark:border-slate-800/80">
                         <div className="flex items-center justify-between mb-4">
                           <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -1090,8 +1091,6 @@ export default function HeatSealModule({
                         </div>
                       </div>
                     </div>
-                  );
-                })()}
 
                 {/* Admin Status Overrides */}
                 {isAdminOrSupervisor && (
@@ -1219,13 +1218,15 @@ export default function HeatSealModule({
                           </td>
                           <td className="py-4 px-4 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => handleOpenForm(entry)}
-                                className="p-1.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 text-slate-400 dark:text-slate-400 rounded-lg transition"
-                                title="Edit"
-                              >
-                                <Edit size={14} />
-                              </button>
+                              {isAdminOrSupervisor && (
+                                <button
+                                  onClick={() => handleOpenForm(entry)}
+                                  className="p-1.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 text-slate-400 dark:text-slate-400 rounded-lg transition"
+                                  title="Edit"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                              )}
                               {isAdminOrSupervisor && (
                                 <button
                                   onClick={() => handleDelete(entry.id)}
@@ -1235,6 +1236,9 @@ export default function HeatSealModule({
                                 >
                                   {deletingId === entry.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                                 </button>
+                              )}
+                              {!isAdminOrSupervisor && (
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Locked</span>
                               )}
                             </div>
                           </td>

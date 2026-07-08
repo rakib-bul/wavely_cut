@@ -148,7 +148,7 @@ export default function KPICards({
     };
   }, [polyEntries, selectedDate, polyPrice]);
 
-  const kpis = [
+  const kpis = React.useMemo(() => [
     {
       id: "gross-fabric",
       title: "Gross Fabric Used",
@@ -580,42 +580,46 @@ export default function KPICards({
       statusColor: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
       highlight: true
     }
-  ];
+  ], [metrics, group, polyStats, polyPrice]);
 
   // Group filter logic
-  const dailyKeys = [
-    "today-output",
-    "today-lay-layers",
-    "today-ratio-combined",
-    "today-fabric",
-    "today-fabric-spread",
-    "today-spreading-scrap",
-    "today-cutting-scrap",
-    "today-remnants-issued",
-    "today-remnants-used",
-    "today-remnants-scrap",
-    "today-remnants-utilization",
-    "today-reject-qty",
-    "today-fabric-save-loss-pct",
-    "today-fabric-save-loss-kg",
-    "today-booking-vs-marker",
-    "today-booking-vs-cut",
-    "daily-trend",
-    "daily-avg",
-    "recent-quality",
-    "poly-summary"
-  ];
-  const dailyKpis = dailyKeys.map(key => kpis.find(k => k.id === key)).filter((k): k is typeof kpis[0] => !!k);
+  const dailyKpis = React.useMemo(() => {
+    const dailyKeys = [
+      "today-output",
+      "today-lay-layers",
+      "today-ratio-combined",
+      "today-fabric",
+      "today-fabric-spread",
+      "today-spreading-scrap",
+      "today-cutting-scrap",
+      "today-remnants-issued",
+      "today-remnants-used",
+      "today-remnants-scrap",
+      "today-remnants-utilization",
+      "today-reject-qty",
+      "today-fabric-save-loss-pct",
+      "today-fabric-save-loss-kg",
+      "today-booking-vs-marker",
+      "today-booking-vs-cut",
+      "daily-trend",
+      "daily-avg",
+      "recent-quality",
+      "poly-summary"
+    ];
+    return dailyKeys.map(key => kpis.find(k => k.id === key)).filter((k): k is typeof kpis[0] => !!k);
+  }, [kpis]);
 
-  const monthlyKpis = kpis.filter(kpi => 
-    [
-      "gross-fabric", "fabric-spread", "cutting-scrap", "cad-eff", "ete-eff", "eff-gap",
-      "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch",
-      "total-fabric-save-loss-pct", "total-fabric-save-loss-kg",
-      "total-remnants-issued", "total-remnants-used", "total-remnants-scrap",
-      "total-remnants-utilization", "total-reject-qty", "poly-summary"
-    ].includes(kpi.id)
-  );
+  const monthlyKpis = React.useMemo(() => {
+    return kpis.filter(kpi => 
+      [
+        "gross-fabric", "fabric-spread", "cutting-scrap", "cad-eff", "ete-eff", "eff-gap",
+        "month-total", "total-lots", "total-layers", "total-qty", "total-used-inch",
+        "total-fabric-save-loss-pct", "total-fabric-save-loss-kg",
+        "total-remnants-issued", "total-remnants-used", "total-remnants-scrap",
+        "total-remnants-utilization", "total-reject-qty", "poly-summary"
+      ].includes(kpi.id)
+    );
+  }, [kpis]);
 
   const renderCardGrid = (items: typeof kpis) => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2k:grid-cols-5 gap-5">
