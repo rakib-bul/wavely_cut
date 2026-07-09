@@ -484,7 +484,7 @@ export default function App() {
       analytics: ["supervisor", "manager", "admin"],
       data_entry: ["operator", "supervisor", "admin"],
       poly_tracking: ["supervisor", "admin"],
-      heat_seal_tracking: ["operator", "supervisor", "admin"]
+      heat_seal_tracking: ["operator", "supervisor", "manager", "admin"]
     };
 
     const allowedRoles = protectedRolesMap[activeTab];

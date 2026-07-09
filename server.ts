@@ -2020,8 +2020,8 @@ app.post("/api/heat-seal-entries", async (req, res) => {
   try {
     const user_role = req.headers["x-user-role"] as string;
     const user_email = req.headers["x-user-email"] as string;
-    if (!["operator", "supervisor", "manager", "admin"].includes(user_role)) {
-      return res.status(403).json({ error: "Access Denied." });
+    if (!["operator", "supervisor", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Operators, Supervisors, and Admins can create entries." });
     }
     
     // Use auth data if we have it from profile fetch later, but here just an email is sent in headers
@@ -2069,6 +2069,10 @@ app.put("/api/heat-seal-entries/:id", async (req, res) => {
         active_role = prof.role;
       }
     } catch {}
+
+    if (active_role === "manager") {
+      return res.status(403).json({ error: "Access Denied. Managers can only view production." });
+    }
 
     // RLS in DB also prevents unauthorized updates, but we do basic check here
     if (active_role === "operator" && existing.status !== "draft") {
@@ -2137,7 +2141,7 @@ app.delete("/api/heat-seal-entries/:id", async (req, res) => {
       }
     } catch {}
 
-    if (!["supervisor", "manager", "admin"].includes(active_role)) {
+    if (!["supervisor", "admin"].includes(active_role)) {
       return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can delete entries." });
     }
     const { id } = req.params;
@@ -2162,8 +2166,8 @@ app.post("/api/heat-seal-operators", async (req, res) => {
   try {
     const user_role = req.headers["x-user-role"] as string;
     const user_email = req.headers["x-user-email"] as string;
-    if (!["supervisor", "manager", "admin"].includes(user_role)) {
-      return res.status(403).json({ error: "Access Denied. Only Supervisors, Managers, and Admins can manage operators." });
+    if (!["operator", "supervisor", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Operators, Supervisors, and Admins can manage operators." });
     }
     const { operator_name, operator_id, designation } = req.body;
     const { data, error } = await supabase
@@ -2182,8 +2186,8 @@ app.delete("/api/heat-seal-operators/:id", async (req, res) => {
   try {
     const user_role = req.headers["x-user-role"] as string;
     const user_email = req.headers["x-user-email"] as string;
-    if (!["supervisor", "manager", "admin"].includes(user_role)) {
-      return res.status(403).json({ error: "Access Denied." });
+    if (!["supervisor", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can delete operators." });
     }
     const { id } = req.params;
     const { error } = await supabase.from("heat_seal_operators").delete().eq("id", id);
@@ -2199,8 +2203,8 @@ app.post("/api/heat-seal-targets", async (req, res) => {
   try {
     const user_role = req.headers["x-user-role"] as string;
     const user_email = req.headers["x-user-email"] as string;
-    if (!["supervisor", "manager", "admin"].includes(user_role)) {
-      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can pre-set targets." });
+    if (!["operator", "supervisor", "admin"].includes(user_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Operators, Supervisors, and Admins can pre-set targets." });
     }
 
     let created_by = null;
@@ -2253,8 +2257,8 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
       }
     } catch {}
 
-    if (!["supervisor", "manager", "admin"].includes(active_role)) {
-      return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can update targets." });
+    if (!["operator", "supervisor", "admin"].includes(active_role)) {
+      return res.status(403).json({ error: "Access Denied. Only Operators, Supervisors, and Admins can update targets." });
     }
     const { id } = req.params;
     const { data: existing } = await supabase.from("heat_seal_targets").select("*").eq("id", id).single();
@@ -2332,7 +2336,7 @@ app.delete("/api/heat-seal-targets/:id", async (req, res) => {
       }
     } catch {}
 
-    if (!["supervisor", "manager", "admin"].includes(active_role)) {
+    if (!["supervisor", "admin"].includes(active_role)) {
       return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can delete targets." });
     }
     const { id } = req.params;

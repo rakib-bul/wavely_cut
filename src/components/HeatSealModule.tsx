@@ -50,7 +50,15 @@ export default function HeatSealModule({
   rlsDDL = ""
 }: HeatSealModuleProps) {
   // Navigation for Sub-panels (only for supervisor/admin)
-  const [activeSubTab, setActiveSubTab] = useState<"entries" | "targets" | "operators" | "hourly_tally">("entries");
+  const [activeSubTab, setActiveSubTab] = useState<"entries" | "targets" | "operators" | "hourly_tally">(
+    currentProfile.role === "manager" ? "hourly_tally" : "entries"
+  );
+
+  useEffect(() => {
+    if (currentProfile.role === "manager") {
+      setActiveSubTab("hourly_tally");
+    }
+  }, [currentProfile.role]);
   
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
@@ -156,8 +164,12 @@ export default function HeatSealModule({
     message: string;
   }>({ isOpen: false, title: "", message: "" });
 
+  const isManager = currentProfile.role === "manager";
+  const isOperator = currentProfile.role === "operator";
   const isAdminOrSupervisor = currentProfile.role === "admin" || currentProfile.role === "supervisor";
   const canAccessHeatSeal = isAdminOrSupervisor || currentProfile.can_access_heat_seal_entry !== false;
+  const canEditEverything = isAdminOrSupervisor || isOperator;
+  const canDeleteEverything = isAdminOrSupervisor;
 
   const isDayShift = formData.shift === 'D' || formData.shift === 'A';
   
@@ -443,8 +455,13 @@ export default function HeatSealModule({
       return;
     }
 
-    if (editingId && !isAdminOrSupervisor) {
-      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Officers and Administrators can edit records." });
+    if (isManager) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Managers can only view the hourly heatseal production." });
+      return;
+    }
+
+    if (editingId && !canEditEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Operators, Officers, and Administrators can edit records." });
       return;
     }
 
@@ -470,6 +487,10 @@ export default function HeatSealModule({
   };
 
   const handleDelete = (id: string) => {
+    if (!canDeleteEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Officers and Administrators can delete entries." });
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: "Delete Tracking Entry",
@@ -492,6 +513,10 @@ export default function HeatSealModule({
   // --- Predefined Operators Management ---
   const handleAddOperatorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Operators, Officers and Administrators can register predefined operators." });
+      return;
+    }
     if (!operatorFormData.operator_name || !operatorFormData.operator_id || !operatorFormData.designation) {
       setAlertDialog({ isOpen: true, title: "Missing Information", message: "Please enter Operator Name, ID Card Number, and Designation." });
       return;
@@ -513,6 +538,10 @@ export default function HeatSealModule({
   };
 
   const handleDeleteOperator = (id: string) => {
+    if (!canDeleteEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Officers and Administrators can delete predefined operators." });
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: "Delete Operator",
@@ -551,6 +580,10 @@ export default function HeatSealModule({
   };
 
   const handleCompleteTarget = async (id: string) => {
+    if (!canEditEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Operators, Officers and Administrators can complete targets." });
+      return;
+    }
     setIsCompletingTargetId(id);
     try {
       const response = await onUpdateTarget(id, { status: 'completed' }) as any;
@@ -582,6 +615,10 @@ export default function HeatSealModule({
 
   const handleAddTargetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Operators, Officers and Administrators can preset targets." });
+      return;
+    }
     const { target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target } = targetFormData;
     if (!target_date || !shift || !operator_id || !job_no || !color || !po_no || !hourly_target) {
       setAlertDialog({ isOpen: true, title: "Missing Information", message: "All fields are required to preset a target assignment." });
@@ -616,6 +653,10 @@ export default function HeatSealModule({
   };
 
   const handleDeleteTarget = (id: string) => {
+    if (!canDeleteEverything) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Officers and Administrators can delete preset targets." });
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: "Delete Target",
@@ -843,17 +884,19 @@ export default function HeatSealModule({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Sub Navigation */}
-          <button
-            onClick={() => setActiveSubTab("entries")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeSubTab === "entries" 
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" 
-                : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            }`}
-          >
-            <ClipboardList size={16} />
-            Daily Tally Reports
-          </button>
+          {!isManager && (
+            <button
+              onClick={() => setActiveSubTab("entries")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                activeSubTab === "entries" 
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" 
+                  : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+              }`}
+            >
+              <ClipboardList size={16} />
+              Daily Tally Reports
+            </button>
+          )}
 
           <button
             onClick={() => setActiveSubTab("hourly_tally")}
@@ -867,7 +910,7 @@ export default function HeatSealModule({
             Hourly Heatseal Production
           </button>
 
-          {isAdminOrSupervisor && (
+          {canAccessHeatSeal && !isManager && (
             <>
               <button
                 onClick={() => setActiveSubTab("targets")}
@@ -895,7 +938,7 @@ export default function HeatSealModule({
             </>
           )}
 
-          {canAccessHeatSeal && (
+          {canAccessHeatSeal && !isManager && (
           <button
             onClick={() => { handleOpenForm(); setActiveSubTab("entries"); }}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-lg shadow-emerald-200 dark:shadow-none"
@@ -1004,7 +1047,7 @@ export default function HeatSealModule({
                               <span className="font-mono bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border text-slate-700 dark:text-slate-300 text-[10px]">Hourly Target: {foundTarget.hourly_target} pcs</span>
                             </div>
                           </div>
-                          {isAdminOrSupervisor && (
+                          {canEditEverything && (
                             <button 
                               type="button"
                               onClick={() => handleCompleteTarget(foundTarget.id)}
@@ -1428,7 +1471,7 @@ export default function HeatSealModule({
                           </td>
                           <td className="py-4 px-4 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              {isAdminOrSupervisor && (
+                              {canEditEverything && (
                               <button
                                 onClick={() => handleOpenForm(entry)}
                                 disabled={isGlobalLoading}
@@ -1438,7 +1481,7 @@ export default function HeatSealModule({
                                 <Edit size={14} />
                               </button>
                               )}
-                              {isAdminOrSupervisor && (
+                              {canDeleteEverything && (
                                <button
                                   onClick={() => handleDelete(entry.id)}
                                   disabled={deletingId === entry.id}
@@ -1448,7 +1491,7 @@ export default function HeatSealModule({
                                   {deletingId === entry.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                                 </button>
                               )}
-                              {!isAdminOrSupervisor && (
+                              {!canEditEverything && (
                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Locked</span>
                               )}
                             </div>
@@ -1465,11 +1508,12 @@ export default function HeatSealModule({
       )}
 
       {/* TAB 2: PRESET TARGETS MANAGER */}
-      {activeSubTab === "targets" && isAdminOrSupervisor && (
+      {activeSubTab === "targets" && canAccessHeatSeal && (
         <div className="space-y-6 animate-fade-in">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Create Preset Form */}
-            <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm self-start">
+            {isAdminOrSupervisor ? (
+              <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm self-start">
               <h3 className="font-bold text-slate-900 dark:text-white text-base mb-4 flex items-center gap-2">
                 <Target size={18} className="text-indigo-500" />
                 Preset Target Allocation
@@ -1608,6 +1652,13 @@ export default function HeatSealModule({
                 </button>
               </form>
             </div>
+            ) : (
+              <div className="lg:col-span-1 bg-slate-50 dark:bg-slate-850 p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 self-start text-center">
+                <ShieldAlert size={36} className="mx-auto mb-3 text-slate-400" />
+                <h4 className="font-bold text-slate-800 dark:text-white text-sm mb-1">Preset Access Restricted</h4>
+                <p className="text-xs text-slate-500">Only Admins and Officers can pre-allocate standard hourly targets.</p>
+              </div>
+            )}
 
             {/* List of presets */}
             <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -1669,24 +1720,32 @@ export default function HeatSealModule({
                           </td>
                           <td className="py-3 px-3 text-center">
                              <div className="flex items-center justify-center gap-1">
-                                {t.status !== 'completed' && (
-                                  <button
-                                    onClick={() => handleCompleteTarget(t.id)}
-                                    disabled={isCompletingTargetId === t.id}
-                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-lg transition disabled:opacity-50"
-                                    title="Mark as Completed"
-                                  >
-                                    {isCompletingTargetId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                                  </button>
+                                {canEditEverything ? (
+                                  <>
+                                    {t.status !== 'completed' && (
+                                      <button
+                                        onClick={() => handleCompleteTarget(t.id)}
+                                        disabled={isCompletingTargetId === t.id}
+                                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-lg transition disabled:opacity-50"
+                                        title="Mark as Completed"
+                                      >
+                                        {isCompletingTargetId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                      </button>
+                                    )}
+                                    {canDeleteEverything && (
+                                      <button
+                                        onClick={() => handleDeleteTarget(t.id)}
+                                        disabled={isDeletingTargetId === t.id}
+                                        className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition disabled:opacity-50"
+                                        title="Delete Assignment"
+                                      >
+                                        {isDeletingTargetId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Locked</span>
                                 )}
-                                <button
-                                  onClick={() => handleDeleteTarget(t.id)}
-                                  disabled={isDeletingTargetId === t.id}
-                                  className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition disabled:opacity-50"
-                                  title="Delete Assignment"
-                                >
-                                  {isDeletingTargetId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                </button>
                              </div>
                           </td>
                         </tr>
@@ -1701,10 +1760,11 @@ export default function HeatSealModule({
       )}
 
       {/* TAB 3: OPERATORS DIRECTORY */}
-      {activeSubTab === "operators" && isAdminOrSupervisor && (
+      {activeSubTab === "operators" && canAccessHeatSeal && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
           {/* Add Operator Directory Card */}
-          <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm self-start">
+          {canEditEverything ? (
+            <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm self-start">
             <h3 className="font-bold text-slate-900 dark:text-white text-base mb-4 flex items-center gap-2">
               <UserCheck size={18} className="text-indigo-500" />
               Register New Operator
@@ -1757,6 +1817,13 @@ export default function HeatSealModule({
               </button>
             </form>
           </div>
+          ) : (
+            <div className="lg:col-span-1 bg-slate-50 dark:bg-slate-850 p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 self-start text-center">
+              <ShieldAlert size={36} className="mx-auto mb-3 text-slate-400" />
+              <h4 className="font-bold text-slate-800 dark:text-white text-sm mb-1">Add Access Restricted</h4>
+              <p className="text-xs text-slate-500">Only Admins, Officers and Operators can register new predefined operators.</p>
+            </div>
+          )}
 
           {/* Directory Listings */}
           <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -1788,15 +1855,19 @@ export default function HeatSealModule({
                         <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">{op.operator_name}</td>
                         <td className="py-3 px-3 font-mono text-xs text-slate-700 dark:text-slate-300">{op.operator_id}</td>
                         <td className="py-3 px-3 text-slate-600 dark:text-slate-400">{op.designation}</td>
-                          <td className="py-3 px-3 text-center">
-                            <button
-                              onClick={() => handleDeleteOperator(op.id)}
-                              disabled={isDeletingOpId === op.id}
-                              className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition disabled:opacity-50"
-                              title="Delete Operator"
-                            >
-                              {isDeletingOpId === op.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
+                           <td className="py-3 px-3 text-center">
+                            {canDeleteEverything ? (
+                              <button
+                                onClick={() => handleDeleteOperator(op.id)}
+                                disabled={isDeletingOpId === op.id}
+                                className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition disabled:opacity-50"
+                                title="Delete Operator"
+                              >
+                                {isDeletingOpId === op.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Locked</span>
+                            )}
                           </td>
                       </tr>
                     ))}
