@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { utils, writeFile } from "xlsx";
+import { formatDate } from "../utils/dateUtils";
+import { CustomDatePicker } from "./common/DatePicker";
 import { 
   Plus, Search, Trash2, Calendar, ClipboardList, Loader2, Save, X, Edit, Check, 
   Flame, Users, Target, ShieldAlert, CheckCircle2, AlertTriangle, FileSpreadsheet,
@@ -134,6 +136,12 @@ export default function HeatSealModule({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOpSubmitting, setIsOpSubmitting] = useState(false);
   const [isTargetSubmitting, setIsTargetSubmitting] = useState(false);
+  const [isDeletingOpId, setIsDeletingOpId] = useState<string | null>(null);
+  const [isDeletingTargetId, setIsDeletingTargetId] = useState<string | null>(null);
+  const [isCompletingTargetId, setIsCompletingTargetId] = useState<string | null>(null);
+  
+  const isGlobalLoading = isSubmitting || isOpSubmitting || isTargetSubmitting || 
+    !!deletingId || !!isDeletingOpId || !!isDeletingTargetId || !!isCompletingTargetId;
   
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -499,11 +507,14 @@ export default function HeatSealModule({
       message: "Are you sure you want to delete this predefined operator? This will clear their record from the directory.",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setIsDeletingOpId(id);
         try {
           await onDeleteOperator(id);
         } catch (err: any) {
           checkAndSetSchemaError(err);
           setAlertDialog({ isOpen: true, title: "Operation Failed", message: err.message || "Failed to delete operator." });
+        } finally {
+          setIsDeletingOpId(null);
         }
       }
     });
@@ -528,15 +539,32 @@ export default function HeatSealModule({
   };
 
   const handleCompleteTarget = async (id: string) => {
+    setIsCompletingTargetId(id);
     try {
-      await onUpdateTarget(id, { status: 'completed' });
+      const response = await onUpdateTarget(id, { status: 'completed' }) as any;
+      
+      if (response?.warning) {
+        setAlertDialog({
+          isOpen: true,
+          title: "Partially Successful",
+          message: "The target was updated, but the completion status couldn't be saved because the database schema is outdated. Please ask an administrator to run the status update SQL."
+        });
+      }
+
       // Reset found target in the entry form if it was the one being completed
       if (foundTarget && foundTarget.id === id) {
         setFoundTarget(null);
         setTargetSearchTriggered(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error completing target:", err);
+      setAlertDialog({
+        isOpen: true,
+        title: "Completion Failed",
+        message: err.message || "Failed to mark target as completed."
+      });
+    } finally {
+      setIsCompletingTargetId(null);
     }
   };
 
@@ -549,7 +577,7 @@ export default function HeatSealModule({
     }
     setIsTargetSubmitting(true);
     try {
-      await onAddTarget(targetFormData);
+      const response = await onAddTarget(targetFormData) as any;
       setTargetFormData(prev => ({
         ...prev,
         job_no: "",
@@ -557,7 +585,16 @@ export default function HeatSealModule({
         po_no: "",
         hourly_target: 100
       }));
-      setAlertDialog({ isOpen: true, title: "Success", message: "Target assignment successfully preset!" });
+      
+      if (response?.warning) {
+        setAlertDialog({ 
+          isOpen: true, 
+          title: "Created with Warning", 
+          message: "Target was created, but Status tracking is disabled because the database schema is outdated. Please ask an administrator to run the status update SQL." 
+        });
+      } else {
+        setAlertDialog({ isOpen: true, title: "Success", message: "Target assignment successfully preset!" });
+      }
     } catch (err: any) {
       checkAndSetSchemaError(err);
       setAlertDialog({ isOpen: true, title: "Operation Failed", message: err.message || "Failed to preset target assignment." });
@@ -573,19 +610,26 @@ export default function HeatSealModule({
       message: "Are you sure you want to cancel and delete this target assignment?",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setIsDeletingTargetId(id);
         try {
           await onDeleteTarget(id);
         } catch (err: any) {
           checkAndSetSchemaError(err);
           setAlertDialog({ isOpen: true, title: "Operation Failed", message: err.message || "Failed to delete target assignment." });
+        } finally {
+          setIsDeletingTargetId(null);
         }
       }
     });
   };
 
   const handleExportExcel = () => {
-    const dayEntries = entries.filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'));
-    const nightEntries = entries.filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'));
+    const dayEntries = entries
+      .filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'))
+      .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
+    const nightEntries = entries
+      .filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'))
+      .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
     
     const dayLabels = HOURS_LABELS.slice(0, 12);
     const nightLabels = HOURS_LABELS.slice(12, 24);
@@ -595,7 +639,7 @@ export default function HeatSealModule({
     const generateShiftSheet = (shiftEntries: typeof entries, labels: string[], shiftName: string) => {
       const data: any[] = [];
       data.push([`HEAT-SEAL HOURLY PRODUCTION TALLY - ${shiftName}`]);
-      data.push([`Date: ${reportDate}`]);
+      data.push([`Date: ${formatDate(reportDate)}`]);
       data.push([]);
 
       const header = ["Operator", "Job No", "Color", "PO No"];
@@ -688,15 +732,27 @@ export default function HeatSealModule({
     }
 
     if (wb.SheetNames.length === 0) {
-      const ws = utils.aoa_to_sheet([["No data available for selected date", reportDate]]);
+      const ws = utils.aoa_to_sheet([["No data available for selected date", formatDate(reportDate)]]);
       utils.book_append_sheet(wb, ws, "No Data");
     }
 
-    writeFile(wb, `HeatSeal_Production_Report_${reportDate}.xlsx`);
+    writeFile(wb, `HeatSeal_Production_Report_${formatDate(reportDate)}.xlsx`);
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
+    <div className="space-y-6 animate-fade-in pb-12 relative">
+      {/* Loading Progress Bar */}
+      {isGlobalLoading && (
+        <div className="fixed top-0 left-0 w-full h-1.5 z-[100] bg-indigo-100/30 dark:bg-indigo-950/20 overflow-hidden">
+          <div className="h-full w-full bg-indigo-600 animate-[loading_1.5s_infinite_linear] origin-left shadow-[0_0_8px_rgba(79,70,229,0.6)]" />
+        </div>
+      )}
+      <style>{`
+        @keyframes loading {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
       {schemaError && (
         <div className="bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 p-5 rounded-2xl space-y-4 shadow-sm animate-fade-in text-xs">
           <div className="flex items-start gap-3">
@@ -859,12 +915,9 @@ export default function HeatSealModule({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-slate-50 dark:bg-slate-800/40 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Date *</label>
-                    <input 
-                      type="date" 
-                      value={formData.entry_date} 
-                      onChange={e => setFormData({ ...formData, entry_date: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
-                      required 
+                    <CustomDatePicker 
+                      selectedDate={formData.entry_date} 
+                      onChange={date => setFormData({ ...formData, entry_date: date })}
                     />
                   </div>
 
@@ -941,9 +994,10 @@ export default function HeatSealModule({
                             <button 
                               type="button"
                               onClick={() => handleCompleteTarget(foundTarget.id)}
-                              className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 dark:text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition border border-amber-200/50 dark:border-amber-800/50 shadow-sm"
+                              disabled={isCompletingTargetId === foundTarget.id}
+                              className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 dark:text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition border border-amber-200/50 dark:border-amber-800/50 shadow-sm disabled:opacity-50"
                             >
-                              <Check size={12} className="stroke-[3]" />
+                              {isCompletingTargetId === foundTarget.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} className="stroke-[3]" />}
                               Finish Job / Switch
                             </button>
                           )}
@@ -1321,7 +1375,7 @@ export default function HeatSealModule({
                       return (
                         <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/35 transition">
                           <td className="py-4 px-4 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
-                            {entry.entry_date}
+                            {formatDate(entry.entry_date)}
                           </td>
                           <td className="py-4 px-4">
                             <span className="font-black bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
@@ -1361,20 +1415,21 @@ export default function HeatSealModule({
                           <td className="py-4 px-4 text-center">
                             <div className="flex items-center justify-center gap-2">
                               {isAdminOrSupervisor && (
-                                <button
-                                  onClick={() => handleOpenForm(entry)}
-                                  className="p-1.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 text-slate-400 dark:text-slate-400 rounded-lg transition"
-                                  title="Edit"
-                                >
-                                  <Edit size={14} />
-                                </button>
+                              <button
+                                onClick={() => handleOpenForm(entry)}
+                                disabled={isGlobalLoading}
+                                className="p-1.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 text-slate-400 dark:text-slate-400 rounded-lg transition disabled:opacity-50"
+                                title="Edit"
+                              >
+                                <Edit size={14} />
+                              </button>
                               )}
                               {isAdminOrSupervisor && (
-                                <button
+                               <button
                                   onClick={() => handleDelete(entry.id)}
                                   disabled={deletingId === entry.id}
-                                  className="p-1.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 text-slate-400 dark:text-slate-400 rounded-lg transition"
-                                  title="Delete"
+                                  className="p-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-500 dark:text-rose-400 rounded-lg transition border border-rose-100/50 dark:border-rose-800/30"
+                                  title="Delete Permanent Record"
                                 >
                                   {deletingId === entry.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                                 </button>
@@ -1409,12 +1464,9 @@ export default function HeatSealModule({
               <form onSubmit={handleAddTargetSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Date *</label>
-                  <input 
-                    type="date" 
-                    value={targetFormData.target_date} 
-                    onChange={e => setTargetFormData({ ...targetFormData, target_date: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
-                    required 
+                  <CustomDatePicker 
+                    selectedDate={targetFormData.target_date} 
+                    onChange={date => setTargetFormData({ ...targetFormData, target_date: date })}
                   />
                 </div>
 
@@ -1573,7 +1625,7 @@ export default function HeatSealModule({
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {targets.map(t => (
                         <tr key={t.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${t.status === 'completed' ? 'opacity-60 bg-slate-50/20' : ''}`}>
-                          <td className="py-3 px-3 font-mono text-xs whitespace-nowrap text-slate-800 dark:text-slate-200">{t.target_date}</td>
+                          <td className="py-3 px-3 font-mono text-xs whitespace-nowrap text-slate-800 dark:text-slate-200">{formatDate(t.target_date)}</td>
                           <td className="py-3 px-3">
                             <span className="font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
                               {t.shift === 'D' ? 'Day' : t.shift === 'N' ? 'Night' : t.shift}
@@ -1606,18 +1658,20 @@ export default function HeatSealModule({
                                 {t.status !== 'completed' && (
                                   <button
                                     onClick={() => handleCompleteTarget(t.id)}
-                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-lg transition"
+                                    disabled={isCompletingTargetId === t.id}
+                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-lg transition disabled:opacity-50"
                                     title="Mark as Completed"
                                   >
-                                    <Check size={14} />
+                                    {isCompletingTargetId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => onDeleteTarget(t.id)}
-                                  className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition"
+                                  onClick={() => handleDeleteTarget(t.id)}
+                                  disabled={isDeletingTargetId === t.id}
+                                  className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition disabled:opacity-50"
                                   title="Delete Assignment"
                                 >
-                                  <Trash2 size={14} />
+                                  {isDeletingTargetId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                                 </button>
                              </div>
                           </td>
@@ -1720,15 +1774,16 @@ export default function HeatSealModule({
                         <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">{op.operator_name}</td>
                         <td className="py-3 px-3 font-mono text-xs text-slate-700 dark:text-slate-300">{op.operator_id}</td>
                         <td className="py-3 px-3 text-slate-600 dark:text-slate-400">{op.designation}</td>
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handleDeleteOperator(op.id)}
-                            className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition"
-                            title="Delete Operator"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              onClick={() => handleDeleteOperator(op.id)}
+                              disabled={isDeletingOpId === op.id}
+                              className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-400 rounded-lg transition disabled:opacity-50"
+                              title="Delete Operator"
+                            >
+                              {isDeletingOpId === op.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                          </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1755,26 +1810,32 @@ export default function HeatSealModule({
                 <div className="flex items-center gap-3">
                    <button
                      onClick={handleExportExcel}
-                     className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer mr-2"
+                     disabled={isGlobalLoading}
+                     className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer mr-2 disabled:opacity-50"
                    >
                      <Download size={14} />
                      Export Excel
                    </button>
                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Report Date:</label>
-                   <input 
-                     type="date" 
-                     value={reportDate}
-                     onChange={e => setReportDate(e.target.value)}
-                     className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white cursor-pointer shadow-sm"
-                   />
+                   <div className="w-[140px]">
+                     <CustomDatePicker 
+                       selectedDate={reportDate} 
+                       onChange={date => setReportDate(date)}
+                       className="!h-8"
+                     />
+                   </div>
                 </div>
              </div>
 
              {/* Tally Content */}
              <div className="p-6 space-y-10">
                 {(() => {
-                   const dayEntries = entries.filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'));
-                   const nightEntries = entries.filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'));
+                   const dayEntries = entries
+                     .filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'))
+                     .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
+                   const nightEntries = entries
+                     .filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'))
+                     .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
                    
                    const dayLabels = HOURS_LABELS.slice(0, 12);
                    const nightLabels = HOURS_LABELS.slice(12, 24);
@@ -1785,7 +1846,7 @@ export default function HeatSealModule({
                             <div className="flex flex-col items-center gap-2">
                                <Calendar size={40} className="opacity-10 mb-2" />
                                <p className="font-bold text-sm tracking-widest uppercase">No production records found</p>
-                               <p className="text-[10px] font-medium opacity-60">There are no tally entries submitted for {new Date(reportDate).toLocaleDateString()}.</p>
+                               <p className="text-[10px] font-medium opacity-60">There are no tally entries submitted for {formatDate(reportDate)}.</p>
                             </div>
                          </div>
                       );

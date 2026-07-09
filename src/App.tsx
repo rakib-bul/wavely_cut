@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { CustomDatePicker } from "./components/common/DatePicker";
 import Sidebar from "./components/Sidebar";
 import KPICards from "./components/KPICards";
 import DashboardCharts from "./components/DashboardCharts";
@@ -811,7 +812,9 @@ export default function App() {
         throw new Error(errData.error || "Failed to create target.");
       }
 
+      const successData = await res.json();
       await fetchData(true);
+      return successData;
     } catch (err: any) {
       console.error("Error creating target:", err);
       throw err;
@@ -837,7 +840,9 @@ export default function App() {
         throw new Error(errData.error || "Failed to update target.");
       }
 
+      const successData = await res.json();
       await fetchData(true);
+      return successData;
     } catch (err: any) {
       console.error("Error updating target:", err);
       throw err;
@@ -2168,12 +2173,10 @@ export default function App() {
               
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Date</label>
-                <input 
-                  type="date"
-                  value={editingEntry.entry_date}
-                  onChange={e => setEditingEntry({ ...editingEntry, entry_date: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
-                  required
+                <CustomDatePicker 
+                  selectedDate={editingEntry.entry_date}
+                  onChange={date => setEditingEntry({ ...editingEntry, entry_date: date })}
+                  className="!h-8"
                 />
               </div>
 

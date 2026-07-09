@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { formatDate } from "../utils/dateUtils";
 import {
   ResponsiveContainer,
   BarChart,
@@ -152,6 +153,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
                   <XAxis 
                     dataKey="date" 
+                    tickFormatter={(val) => formatDate(val)}
                     tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
                     stroke="#E2E8F0"
                   />
@@ -160,6 +162,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
                     stroke="#E2E8F0"
                   />
                   <Tooltip 
+                    labelFormatter={(val) => formatDate(val)}
                     contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', fontFamily: 'Inter', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />
@@ -314,6 +317,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
                   <XAxis 
                     dataKey="date" 
+                    tickFormatter={(val) => formatDate(val)}
                     tick={{ fontSize: 10, fill: axisLabelColor, fontWeight: 600 }} 
                     stroke="#E2E8F0"
                   />
@@ -322,6 +326,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
                     stroke="#E2E8F0"
                   />
                   <Tooltip 
+                    labelFormatter={(val) => formatDate(val)}
                     contentStyle={{ background: '#0F172A', border: 'none', borderRadius: '12px', color: '#F8FAFC', fontSize: '11px', fontFamily: 'Inter', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' }} 
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '15px', fontWeight: 500 }} />

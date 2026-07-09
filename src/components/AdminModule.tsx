@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { formatDateTime } from "../utils/dateUtils";
 import { 
   Users, 
   Settings, 
@@ -713,7 +714,7 @@ export default function AdminModule({
                          <span className="text-slate-400">acted on</span>
                          <span className="bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold border border-slate-200 dark:border-slate-700">{log.entity_type} ({log.entity_id})</span>
                        </div>
-                       <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{new Date(log.created_at).toLocaleString()}</span>
+                       <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{formatDateTime(log.created_at)}</span>
                     </div>
 
                     {(log.old_value || log.new_value) && (
@@ -983,7 +984,7 @@ export default function AdminModule({
                 )}
                 {whatsNewUpdatedAt && (
                   <span className="text-[10px] text-slate-400 font-mono font-medium ml-auto">
-                    Published: {new Date(whatsNewUpdatedAt).toLocaleString()}
+                    Published: {formatDateTime(whatsNewUpdatedAt)}
                   </span>
                 )}
               </div>

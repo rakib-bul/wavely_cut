@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS public.heat_seal_targets (
     color VARCHAR(100) NOT NULL,
     po_no VARCHAR(100) NOT NULL,
     hourly_target INT NOT NULL DEFAULT 100,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed')),
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL

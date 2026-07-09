@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { formatDate, formatDateTime } from "../utils/dateUtils";
 import { 
   Calendar, 
   Scissors, 
@@ -335,8 +336,8 @@ export default function DailyReport({
       <body>
         <table>
           <tr><td colspan="10" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">DAILY OPERATIONAL REPORT</td></tr>
-          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Target Date: ${selectedDate}</td></tr>
-          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Generated: ${new Date().toLocaleString()} | Developer: Rakib Hasan</td></tr>
+          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Target Date: ${formatDate(selectedDate)}</td></tr>
+          <tr><td colspan="10" class="report-meta" style="font-size: 10pt; color: #595959;">Generated: ${formatDateTime(new Date().toISOString())} | Developer: Rakib Hasan</td></tr>
         </table>
 
         <table>
@@ -545,7 +546,7 @@ export default function DailyReport({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `WavelyCut_Daily_Report_${selectedDate}.xls`);
+    link.setAttribute("download", `WavelyCut_Daily_Report_${formatDate(selectedDate)}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -566,7 +567,7 @@ export default function DailyReport({
             </h2>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Standard floor metrics, total fabric lays, marker counts, and active machine yields for <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{selectedDate}</span>.
+            Standard floor metrics, total fabric lays, marker counts, and active machine yields for <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{formatDate(selectedDate)}</span>.
           </p>
         </div>
 
@@ -600,7 +601,7 @@ export default function DailyReport({
           <Calendar className="text-slate-400 dark:text-slate-600 mb-3" size={36} />
           <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">No Operational Records</h4>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-            There are no cutting logs submitted for <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedDate}</span>. Please use the calendar input above or select an active date from the quick select pills.
+            There are no cutting logs submitted for <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatDate(selectedDate)}</span>. Please use the calendar input above or select an active date from the quick select pills.
           </p>
         </div>
       ) : (
@@ -721,7 +722,7 @@ export default function DailyReport({
                 </h3>
               </div>
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase font-mono">
-                Selected Date: {selectedDate}
+                Selected Date: {formatDate(selectedDate)}
               </span>
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CustomDatePicker } from "./common/DatePicker";
 import { 
   Save, 
   Send, 
@@ -494,12 +495,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               <div className="flex flex-wrap items-center gap-4 self-start lg:self-auto font-sans">
                 <div className="w-40">
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Date</label>
-                  <input
-                    type="date"
-                    name="entry_date"
-                    value={formData.entry_date}
-                    onChange={handleInputChange}
-                    className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs cursor-pointer"
+                  <CustomDatePicker 
+                    selectedDate={formData.entry_date} 
+                    onChange={date => setFormData({ ...formData, entry_date: date })}
                   />
                 </div>
                 <div className="w-36">

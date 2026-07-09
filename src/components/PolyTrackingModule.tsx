@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from "react";
+import { formatDate, formatDateTime } from "../utils/dateUtils";
+import { CustomDatePicker } from "./common/DatePicker";
 import { 
   Calendar, 
   Trash2, 
@@ -152,8 +154,8 @@ export default function PolyTrackingModule({
       <body>
         <table>
           <tr><td colspan="6" class="report-title">DAILY POLY BAGS RECEIVED & RE-USE REPORT</td></tr>
-          <tr><td colspan="6" class="report-meta">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
-          <tr><td colspan="6" class="report-meta">Date Filter Range: ${startDate || 'All Time'} to ${endDate || 'All Time'}</td></tr>
+          <tr><td colspan="6" class="report-meta">Wavely Cut Platform | Generated: ${formatDateTime(new Date().toISOString())}</td></tr>
+          <tr><td colspan="6" class="report-meta">Date Filter Range: ${startDate ? formatDate(startDate) : 'All Time'} to ${endDate ? formatDate(endDate) : 'All Time'}</td></tr>
           <tr><td colspan="6" class="report-meta">Total Logged Days: ${filteredEntries.length}</td></tr>
         </table>
 
@@ -172,7 +174,7 @@ export default function PolyTrackingModule({
               const saveVal = entry.save !== undefined ? Number(entry.save) : (reused * priceVal);
               return `
                 <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
-                  <td class="align-center">${entry.entry_date}</td>
+                  <td class="align-center">${formatDate(entry.entry_date)}</td>
                   <td class="align-right">${received.toFixed(2)}</td>
                   <td class="align-right">${reused.toFixed(2)}</td>
                   <td class="align-right">${pct.toFixed(2)}%</td>
@@ -252,7 +254,7 @@ export default function PolyTrackingModule({
     setConfirmDialog({
       isOpen: true,
       title: "Delete Poly Entry",
-      message: `Are you sure you want to delete the poly entry for ${date}?`,
+      message: `Are you sure you want to delete the poly entry for ${formatDate(date)}?`,
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         setDeletingId(id);
@@ -422,16 +424,10 @@ export default function PolyTrackingModule({
             {/* Field 1: Date */}
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Select Date</label>
-              <div className="relative">
-                <Calendar size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="date"
-                  value={entryDate}
-                  onChange={(e) => setEntryDate(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2.5 pl-10 pr-3.5 text-xs text-slate-800 dark:text-slate-200 font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition"
-                  required
-                />
-              </div>
+              <CustomDatePicker 
+                selectedDate={entryDate} 
+                onChange={(date) => setEntryDate(date)}
+              />
             </div>
 
             {/* Field 2: Total Received Poly */}
@@ -512,22 +508,20 @@ export default function PolyTrackingModule({
 
             {/* Filter Inputs */}
             <div className="flex items-center gap-2 text-xs flex-wrap">
-              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl font-medium">
-                <span className="text-slate-400 text-[10px]">From</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent border-none text-slate-700 dark:text-slate-300 outline-none text-[11px] p-0 focus:ring-0 cursor-pointer"
+              <div className="w-[140px]">
+                <CustomDatePicker 
+                  selectedDate={startDate} 
+                  onChange={(date) => setStartDate(date)}
+                  placeholderText="From"
+                  className="!h-9"
                 />
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl font-medium">
-                <span className="text-slate-400 text-[10px]">To</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent border-none text-slate-700 dark:text-slate-300 outline-none text-[11px] p-0 focus:ring-0 cursor-pointer"
+              <div className="w-[140px]">
+                <CustomDatePicker 
+                  selectedDate={endDate} 
+                  onChange={(date) => setEndDate(date)}
+                  placeholderText="To"
+                  className="!h-9"
                 />
               </div>
               {(startDate || endDate) && (
@@ -590,7 +584,7 @@ export default function PolyTrackingModule({
                       >
                         <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
                           <Calendar size={13} className="text-slate-400 shrink-0" />
-                          <span>{entry.entry_date}</span>
+                          <span>{formatDate(entry.entry_date)}</span>
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                           {editingId === entry.id ? (

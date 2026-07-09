@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { CustomDatePicker } from "./common/DatePicker";
+import { formatDate } from "../utils/dateUtils";
 import { 
   Weight, 
   Layers, 
@@ -219,7 +221,7 @@ export default function KPICards({
     // Datewise KPIs
     {
       id: "today-output",
-      title: `Today's Output (${metrics.latestDateStr || "Today"})`,
+      title: `Today's Output (${metrics.latestDateStr ? formatDate(metrics.latestDateStr) : "Today"})`,
       amount: (metrics.today_cut_qty || 0).toLocaleString(),
       unit: "Pcs",
       desc: "Planned garment parts cut on the latest active date",
@@ -800,12 +802,13 @@ export default function KPICards({
                   <ChevronLeft size={14} className="stroke-[2.5]" />
                 </button>
                 
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none cursor-pointer px-1 w-28 text-center"
-                />
+                <div className="w-28">
+                  <CustomDatePicker 
+                    selectedDate={selectedDate}
+                    onChange={(date) => setSelectedDate(date)}
+                    className="!bg-transparent !border-none !shadow-none !px-0"
+                  />
+                </div>
 
                 <button
                   onClick={handleNextDay}

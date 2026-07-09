@@ -2166,9 +2166,23 @@ app.post("/api/heat-seal-targets", async (req, res) => {
       .from("heat_seal_targets")
       .insert([{ target_date, shift: dbShift, operator_id, operator_name, job_no, color, po_no, hourly_target, created_by }])
       .select();
-    if (error) throw error;
+    
+    if (error) {
+      if (error.message.includes("status") || error.message.includes("schema cache")) {
+        // Fallback if status column is missing
+        const { data: retryData, error: retryError } = await supabase
+          .from("heat_seal_targets")
+          .insert([{ target_date, shift: dbShift, operator_id, operator_name, job_no, color, po_no, hourly_target, created_by }])
+          .select();
+        if (retryError) throw retryError;
+        const returnedData = retryData?.[0] ? { ...retryData[0], status: 'active', shift: mapShiftFromDb(retryData[0].shift) } : null;
+        await addAuditLog(user_email, "create", "heat_seal_target", retryData?.[0]?.id || "", null, returnedData);
+        return res.json({ success: true, data: returnedData, warning: "Database schema needs update for Status tracking." });
+      }
+      throw error;
+    }
 
-    const returnedData = data?.[0] ? { ...data[0], shift: mapShiftFromDb(data[0].shift) } : null;
+    const returnedData = data?.[0] ? { ...data[0], status: data[0].status || 'active', shift: mapShiftFromDb(data[0].shift) } : null;
     await addAuditLog(user_email, "create", "heat_seal_target", data?.[0]?.id || "", null, returnedData);
 
     return res.json({ success: true, data: returnedData });
@@ -2206,7 +2220,8 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
       job_no,
       color,
       po_no,
-      hourly_target
+      hourly_target,
+      status
     } = req.body;
 
     const updates: any = {};
@@ -2218,6 +2233,7 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
     if (color !== undefined) updates.color = color;
     if (po_no !== undefined) updates.po_no = po_no;
     if (hourly_target !== undefined) updates.hourly_target = hourly_target;
+    if (status !== undefined) updates.status = status;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -2225,9 +2241,26 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
       .update(updates)
       .eq("id", id)
       .select();
-    if (error) throw error;
+    
+    if (error) {
+      if (error.message.includes("status") || error.message.includes("schema cache")) {
+        // Fallback: remove status from updates and retry
+        const { status: _, ...otherUpdates } = updates;
+        const { data: retryData, error: retryError } = await supabase
+          .from("heat_seal_targets")
+          .update(otherUpdates)
+          .eq("id", id)
+          .select();
+        if (retryError) throw retryError;
+        const returnedData = retryData?.[0] ? { ...retryData[0], status: 'active', shift: mapShiftFromDb(retryData[0].shift) } : null;
+        const cleanExisting = { ...existing, shift: mapShiftFromDb(existing.shift) };
+        await addAuditLog(user_email, "edit", "heat_seal_target", id, cleanExisting, returnedData);
+        return res.json({ success: true, data: returnedData, warning: "Database schema needs update for Status tracking." });
+      }
+      throw error;
+    }
 
-    const returnedData = data?.[0] ? { ...data[0], shift: mapShiftFromDb(data[0].shift) } : null;
+    const returnedData = data?.[0] ? { ...data[0], status: data[0].status || 'active', shift: mapShiftFromDb(data[0].shift) } : null;
     const cleanExisting = { ...existing, shift: mapShiftFromDb(existing.shift) };
     await addAuditLog(user_email, "edit", "heat_seal_target", id, cleanExisting, returnedData);
 

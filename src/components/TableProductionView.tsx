@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from "react";
+import { CustomDatePicker } from "./common/DatePicker";
+import { formatDate } from "../utils/dateUtils";
 import { 
   TrendingUp, 
   Layers, 
@@ -147,12 +149,12 @@ export default function TableProductionView({ entries }: TableProductionViewProp
     if (!activeSelectedDate) return "";
     const refDate = new Date(activeSelectedDate + "T00:00:00");
     if (timeFrame === "daily") {
-      return `Reporting Date: ${activeSelectedDate}`;
+      return `Reporting Date: ${formatDate(activeSelectedDate)}`;
     }
     const days = timeFrame === "weekly" ? 6 : 29;
     const startDate = new Date(refDate.getTime() - days * 24 * 60 * 60 * 1000);
-    const formatDate = (d: Date) => d.toISOString().split("T")[0];
-    return `Period: ${formatDate(startDate)} to ${activeSelectedDate}`;
+    const dateToISO = (d: Date) => d.toISOString().split("T")[0];
+    return `Period: ${formatDate(dateToISO(startDate))} to ${formatDate(activeSelectedDate)}`;
   }, [activeSelectedDate, timeFrame]);
 
   // Process the 7 tables or supervisors and build their scorecards using filtered entries
@@ -521,12 +523,13 @@ export default function TableProductionView({ entries }: TableProductionViewProp
                 <ChevronLeft size={14} className="stroke-[2.5]" />
               </button>
               
-              <input
-                type="date"
-                value={activeSelectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent text-xs text-slate-900 dark:text-slate-200 font-bold focus:outline-none cursor-pointer px-1 w-28 text-center"
-              />
+              <div className="w-28">
+                <CustomDatePicker 
+                  selectedDate={activeSelectedDate}
+                  onChange={(date) => setSelectedDate(date)}
+                  className="!bg-transparent !border-none !shadow-none !px-0"
+                />
+              </div>
 
               <button
                 onClick={handleNextDate}
@@ -671,7 +674,7 @@ export default function TableProductionView({ entries }: TableProductionViewProp
                       <div className="flex justify-between">
                         <span className="text-slate-400 font-semibold">Last Active:</span>
                         <span className="font-mono text-[9px] text-slate-500">
-                          {stat.lastActiveDate}
+                          {formatDate(stat.lastActiveDate)}
                         </span>
                       </div>
                     </div>

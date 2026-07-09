@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from "react";
+import { formatDate, formatDateTime } from "../utils/dateUtils";
+import { CustomDatePicker } from "./common/DatePicker";
 import { 
   Download, 
   Search, 
@@ -136,7 +138,7 @@ function RemnantsRow({
 
   return (
     <tr className="hover:bg-slate-50/40 dark:hover:bg-slate-800/10 transition-colors">
-      <td className="p-4 pl-5 whitespace-nowrap font-mono">{entry.entry_date}</td>
+      <td className="p-4 pl-5 whitespace-nowrap font-mono">{formatDate(entry.entry_date)}</td>
       <td className="p-4 whitespace-nowrap">
         <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider border ${
           entry.shift === 'day' 
@@ -645,7 +647,7 @@ export default function ReportsModule({
         <body>
           <table>
             <tr><td colspan="17" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">DAILY CONSUMPTION TRACKING REPORT</td></tr>
-            <tr><td colspan="17" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+            <tr><td colspan="17" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${formatDateTime(new Date().toISOString())}</td></tr>
             <tr><td colspan="17" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
           </table>
 
@@ -685,7 +687,7 @@ export default function ReportsModule({
 
                 return `
                   <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">
-                    <td class="align-center">${e.entry_date}</td>
+                    <td class="align-center">${formatDate(e.entry_date)}</td>
                     <td class="align-left">${e.buyer}</td>
                     <td class="align-center">${e.job_no}</td>
                     <td class="align-left">${e.color}</td>
@@ -1028,7 +1030,7 @@ export default function ReportsModule({
       <body>
         <table>
           <tr><td colspan="29" class="report-title" style="font-size: 16pt; font-weight: bold; color: #1F4E78;">GARMENTS CUTTING LEDGER REPORT</td></tr>
-          <tr><td colspan="29" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${new Date().toLocaleString()}</td></tr>
+          <tr><td colspan="29" class="report-meta" style="font-size: 10pt; color: #595959;">Wavely Cut Platform | Generated: ${formatDateTime(new Date().toISOString())}</td></tr>
           <tr><td colspan="29" class="report-meta" style="font-size: 10pt; color: #595959;">Total Records: ${filteredEntries.length}</td></tr>
         </table>
 
@@ -1159,18 +1161,16 @@ export default function ReportsModule({
           <div className="space-y-1.5 col-span-1 md:col-span-2 lg:col-span-1">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Cut Date Start/End</label>
             <div className="flex items-center space-x-2">
-              <input 
-                type="date" 
-                value={dateStart} 
-                onChange={e => { setDateStart(e.target.value); setCurrentPage(1); }}
-                className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition shadow-xs cursor-pointer"
+              <CustomDatePicker 
+                selectedDate={dateStart} 
+                onChange={date => { setDateStart(date); setCurrentPage(1); }}
+                placeholderText="Start Date"
               />
               <span className="text-slate-400 text-[10px] font-black">TO</span>
-              <input 
-                type="date" 
-                value={dateEnd} 
-                onChange={e => { setDateEnd(e.target.value); setCurrentPage(1); }}
-                className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition shadow-xs cursor-pointer"
+              <CustomDatePicker 
+                selectedDate={dateEnd} 
+                onChange={date => { setDateEnd(date); setCurrentPage(1); }}
+                placeholderText="End Date"
               />
             </div>
           </div>
@@ -1576,7 +1576,7 @@ export default function ReportsModule({
                         key={entry.id} 
                         className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 text-slate-600 dark:text-slate-300 transition-colors"
                       >
-                        <td className="p-4 pl-5 font-bold whitespace-nowrap">{entry.entry_date}</td>
+                        <td className="p-4 pl-5 font-bold whitespace-nowrap">{formatDate(entry.entry_date)}</td>
                         <td className="p-4 whitespace-nowrap">
                           <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[10px] font-black text-slate-600 dark:text-slate-400">
                             {entry.shift === "A" ? "Day" : entry.shift === "B" ? "Night" : entry.shift}
@@ -1733,7 +1733,7 @@ export default function ReportsModule({
                         key={entry.id} 
                         className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 text-slate-600 dark:text-slate-300 transition-colors"
                       >
-                        <td className="p-4 pl-5 font-bold whitespace-nowrap">{entry.entry_date}</td>
+                        <td className="p-4 pl-5 font-bold whitespace-nowrap">{formatDate(entry.entry_date)}</td>
                         <td className="p-4 font-extrabold truncate max-w-[120px] text-slate-850 dark:text-slate-100 whitespace-nowrap">{entry.buyer}</td>
                         <td className="p-4 font-mono text-slate-450 dark:text-slate-500 whitespace-nowrap">{entry.job_no}</td>
                         <td className="p-4 font-mono text-slate-500 whitespace-nowrap">{entry.po_no || "-"}</td>
