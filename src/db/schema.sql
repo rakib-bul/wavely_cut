@@ -8,16 +8,25 @@
 -- 1. Enable UUID Extension if not exists
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Create user_role type if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE public.user_role AS ENUM ('operator', 'supervisor', 'manager', 'admin');
+    END IF;
+END$$;
+
 -- 2. Profiles Table (Linked with Supabase auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('operator', 'supervisor', 'manager', 'admin')),
+    role public.user_role NOT NULL DEFAULT 'operator'::public.user_role,
     department VARCHAR(100) NOT NULL DEFAULT 'Cutting',
     avatar_url TEXT,
     can_access_cutting_entry BOOLEAN NOT NULL DEFAULT true,
     can_access_remnant_entry BOOLEAN NOT NULL DEFAULT true,
+    can_access_heat_seal_entry BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

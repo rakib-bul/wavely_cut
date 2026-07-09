@@ -1185,7 +1185,8 @@ export default function App() {
   const handleUpdateUserPermissions = async (
     id: string,
     can_access_cutting_entry: boolean,
-    can_access_remnant_entry: boolean
+    can_access_remnant_entry: boolean,
+    can_access_heat_seal_entry: boolean
   ) => {
     try {
       const headers = {
@@ -1197,7 +1198,11 @@ export default function App() {
       const res = await fetch(`/api/profiles/${id}/permissions`, {
         method: "PUT",
         headers,
-        body: JSON.stringify({ can_access_cutting_entry, can_access_remnant_entry })
+        body: JSON.stringify({ 
+          can_access_cutting_entry, 
+          can_access_remnant_entry,
+          can_access_heat_seal_entry
+        })
       });
 
       if (!res.ok) {
@@ -1213,7 +1218,8 @@ export default function App() {
         setCurrentProfile(prev => ({
           ...prev,
           can_access_cutting_entry: updatedProfile.can_access_cutting_entry,
-          can_access_remnant_entry: updatedProfile.can_access_remnant_entry
+          can_access_remnant_entry: updatedProfile.can_access_remnant_entry,
+          can_access_heat_seal_entry: updatedProfile.can_access_heat_seal_entry
         }));
       }
 

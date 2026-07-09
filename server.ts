@@ -343,7 +343,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
     const userId = authData.user?.id || "00000000-0000-0000-0000-000000000000";
     
-    const newProfile = {
+    const newProfile: any = {
       id: userId,
       full_name: userName,
       email: normalizedEmail,
@@ -352,16 +352,52 @@ app.post("/api/auth/signup", async (req, res) => {
     };
 
     // Insert into Supabase profiles table
-    const { error: dbError } = await supabase
-      .from("profiles")
-      .insert(newProfile);
+    let dbError: any = null;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .insert({
+          ...newProfile,
+          can_access_cutting_entry: true,
+          can_access_remnant_entry: true,
+          can_access_heat_seal_entry: true
+        });
+      dbError = error;
+    } catch (err: any) {
+      dbError = err;
+    }
+
+    if (dbError && (dbError.code === "42703" || dbError.message?.includes("column"))) {
+      const { error } = await supabase
+        .from("profiles")
+        .insert(newProfile);
+      dbError = error;
+    }
 
     if (dbError) {
       console.warn("Could not insert profile in Supabase table:", dbError.message);
       return res.status(400).json({ error: dbError.message });
     }
 
-    return res.json({ profile: newProfile, message: "Account created successfully" });
+    // Set default permissions in systemSettings
+    if (!(systemSettings as any).user_permissions) {
+      (systemSettings as any).user_permissions = {};
+    }
+    (systemSettings as any).user_permissions[userId] = {
+      can_access_cutting_entry: true,
+      can_access_remnant_entry: true,
+      can_access_heat_seal_entry: true
+    };
+    saveSettings(systemSettings);
+
+    const enrichedProfile = {
+      ...newProfile,
+      can_access_cutting_entry: true,
+      can_access_remnant_entry: true,
+      can_access_heat_seal_entry: true
+    };
+
+    return res.json({ profile: enrichedProfile, message: "Account created successfully" });
 
   } catch (err: any) {
     console.error("Supabase authentication signup error:", err.message);
@@ -443,7 +479,15 @@ app.post("/api/auth/login", async (req, res) => {
       }
 
       if (profile) {
-        return res.json({ profile });
+        // Enrich profile with permissions from systemSettings if missing or for backward compatibility
+        const userPerms = (systemSettings as any).user_permissions?.[profile.id];
+        const enrichedProfile = {
+          ...profile,
+          can_access_cutting_entry: userPerms?.can_access_cutting_entry ?? profile.can_access_cutting_entry ?? true,
+          can_access_remnant_entry: userPerms?.can_access_remnant_entry ?? profile.can_access_remnant_entry ?? true,
+          can_access_heat_seal_entry: userPerms?.can_access_heat_seal_entry ?? profile.can_access_heat_seal_entry ?? true
+        };
+        return res.json({ profile: enrichedProfile });
       }
     }
     throw new Error("Profile not found for authenticated user.");
@@ -1314,7 +1358,7 @@ app.put("/api/profiles/:id/avatar", async (req, res) => {
 
 app.put("/api/profiles/:id/permissions", async (req, res) => {
   const { id } = req.params;
-  const { can_access_cutting_entry, can_access_remnant_entry } = req.body;
+  const { can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry } = req.body;
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
@@ -1340,7 +1384,8 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
         .from("profiles")
         .update({
           can_access_cutting_entry: !!can_access_cutting_entry,
-          can_access_remnant_entry: !!can_access_remnant_entry
+          can_access_remnant_entry: !!can_access_remnant_entry,
+          can_access_heat_seal_entry: !!can_access_heat_seal_entry
         })
         .eq("id", id);
       dbError = error;
@@ -1362,12 +1407,14 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
 
     const old_permissions = (systemSettings as any).user_permissions[id] || {
       can_access_cutting_entry: currentProfile.can_access_cutting_entry !== false,
-      can_access_remnant_entry: currentProfile.can_access_remnant_entry !== false
+      can_access_remnant_entry: currentProfile.can_access_remnant_entry !== false,
+      can_access_heat_seal_entry: currentProfile.can_access_heat_seal_entry !== false
     };
 
     (systemSettings as any).user_permissions[id] = {
       can_access_cutting_entry: !!can_access_cutting_entry,
-      can_access_remnant_entry: !!can_access_remnant_entry
+      can_access_remnant_entry: !!can_access_remnant_entry,
+      can_access_heat_seal_entry: !!can_access_heat_seal_entry
     };
 
     const success = saveSettings(systemSettings);
@@ -1378,7 +1425,8 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
     const enrichedProfile = {
       ...currentProfile,
       can_access_cutting_entry: !!can_access_cutting_entry,
-      can_access_remnant_entry: !!can_access_remnant_entry
+      can_access_remnant_entry: !!can_access_remnant_entry,
+      can_access_heat_seal_entry: !!can_access_heat_seal_entry
     };
 
     await addAuditLog(
@@ -2518,7 +2566,8 @@ app.post("/api/admin/create-user", async (req, res) => {
         .insert({
           ...newProfile,
           can_access_cutting_entry: true,
-          can_access_remnant_entry: true
+          can_access_remnant_entry: true,
+          can_access_heat_seal_entry: true
         });
       dbError = error;
     } catch (err: any) {
@@ -2546,7 +2595,8 @@ app.post("/api/admin/create-user", async (req, res) => {
     }
     (systemSettings as any).user_permissions[userId] = {
       can_access_cutting_entry: true,
-      can_access_remnant_entry: true
+      can_access_remnant_entry: true,
+      can_access_heat_seal_entry: true
     };
     saveSettings(systemSettings);
 
@@ -2563,7 +2613,8 @@ app.post("/api/admin/create-user", async (req, res) => {
     const enrichedProfile = {
       ...newProfile,
       can_access_cutting_entry: true,
-      can_access_remnant_entry: true
+      can_access_remnant_entry: true,
+      can_access_heat_seal_entry: true
     };
 
     return res.json({ profile: enrichedProfile, message: "User account created successfully by admin" });

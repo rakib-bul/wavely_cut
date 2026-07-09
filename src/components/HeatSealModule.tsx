@@ -157,6 +157,7 @@ export default function HeatSealModule({
   }>({ isOpen: false, title: "", message: "" });
 
   const isAdminOrSupervisor = currentProfile.role === "admin" || currentProfile.role === "supervisor";
+  const canAccessHeatSeal = isAdminOrSupervisor || currentProfile.can_access_heat_seal_entry !== false;
 
   const isDayShift = formData.shift === 'D' || formData.shift === 'A';
   
@@ -436,6 +437,17 @@ export default function HeatSealModule({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canAccessHeatSeal && !editingId) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "You do not have permission to enter heat seal data." });
+      return;
+    }
+
+    if (editingId && !isAdminOrSupervisor) {
+      setAlertDialog({ isOpen: true, title: "Access Denied", message: "Only Officers and Administrators can edit records." });
+      return;
+    }
+
     if (!formData.entry_date || !formData.operator_id || !formData.operator_name) {
       setAlertDialog({ isOpen: true, title: "Missing Information", message: "Please fill required fields (Date, Operator, Shift)." });
       return;
@@ -852,7 +864,7 @@ export default function HeatSealModule({
             }`}
           >
             <Layers size={16} />
-            Hourly Tally Grid
+            Hourly Heatseal Production
           </button>
 
           {isAdminOrSupervisor && (
@@ -883,6 +895,7 @@ export default function HeatSealModule({
             </>
           )}
 
+          {canAccessHeatSeal && (
           <button
             onClick={() => { handleOpenForm(); setActiveSubTab("entries"); }}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-lg shadow-emerald-200 dark:shadow-none"
@@ -890,6 +903,7 @@ export default function HeatSealModule({
             <Plus size={16} />
             New Entry
           </button>
+          )}
         </div>
       </div>
 
@@ -1803,7 +1817,7 @@ export default function HeatSealModule({
                 <div>
                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm uppercase tracking-wider">
                       <Layers size={18} className="text-indigo-500" />
-                      Consolidated Hourly Production Tally
+                      Hourly Heatseal Production
                    </h3>
                    <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Shift-wise production grid for all active sessions on a specific day.</p>
                 </div>
@@ -1830,15 +1844,72 @@ export default function HeatSealModule({
              {/* Tally Content */}
              <div className="p-6 space-y-10">
                 {(() => {
-                   const dayEntries = entries
-                     .filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'))
-                     .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
-                   const nightEntries = entries
-                     .filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'))
-                     .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
-                   
                    const dayLabels = HOURS_LABELS.slice(0, 12);
                    const nightLabels = HOURS_LABELS.slice(12, 24);
+
+                   // Logic to consolidate targets and actual entries into separate rows per job
+                   const getShiftRows = (shiftGroup: 'day' | 'night') => {
+                      const currentShifts = shiftGroup === 'day' ? ['D', 'A'] : ['N', 'B'];
+                      const labels = shiftGroup === 'day' ? dayLabels : nightLabels;
+
+                      const relevantTargets = targets.filter(t => t.target_date === reportDate && currentShifts.includes(t.shift));
+                      const relevantEntries = entries.filter(e => e.entry_date === reportDate && currentShifts.includes(e.shift));
+
+                      const uniquePairs = new Map<string, { operator_id: string, operator_name: string, job_no: string, color?: string, target_id?: string }>();
+                      
+                      // Identify rows from targets
+                      relevantTargets.forEach(t => {
+                         const key = `${t.operator_id}-${t.job_no}`;
+                         uniquePairs.set(key, { 
+                            operator_id: t.operator_id, 
+                            operator_name: t.operator_name, 
+                            job_no: t.job_no, 
+                            color: t.color,
+                            target_id: t.id
+                         });
+                      });
+
+                      // Identify rows from entries (in case there's no target for an entry)
+                      relevantEntries.forEach(e => {
+                         const key = `${e.operator_id}-${e.job_no || 'no-job'}`;
+                         if (!uniquePairs.has(key)) {
+                            uniquePairs.set(key, { 
+                               operator_id: e.operator_id, 
+                               operator_name: e.operator_name, 
+                               job_no: e.job_no || '', 
+                               color: e.color
+                            });
+                         }
+                      });
+
+                      return Array.from(uniquePairs.values()).map(pair => {
+                         // Find matching entry if it exists
+                         const entry = relevantEntries.find(e => e.operator_id === pair.operator_id && (e.job_no || '') === pair.job_no);
+                         const target = relevantTargets.find(t => t.operator_id === pair.operator_id && t.job_no === pair.job_no);
+
+                         return {
+                            id: entry?.id || `v-${pair.operator_id}-${pair.job_no}`,
+                            operator_name: pair.operator_name,
+                            job_no: pair.job_no,
+                            color: pair.color || entry?.color || target?.color,
+                            hourly_data: labels.map(slot => {
+                               const hourEntry = entry?.hourly_data?.find(h => h.hour_slot === slot);
+                               return {
+                                  hour_slot: slot,
+                                  production: hourEntry?.production || 0,
+                                  target: hourEntry?.target || target?.hourly_target || 0
+                               };
+                            })
+                         };
+                      }).sort((a, b) => {
+                         const nameCmp = a.operator_name.localeCompare(b.operator_name);
+                         if (nameCmp !== 0) return nameCmp;
+                         return a.job_no.localeCompare(b.job_no);
+                      });
+                   };
+
+                   const dayEntries = getShiftRows('day');
+                   const nightEntries = getShiftRows('night');
 
                    if (dayEntries.length === 0 && nightEntries.length === 0) {
                       return (
