@@ -121,6 +121,7 @@ export interface HeatSealTarget {
   color: string;
   po_no: string;
   hourly_target: number;
+  status?: 'active' | 'completed';
   created_by?: string;
   created_at?: string;
   updated_at?: string;
