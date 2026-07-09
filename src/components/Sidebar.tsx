@@ -15,7 +15,9 @@ import {
   Mail,
   Lock,
   RefreshCw,
-  Flame
+  Flame,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -26,6 +28,8 @@ interface SidebarProps {
   profiles: Profile[];
   onSwitchProfile: (profile: Profile) => void;
   onLogout: () => void;
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
 }
 
 export default function Sidebar({
@@ -34,7 +38,9 @@ export default function Sidebar({
   currentProfile,
   profiles,
   onSwitchProfile,
-  onLogout
+  onLogout,
+  isCollapsed,
+  setIsCollapsed
 }: SidebarProps) {
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
@@ -57,25 +63,37 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="w-68 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-850 flex flex-col h-screen sticky top-0 shrink-0 font-sans shadow-xs transition-all duration-200">
+    <aside className={`${isCollapsed ? "w-20" : "w-68"} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-850 flex flex-col h-screen sticky top-0 shrink-0 font-sans shadow-xs transition-all duration-300 ease-in-out`}>
       
       {/* Brand Header - Sleek & Modern */}
-      <div className="p-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-extrabold text-lg shadow-sm shadow-blue-600/20">
-          W
+      <div className={`p-5 flex items-center ${isCollapsed ? "justify-center" : "justify-between"} border-b border-slate-100 dark:border-slate-800 relative`}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-extrabold text-lg shadow-sm shadow-blue-600/20 shrink-0">
+            W
+          </div>
+          {!isCollapsed && (
+            <div className="transition-opacity duration-300 opacity-100">
+              <h1 className="font-extrabold text-slate-900 dark:text-white tracking-tight leading-none text-sm uppercase">
+                Wavely Cut
+              </h1>
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mt-0.5 whitespace-nowrap">
+                Cutting Management System
+              </span>
+            </div>
+          )}
         </div>
-        <div>
-          <h1 className="font-extrabold text-slate-900 dark:text-white tracking-tight leading-none text-sm uppercase">
-            Wavely Cut
-          </h1>
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mt-0.5">
-            Cutting Management System
-          </span>
-        </div>
+        
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`absolute -right-3 top-12 w-6 h-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 shadow-sm cursor-pointer z-50 transition-all ${isCollapsed ? "translate-x-0" : ""}`}
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
       </div>
 
       {/* Main Navigation with Generous Spacing & Hover States */}
-      <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+      <nav className={`flex-1 ${isCollapsed ? "px-3" : "px-4"} py-6 space-y-1.5 overflow-y-auto scrollbar-hide`}>
         {navItems.map((item) => {
           let hasAccess = item.roles.includes(currentProfile.role);
           let tooltipMessage = "";
@@ -95,11 +113,11 @@ export default function Sidebar({
             return (
               <div 
                 key={item.id} 
-                className="flex items-center gap-4 text-slate-300 dark:text-slate-600 px-4 py-3 rounded-xl text-[13px] font-bold cursor-not-allowed opacity-40 select-none"
+                className={`flex items-center ${isCollapsed ? "justify-center" : "gap-4"} text-slate-300 dark:text-slate-600 ${isCollapsed ? "p-3" : "px-4 py-3"} rounded-xl text-[13px] font-bold cursor-not-allowed opacity-40 select-none`}
                 title={titleText}
               >
                 <Icon size={20} className="shrink-0 text-slate-300 dark:text-slate-600" />
-                <span>{item.label}</span>
+                {!isCollapsed && <span className="truncate">{item.label}</span>}
               </div>
             );
           }
@@ -109,25 +127,26 @@ export default function Sidebar({
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[13px] font-extrabold transition-all cursor-pointer ${
+              title={isCollapsed ? item.label : ""}
+              className={`w-full flex items-center ${isCollapsed ? "justify-center" : "gap-4"} ${isCollapsed ? "p-3" : "px-4 py-3"} rounded-xl text-[13px] font-extrabold transition-all cursor-pointer ${
                 isActive 
                   ? "bg-blue-600 text-white shadow-sm shadow-blue-600/10" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               <Icon size={20} className={`shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white"}`} />
-              <span>{item.label}</span>
+              {!isCollapsed && <span className="truncate">{item.label}</span>}
             </button>
           );
         })}
       </nav>
 
       {/* Profile Swapper & User Info moved to Bottom card */}
-      <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-4">
-        {currentProfile.role === 'admin' && (
+      <div className={`${isCollapsed ? "p-2" : "p-4"} border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-4`}>
+        {currentProfile.role === 'admin' && !isCollapsed && (
           <div className="space-y-1">
             <label className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-extrabold block flex items-center gap-1">
-              <Fingerprint size={12} className="text-blue-500" /> Switch Role Simulation
+              <Fingerprint size={12} className="text-blue-500" /> Switch Role
             </label>
             <select
               value={currentProfile.id}
@@ -139,7 +158,7 @@ export default function Sidebar({
             >
               {profiles.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.full_name} ({p.role === 'supervisor' ? 'Officer' : p.role.toUpperCase()})
+                  {p.full_name.split(' ')[0]} ({p.role === 'supervisor' ? 'Ofc' : p.role.toUpperCase().slice(0, 3)})
                 </option>
               ))}
             </select>
@@ -147,9 +166,8 @@ export default function Sidebar({
         )}
         
         {/* User Card */}
-        <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className={`flex items-center ${isCollapsed ? "justify-center" : "justify-between"} ${isCollapsed ? "p-1.5" : "p-2"} bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden`}>
           <div className="flex items-center space-x-2.5 min-w-0">
-            {/* Minimal Initial Avatar or Custom Profile Image */}
             {currentProfile.avatar_url ? (
               <img 
                 src={currentProfile.avatar_url} 
@@ -162,45 +180,50 @@ export default function Sidebar({
                 {currentProfile.full_name.slice(0, 2)}
               </div>
             )}
-            <div className="min-w-0">
-              <span className="text-xs font-black text-slate-900 dark:text-white block truncate leading-tight">
-                {currentProfile.full_name}
-              </span>
-              <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-md border uppercase tracking-wider font-extrabold mt-0.5 ${getRoleBadgeColor(currentProfile.role)}`}>
-                {currentProfile.role === 'supervisor' ? 'officer' : currentProfile.role}
-              </span>
-            </div>
+            {!isCollapsed && (
+              <div className="min-w-0">
+                <span className="text-xs font-black text-slate-900 dark:text-white block truncate leading-tight">
+                  {currentProfile.full_name}
+                </span>
+                <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-md border uppercase tracking-wider font-extrabold mt-0.5 ${getRoleBadgeColor(currentProfile.role)}`}>
+                  {currentProfile.role === 'supervisor' ? 'officer' : currentProfile.role}
+                </span>
+              </div>
+            )}
           </div>
           
-          {/* Logout Action */}
-          <button
-            onClick={onLogout}
-            title="Log out of application session"
-            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors shrink-0"
-          >
-            <LogOut size={16} />
-          </button>
+          {!isCollapsed && (
+            <button
+              onClick={onLogout}
+              title="Log out"
+              className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors shrink-0"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Developer Info Section */}
-      <div className="px-5 pb-5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 dark:text-slate-500 font-sans">
-        <div className="flex items-center gap-1.5 font-bold text-slate-600 dark:text-slate-400 mb-1.5">
-          <Code2 size={13} className="text-blue-500" />
-          <span>Developer Support</span>
-        </div>
-        <div className="bg-slate-50/70 dark:bg-slate-950/20 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-1 shadow-2xs">
-          <div className="font-extrabold text-slate-800 dark:text-slate-200 text-[12px]">Rakib Hasan</div>
-          <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-            <Phone size={11} className="text-slate-400 shrink-0" />
-            <a href="tel:+8801783924660" className="font-medium">+8801783924660</a>
+      {!isCollapsed && (
+        <div className="px-5 pb-5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 dark:text-slate-500 font-sans transition-all">
+          <div className="flex items-center gap-1.5 font-bold text-slate-600 dark:text-slate-400 mb-1.5">
+            <Code2 size={13} className="text-blue-500" />
+            <span>Developer Support</span>
           </div>
-          <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-            <Mail size={11} className="text-slate-400 shrink-0" />
-            <a href="mailto:hrakib182@gmail.com" className="font-medium truncate">hrakib182@gmail.com</a>
+          <div className="bg-slate-50/70 dark:bg-slate-950/20 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-1 shadow-2xs">
+            <div className="font-extrabold text-slate-800 dark:text-slate-200 text-[12px]">Rakib Hasan</div>
+            <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <Phone size={11} className="text-slate-400 shrink-0" />
+              <a href="tel:+8801783924660" className="font-medium">+8801783924660</a>
+            </div>
+            <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <Mail size={11} className="text-slate-400 shrink-0" />
+              <a href="mailto:hrakib182@gmail.com" className="font-medium truncate">hrakib182@gmail.com</a>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
     </aside>
   );

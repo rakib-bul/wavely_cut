@@ -205,6 +205,7 @@ export default function App() {
     }
   });
   const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showSyncMenu, setShowSyncMenu] = useState<boolean>(false);
 
   // --- Selected Edit Modal State ---
@@ -1684,6 +1685,8 @@ export default function App() {
         profiles={profiles}
         onSwitchProfile={handleSwitchProfile}
         onLogout={handleLogout}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
       />
 
       {/* 2. Main Terminal Content Canvas */}
