@@ -713,12 +713,20 @@ app.post("/api/entries", async (req, res) => {
   }
 
   const data = req.body;
-  if (!data.entry_date || !data.shift || !data.machine_id || !data.buyer || !data.job_no || !data.color || !data.item || !data.cut_no) {
-    return res.status(400).json({ error: "Missing required core fields" });
+  const finalStatus = data.status === "submitted" ? "approved" : (data.status || "draft");
+  const isDraft = finalStatus === "draft";
+
+  if (!data.entry_date || !data.shift || !data.machine_id) {
+    return res.status(400).json({ error: "Missing required core fields: Date, Shift, or Machine" });
+  }
+
+  if (!isDraft) {
+    if (!data.buyer || !data.job_no || !data.color || !data.item || !data.cut_no) {
+      return res.status(400).json({ error: "Missing required core fields: Buyer, Job Order No, Fabric Color, Garment Item, or Cut No" });
+    }
   }
 
   // Validate job_no digits pattern if submitted/approved
-  const finalStatus = data.status === "submitted" ? "approved" : (data.status || "draft");
   if (finalStatus === "approved") {
     const jobNoStr = String(data.job_no || "").trim();
     const requiredLength = systemSettings.job_no_digits;
@@ -743,12 +751,12 @@ app.post("/api/entries", async (req, res) => {
       entry_date: data.entry_date,
       shift: sanitizeShift(data.shift),
       machine_id: data.machine_id,
-      buyer: data.buyer,
-      job_no: data.job_no,
-      color: data.color,
+      buyer: (data.buyer || "").trim() || "DRAFT",
+      job_no: (data.job_no || "").trim() || "DRAFT",
+      color: (data.color || "").trim() || "DRAFT",
       po_no: data.po_no || null,
-      item: data.item,
-      cut_no: data.cut_no,
+      item: (data.item || "").trim() || "DRAFT",
+      cut_no: (data.cut_no || "").trim() || "DRAFT",
       lay: layNum,
       ratio: ratioNum,
       table_no: data.table_no || "",
@@ -1013,9 +1021,11 @@ app.put("/api/entries/:id", async (req, res) => {
     );
 
     // Role policies: Only Admin, Officer (supervisor), and Manager can edit cutting entries
+    // But Operator CAN edit their OWN entry if it is still in 'draft' status.
+    const isOwnDraft = existingEntry.status === "draft" && callerProfile && existingEntry.created_by === callerProfile.id;
     if (activeRole !== "admin" && activeRole !== "supervisor" && activeRole !== "manager") {
-      if (!isOnlyRemarksChanging) {
-        return res.status(403).json({ error: "Permission Denied. Only Admin, Officer, and Manager roles can edit data." });
+      if (!isOnlyRemarksChanging && !isOwnDraft) {
+        return res.status(403).json({ error: "Permission Denied. Only Admin, Officer, and Manager roles can edit submitted/approved data." });
       }
       if (!canAccessRemnant) {
         return res.status(403).json({ error: "Access Denied. You do not have permission to enter remnant data." });
@@ -1049,12 +1059,12 @@ app.put("/api/entries/:id", async (req, res) => {
       .update({
         entry_date: data.entry_date,
         shift: sanitizeShift(data.shift),
-        buyer: data.buyer,
-        job_no: data.job_no,
-        color: data.color,
+        buyer: (data.buyer || "").trim() || "DRAFT",
+        job_no: (data.job_no || "").trim() || "DRAFT",
+        color: (data.color || "").trim() || "DRAFT",
         po_no: data.po_no || null,
-        item: data.item,
-        cut_no: data.cut_no,
+        item: (data.item || "").trim() || "DRAFT",
+        cut_no: (data.cut_no || "").trim() || "DRAFT",
         lay: Number(data.lay),
         ratio: Number(data.ratio),
         table_no: data.table_no,
@@ -1065,6 +1075,7 @@ app.put("/api/entries/:id", async (req, res) => {
         booking_consumption: data.booking_consumption !== undefined && data.booking_consumption !== null && data.booking_consumption !== "" ? Number(data.booking_consumption) : null,
         cutting_consumption: data.cutting_consumption !== undefined && data.cutting_consumption !== null && data.cutting_consumption !== "" ? Number(data.cutting_consumption) : null,
         cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg),
+        reject_qty: Number(data.reject_qty) || 0,
         marker_length_inch: Number(data.marker_length_inch),
         marker_consumption: data.marker_consumption !== undefined && data.marker_consumption !== null && data.marker_consumption !== "" ? Number(data.marker_consumption) : null,
         marker_efficiency_percent: Number(data.marker_efficiency_percent),
