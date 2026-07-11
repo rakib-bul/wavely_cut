@@ -13,6 +13,7 @@ import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, H
 import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
 import PolyTrackingModule from "./components/PolyTrackingModule";
 import HeatSealModule from "./components/HeatSealModule";
+import HeatSealDashboardInsight from "./components/HeatSealDashboardInsight";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -1444,6 +1445,16 @@ export default function App() {
     return Array.from(dates).sort((a, b) => b.localeCompare(a));
   }, [stripeEntries]);
 
+  const heatSealAvailableDates = useMemo(() => {
+    const dates = new Set<string>();
+    heatSealEntries.forEach(e => {
+      if (e.entry_date) {
+        dates.add(e.entry_date);
+      }
+    });
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [heatSealEntries]);
+
   const fallbackDate = useMemo(() => getCurrentProductionDateAndShift().entry_date, []);
 
   const [mainSelectedDate, setMainSelectedDate] = useState<string>("");
@@ -1935,6 +1946,15 @@ export default function App() {
                         machines={machines} 
                         selectedDate={activeMainSelectedDate}
                         setSelectedDate={setMainSelectedDate}
+                      />
+                    </div>
+
+                    {/* --- SECTION 1.5: DAILY HEAT SEAL ANALYSIS & INSIGHTS --- */}
+                    <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800/60">
+                      <HeatSealDashboardInsight 
+                        entries={heatSealEntries}
+                        selectedDate={activeMainSelectedDate}
+                        availableDates={heatSealAvailableDates}
                       />
                     </div>
 
