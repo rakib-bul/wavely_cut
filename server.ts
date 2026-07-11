@@ -116,6 +116,49 @@ const supabase = createClient(
   }
 );
 
+// Helper to fetch first 300 cutting entries
+async function fetchAllCuttingEntries() {
+  const { data, error } = await supabase
+    .from("cutting_entries")
+    .select("*")
+    .order("entry_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Paginated helper to fetch all heat seal entries
+async function fetchAllHeatSealEntries() {
+  let allEntries: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("heat_seal_entries")
+      .select("id, entry_date, shift, operator_name, operator_id, designation, job_no, color, po_no, target_id, hourly_data, created_by, status, created_at, updated_at")
+      .order("entry_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMore = false;
+    } else {
+      allEntries = allEntries.concat(data);
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+  }
+  return allEntries;
+}
+
 // System Settings persistence
 let settingsFilePath = path.join(process.cwd(), "settings.json");
 let systemSettings = {
@@ -181,6 +224,15 @@ loadSettings();
 let lastMetadataCheck = 0;
 let cachedMetadata: string | null = null;
 const METADATA_CACHE_TTL = 5000; // 5 seconds cache for metadata checks
+
+// Middleware to automatically invalidate sync metadata cache on any database mutation (POST, PUT, DELETE)
+app.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    cachedMetadata = null;
+    lastMetadataCheck = 0;
+  }
+  next();
+});
 
 // Sync settings with Supabase
 async function syncSettingsWithDB() {
@@ -654,12 +706,8 @@ app.get("/api/entries", async (req, res) => {
 
   try {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
-    let query = supabase.from("cutting_entries").select("*");
-
-    const { data: entries, error } = await query;
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    
+    const entries = await fetchAllCuttingEntries();
 
     const { data: profiles } = await supabase.from("profiles").select("id, email");
     const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
@@ -1602,11 +1650,7 @@ app.get("/api/sync", async (req, res) => {
 
     // 3. Fetch cutting entries
     const entriesPromise = (async () => {
-      let query = supabase.from("cutting_entries")
-        .select("id, entry_date, shift, machine_id, buyer, job_no, color, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, po_no, supervisor_name, created_by, approved_by, status, created_at, updated_at");
-
-      const { data: entries, error } = await query;
-      if (error) throw error;
+      const entries = await fetchAllCuttingEntries();
 
       const { data: profiles } = await supabase.from("profiles").select("id, email");
       const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
@@ -1682,15 +1726,8 @@ app.get("/api/sync", async (req, res) => {
 
     const heatSealPromise = (async () => {
       try {
-        const { data, error } = await supabase
-          .from("heat_seal_entries")
-          .select("id, entry_date, shift, operator_name, operator_id, designation, job_no, color, po_no, target_id, hourly_data, created_by, status, created_at, updated_at")
-          .order("entry_date", { ascending: false });
-        if (error) {
-          console.warn("Could not fetch heat_seal_entries from Supabase:", error.message);
-          return [];
-        }
-        return (data || []).map(item => ({
+        const entries = await fetchAllHeatSealEntries();
+        return (entries || []).map(item => ({
           ...item,
           shift: mapShiftFromDb(item.shift)
         }));

@@ -280,7 +280,8 @@ export default function App() {
       };
 
       // Perform a single unified synchronized load of all dashboard states
-      const syncData = await safeFetchJson(`/api/sync?version=${encodeURIComponent(syncVersion)}`, { headers });
+      const activeVersion = (entries.length > 0 && machines.length > 0) ? syncVersion : "";
+      const syncData = await safeFetchJson(`/api/sync?version=${encodeURIComponent(activeVersion)}`, { headers });
 
       if (syncData) {
         if (syncData.no_changes) {
