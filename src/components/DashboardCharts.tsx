@@ -144,7 +144,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
             </h3>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Gross Fabric Used vs. Cutting Scrap (KG)</p>
           </div>
-          <div className="h-68 min-w-0 min-h-0">
+          <div className="h-60 min-w-0 min-h-0">
             {dailyData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">No active entry history to plot.</div>
             ) : (
@@ -182,7 +182,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
             </h3>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Actual End-to-End Yield vs. Scrap Rate (%)</p>
           </div>
-          <div className="h-68 min-w-0 min-h-0">
+          <div className="h-60 min-w-0 min-h-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={machinePerformances} margin={{ top: 10, left: -15, right: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.7)" />
@@ -215,7 +215,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
             </h3>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Share of total fabrics processed through cutting floor</p>
           </div>
-          <div className="h-68 flex flex-col md:flex-row items-center justify-around min-w-0 min-h-0">
+          <div className="h-60 flex flex-col md:flex-row items-center justify-around min-w-0 min-h-0">
             {buyerData.length === 0 ? (
               <div className="text-xs text-slate-400">No active data.</div>
             ) : (
@@ -269,7 +269,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
             </h3>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Average actual fabric yields by fabric material</p>
           </div>
-          <div className="h-68 min-w-0 min-h-0">
+          <div className="h-60 min-w-0 min-h-0">
             {fabricData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">No active data.</div>
             ) : (
@@ -308,7 +308,7 @@ export default function DashboardCharts({ entries, machines }: DashboardChartsPr
             </h3>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1">Remnants Issued vs. Used vs. Scrap (KG) - Last 7 Active Days</p>
           </div>
-          <div className="h-68 min-w-0 min-h-0">
+          <div className="h-60 min-w-0 min-h-0">
             {remnantDailyData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">No active remnants history to plot.</div>
             ) : (

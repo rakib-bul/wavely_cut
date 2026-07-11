@@ -1941,6 +1941,7 @@ export default function App() {
                         availableDates={mainAvailableDates}
                         polyEntries={polyEntries}
                         polyPrice={polyPrice}
+                        entries={mainEntries}
                       />
                       <DailyReport 
                         entries={mainEntries} 
@@ -1974,6 +1975,7 @@ export default function App() {
                         group="monthly" 
                         polyEntries={polyEntries}
                         polyPrice={polyPrice}
+                        entries={mainEntries}
                       />
                       <DashboardCharts entries={mainEntries} machines={machines} />
                     </div>
@@ -2005,6 +2007,7 @@ export default function App() {
                     availableDates={stripeAvailableDates}
                     polyEntries={polyEntries}
                     polyPrice={polyPrice}
+                    entries={stripeEntries}
                   />
                   <DailyReport 
                     entries={stripeEntries} 
@@ -2029,6 +2032,7 @@ export default function App() {
                     group="monthly" 
                     polyEntries={polyEntries}
                     polyPrice={polyPrice}
+                    entries={stripeEntries}
                   />
                   <DashboardCharts entries={stripeEntries} machines={machines} />
                 </div>

@@ -417,7 +417,7 @@ export default function HeatSealDashboardInsight({
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                     <Bar dataKey="production" name="Actual Production" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="target" name="Target Target" fill="#3B82F6" radius={[4, 4, 0, 0]} opacity={0.65} />
+                    <Bar dataKey="target" name="Target" fill="#3B82F6" radius={[4, 4, 0, 0]} opacity={0.65} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

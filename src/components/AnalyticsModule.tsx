@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { CuttingEntry, Machine } from "../types";
 import { Cpu, Scissors, Award, TrendingUp, Layers, HelpCircle, AlertCircle } from "lucide-react";
+import { formatDate } from "../utils/dateUtils";
 
 interface AnalyticsModuleProps {
   entries: CuttingEntry[];
@@ -113,6 +114,57 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
       efficiency: item.count > 0 ? parseFloat((item.eteSum / item.count).toFixed(1)) : 0,
       count: item.count
     })).sort((a,b) => b.used - a.used);
+  }, [compiledEntries]);
+
+  // ==========================================
+  // 4. DAILY HISTORICAL TRENDS (LAST 7 DAYS)
+  // ==========================================
+  const last7DaysChartData = useMemo(() => {
+    if (!compiledEntries || compiledEntries.length === 0) return { waste: [], volume: [] };
+    
+    const target = compiledEntries;
+    const grouped: { [date: string]: { date: string; fabricSum: number; scrapSum: number; volumeSum: number; saveSum: number } } = {};
+    
+    target.forEach(e => {
+      const d = e.entry_date;
+      if (!grouped[d]) {
+        grouped[d] = { date: d, fabricSum: 0, scrapSum: 0, volumeSum: 0, saveSum: 0 };
+      }
+      
+      const fabric = Number(e.fabric_used_kg) || 0;
+      grouped[d].fabricSum += fabric;
+      grouped[d].scrapSum += (Number(e.cutting_scrap_weight_kg) || 0) + (Number(e.remnant_weight_kg) || 0);
+      
+      const vol = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+      grouped[d].volumeSum += vol;
+      
+      // Calculate individual Save/Loss
+      const bookingCons = (e.booking_consumption !== undefined && e.booking_consumption !== null) ? Number(e.booking_consumption) : null;
+      const cuttingCons = vol > 0 ? (fabric / vol) * 12 : null;
+      const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+      const savePct = (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : null;
+      const saveKg = (savePct !== null && fabric) ? fabric * (savePct / 100) : null;
+      
+      if (saveKg !== null) {
+        grouped[d].saveSum += saveKg;
+      }
+    });
+
+    const list = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
+    const last7 = list.slice(-7);
+
+    return {
+      waste: last7.map(g => ({
+        date: formatDate(g.date),
+        "Fabric Weight": parseFloat(g.fabricSum.toFixed(1)),
+        "Scrap Weight": parseFloat(g.scrapSum.toFixed(1))
+      })),
+      volume: last7.map(g => ({
+        date: formatDate(g.date),
+        "Cuts Volume (Pcs)": g.volumeSum,
+        "Save/Loss (KG)": parseFloat(g.saveSum.toFixed(1))
+      }))
+    };
   }, [compiledEntries]);
 
   // Style details for labels to increase contrast:
@@ -300,6 +352,70 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
                     <Line type="monotone" dataKey="efficiency" name="Yield Efficiency %" stroke="#2563EB" strokeWidth={3} activeDot={{ r: 6 }} />
                     <Line type="monotone" dataKey="scrapRate" name="Scrap Rate %" stroke="#DC2626" strokeWidth={3} />
                   </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. OPERATIONAL HISTORICAL TRENDS SECTION */}
+      <section className="space-y-4">
+        <div>
+          <h3 className="font-sans font-extrabold text-xs text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <TrendingUp size={14} className="text-[#2563EB]" /> Operational Historical Trends (Last 7 Active Days)
+          </h3>
+          <p className="text-sm text-slate-500 mt-1 font-medium font-sans">Tracking historical patterns in daily production volume, fabric usage, and scrap generation.</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Fabric & Waste Tracking Chart */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
+            <h4 className="font-sans font-extrabold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Fabric & Waste Tracking (Last 7 Days)</h4>
+            <div className="h-72 min-w-0 min-h-0">
+              {last7DaysChartData.waste.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-slate-400">No active entry history to plot.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart data={last7DaysChartData.waste} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px" }}
+                      labelStyle={{ color: "#94a3b8", fontWeight: "bold", fontSize: "11px" }}
+                      itemStyle={{ fontSize: "11px", padding: "1px 0" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                    <Bar dataKey="Fabric Weight" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Scrap Weight" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Output Volume & Savings Chart */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl shadow-sm min-w-0">
+            <h4 className="font-sans font-extrabold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Output Volume & Savings (Last 7 Days)</h4>
+            <div className="h-72 min-w-0 min-h-0">
+              {last7DaysChartData.volume.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-slate-400">No active entry history to plot.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart data={last7DaysChartData.volume} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px" }}
+                      labelStyle={{ color: "#94a3b8", fontWeight: "bold", fontSize: "11px" }}
+                      itemStyle={{ fontSize: "11px", padding: "1px 0" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                    <Bar dataKey="Cuts Volume (Pcs)" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Save/Loss (KG)" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
