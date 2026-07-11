@@ -105,6 +105,12 @@ export default function Sidebar({
             tooltipMessage = "Cutting Entries access has been locked by Admin.";
           }
 
+          if (hasAccess && item.id === "poly_tracking" && currentProfile.can_access_poly_entry === false) {
+            hasAccess = false;
+            useLockIcon = true;
+            tooltipMessage = "Poly Tracking access has been locked by Admin.";
+          }
+
           const Icon = useLockIcon ? Lock : item.icon;
           
           if (!hasAccess) {

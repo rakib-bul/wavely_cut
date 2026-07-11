@@ -11,6 +11,7 @@ export interface Profile {
   can_access_cutting_entry?: boolean;
   can_access_remnant_entry?: boolean;
   can_access_heat_seal_entry?: boolean;
+  can_access_poly_entry?: boolean;
 }
 
 export interface Machine {

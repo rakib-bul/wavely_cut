@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     can_access_cutting_entry BOOLEAN NOT NULL DEFAULT true,
     can_access_remnant_entry BOOLEAN NOT NULL DEFAULT true,
     can_access_heat_seal_entry BOOLEAN NOT NULL DEFAULT true,
+    can_access_poly_entry BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

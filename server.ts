@@ -4,6 +4,7 @@ dotenv.config();
 import express from "express";
 import path from "path";
 import fs from "fs";
+import compression from "compression";
 import { calculateFields } from "./src/utils/calculations";
 import { CuttingEntry, Machine, Profile, AuditLog, UserRole } from "./src/types";
 import { createClient } from "@supabase/supabase-js";
@@ -11,6 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 const app = express();
 const PORT = 3000;
 
+app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
@@ -360,7 +362,8 @@ app.post("/api/auth/signup", async (req, res) => {
           ...newProfile,
           can_access_cutting_entry: true,
           can_access_remnant_entry: true,
-          can_access_heat_seal_entry: true
+          can_access_heat_seal_entry: true,
+          can_access_poly_entry: true
         });
       dbError = error;
     } catch (err: any) {
@@ -386,7 +389,8 @@ app.post("/api/auth/signup", async (req, res) => {
     (systemSettings as any).user_permissions[userId] = {
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
-      can_access_heat_seal_entry: true
+      can_access_heat_seal_entry: true,
+      can_access_poly_entry: true
     };
     saveSettings(systemSettings);
 
@@ -394,7 +398,8 @@ app.post("/api/auth/signup", async (req, res) => {
       ...newProfile,
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
-      can_access_heat_seal_entry: true
+      can_access_heat_seal_entry: true,
+      can_access_poly_entry: true
     };
 
     return res.json({ profile: enrichedProfile, message: "Account created successfully" });
@@ -485,7 +490,8 @@ app.post("/api/auth/login", async (req, res) => {
           ...profile,
           can_access_cutting_entry: userPerms?.can_access_cutting_entry ?? profile.can_access_cutting_entry ?? true,
           can_access_remnant_entry: userPerms?.can_access_remnant_entry ?? profile.can_access_remnant_entry ?? true,
-          can_access_heat_seal_entry: userPerms?.can_access_heat_seal_entry ?? profile.can_access_heat_seal_entry ?? true
+          can_access_heat_seal_entry: userPerms?.can_access_heat_seal_entry ?? profile.can_access_heat_seal_entry ?? true,
+          can_access_poly_entry: userPerms?.can_access_poly_entry ?? profile.can_access_poly_entry ?? true
         };
         return res.json({ profile: enrichedProfile });
       }
@@ -1358,7 +1364,7 @@ app.put("/api/profiles/:id/avatar", async (req, res) => {
 
 app.put("/api/profiles/:id/permissions", async (req, res) => {
   const { id } = req.params;
-  const { can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry } = req.body;
+  const { can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry } = req.body;
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
@@ -1385,7 +1391,8 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
         .update({
           can_access_cutting_entry: !!can_access_cutting_entry,
           can_access_remnant_entry: !!can_access_remnant_entry,
-          can_access_heat_seal_entry: !!can_access_heat_seal_entry
+          can_access_heat_seal_entry: !!can_access_heat_seal_entry,
+          can_access_poly_entry: !!can_access_poly_entry
         })
         .eq("id", id);
       dbError = error;
@@ -1408,13 +1415,15 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
     const old_permissions = (systemSettings as any).user_permissions[id] || {
       can_access_cutting_entry: currentProfile.can_access_cutting_entry !== false,
       can_access_remnant_entry: currentProfile.can_access_remnant_entry !== false,
-      can_access_heat_seal_entry: currentProfile.can_access_heat_seal_entry !== false
+      can_access_heat_seal_entry: currentProfile.can_access_heat_seal_entry !== false,
+      can_access_poly_entry: currentProfile.can_access_poly_entry !== false
     };
 
     (systemSettings as any).user_permissions[id] = {
       can_access_cutting_entry: !!can_access_cutting_entry,
       can_access_remnant_entry: !!can_access_remnant_entry,
-      can_access_heat_seal_entry: !!can_access_heat_seal_entry
+      can_access_heat_seal_entry: !!can_access_heat_seal_entry,
+      can_access_poly_entry: !!can_access_poly_entry
     };
 
     const success = saveSettings(systemSettings);
@@ -1426,7 +1435,8 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
       ...currentProfile,
       can_access_cutting_entry: !!can_access_cutting_entry,
       can_access_remnant_entry: !!can_access_remnant_entry,
-      can_access_heat_seal_entry: !!can_access_heat_seal_entry
+      can_access_heat_seal_entry: !!can_access_heat_seal_entry,
+      can_access_poly_entry: !!can_access_poly_entry
     };
 
     await addAuditLog(
@@ -1547,7 +1557,7 @@ app.get("/api/sync", async (req, res) => {
     const machinesPromise = (async () => {
       const { data: m, error } = await supabase
         .from("machines")
-        .select("*")
+        .select("id, machine_name, machine_type")
         .order("machine_name", { ascending: true });
       if (error) throw error;
       
@@ -1563,7 +1573,7 @@ app.get("/api/sync", async (req, res) => {
         const { data: seeded, error: seedError } = await supabase
           .from("machines")
           .insert(defaultMachinesToInsert)
-          .select();
+          .select("id, machine_name, machine_type");
         if (seedError) throw seedError;
         return seeded || [];
       }
@@ -1576,7 +1586,7 @@ app.get("/api/sync", async (req, res) => {
       }
       const { data: b, error } = await supabase
         .from("buyers")
-        .select("*")
+        .select("id, name, created_at")
         .order("name", { ascending: true });
       if (error) {
         console.error("Could not fetch buyers from Supabase:", error.message);
@@ -1588,7 +1598,8 @@ app.get("/api/sync", async (req, res) => {
 
     // 3. Fetch cutting entries
     const entriesPromise = (async () => {
-      let query = supabase.from("cutting_entries").select("*");
+      let query = supabase.from("cutting_entries")
+        .select("id, entry_date, shift, machine_id, buyer, job_no, color, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, po_no, supervisor_name, created_by, approved_by, status, created_at, updated_at");
 
       const { data: entries, error } = await query;
       if (error) throw error;
@@ -1596,7 +1607,7 @@ app.get("/api/sync", async (req, res) => {
       const { data: profiles } = await supabase.from("profiles").select("id, email");
       const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
       
-      const mappedEntries = (entries || []).map(e => ({
+      const mappedEntries = (entries || []).map((e: any) => ({
         ...e,
         total_length_inch: Number(e.total_length_inch) || 0,
         spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
@@ -1614,7 +1625,7 @@ app.get("/api/sync", async (req, res) => {
       if (user_role !== "admin") return [];
       const { data: logs, error } = await supabase
         .from("audit_logs")
-        .select("*")
+        .select("id, user_email, action, entity_type, entity_id, old_value, new_value, created_at")
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
@@ -1625,19 +1636,23 @@ app.get("/api/sync", async (req, res) => {
     const profilesPromise = (async () => {
       const { data: profiles, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
         .order("created_at", { ascending: true });
       if (error) throw error;
       
       const enriched = (profiles || []).map(p => {
         const perms = (systemSettings as any).user_permissions?.[p.id] || {
           can_access_cutting_entry: true,
-          can_access_remnant_entry: true
+          can_access_remnant_entry: true,
+          can_access_heat_seal_entry: true,
+          can_access_poly_entry: true
         };
         return {
           ...p,
           can_access_cutting_entry: p.can_access_cutting_entry !== undefined ? p.can_access_cutting_entry : (perms.can_access_cutting_entry !== false),
-          can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false)
+          can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false),
+          can_access_heat_seal_entry: p.can_access_heat_seal_entry !== undefined ? p.can_access_heat_seal_entry : (perms.can_access_heat_seal_entry !== false),
+          can_access_poly_entry: p.can_access_poly_entry !== undefined ? p.can_access_poly_entry : (perms.can_access_poly_entry !== false)
         };
       });
       return enriched;
@@ -1648,7 +1663,7 @@ app.get("/api/sync", async (req, res) => {
       try {
         const { data, error } = await supabase
           .from("poly_entries")
-          .select("*")
+          .select("id, entry_date, total_received_poly, total_reused_poly, price, save, created_by, created_at, updated_at")
           .order("entry_date", { ascending: false });
         if (error) {
           console.warn("Could not fetch poly_entries from Supabase, returning local setting fallback:", error.message);
@@ -1665,7 +1680,7 @@ app.get("/api/sync", async (req, res) => {
       try {
         const { data, error } = await supabase
           .from("heat_seal_entries")
-          .select("*")
+          .select("id, entry_date, shift, operator_name, operator_id, designation, job_no, color, po_no, target_id, hourly_data, created_by, status, created_at, updated_at")
           .order("entry_date", { ascending: false });
         if (error) {
           console.warn("Could not fetch heat_seal_entries from Supabase:", error.message);
@@ -1685,7 +1700,7 @@ app.get("/api/sync", async (req, res) => {
       try {
         const { data, error } = await supabase
           .from("heat_seal_operators")
-          .select("*")
+          .select("id, operator_name, operator_id, designation, created_at")
           .order("operator_name", { ascending: true });
         if (error) {
           console.warn("Could not fetch heat_seal_operators from Supabase:", error.message);
@@ -1702,7 +1717,7 @@ app.get("/api/sync", async (req, res) => {
       try {
         const { data, error } = await supabase
           .from("heat_seal_targets")
-          .select("*")
+          .select("id, target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target, status, created_by, created_at, updated_at")
           .order("target_date", { ascending: false });
         if (error) {
           console.warn("Could not fetch heat_seal_targets from Supabase:", error.message);
@@ -2571,7 +2586,8 @@ app.post("/api/admin/create-user", async (req, res) => {
           ...newProfile,
           can_access_cutting_entry: true,
           can_access_remnant_entry: true,
-          can_access_heat_seal_entry: true
+          can_access_heat_seal_entry: true,
+          can_access_poly_entry: true
         });
       dbError = error;
     } catch (err: any) {
@@ -2600,7 +2616,8 @@ app.post("/api/admin/create-user", async (req, res) => {
     (systemSettings as any).user_permissions[userId] = {
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
-      can_access_heat_seal_entry: true
+      can_access_heat_seal_entry: true,
+      can_access_poly_entry: true
     };
     saveSettings(systemSettings);
 
@@ -2618,7 +2635,8 @@ app.post("/api/admin/create-user", async (req, res) => {
       ...newProfile,
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
-      can_access_heat_seal_entry: true
+      can_access_heat_seal_entry: true,
+      can_access_poly_entry: true
     };
 
     return res.json({ profile: enrichedProfile, message: "User account created successfully by admin" });

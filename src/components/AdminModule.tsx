@@ -32,7 +32,13 @@ interface AdminModuleProps {
   auditLogs: AuditLog[];
   onUpdateRole: (id: string, role: UserRole) => void;
   onUpdateAvatar?: (id: string, avatarUrl: string) => Promise<void>;
-  onUpdatePermissions?: (id: string, can_access_cutting_entry: boolean, can_access_remnant_entry: boolean, can_access_heat_seal_entry: boolean) => Promise<void>;
+  onUpdatePermissions?: (
+    id: string, 
+    can_access_cutting_entry: boolean, 
+    can_access_remnant_entry: boolean, 
+    can_access_heat_seal_entry: boolean,
+    can_access_poly_entry: boolean
+  ) => Promise<void>;
   onAddMachine: (name: string, type: string) => void;
   schemaDDL: string;
   rlsDDL: string;
@@ -453,7 +459,7 @@ export default function AdminModule({
                           <span className="text-[10px] text-slate-400 font-bold block mt-0.5">{p.department}</span>
                         </td>
                         <td className="p-4 text-center">
-                          <div className="flex items-center justify-center gap-4">
+                          <div className="flex flex-wrap items-center justify-center gap-4">
                             <label className="flex items-center gap-1.5 cursor-pointer text-slate-650 dark:text-slate-300 select-none" title="Allow/deny access to Cutting entries form">
                               <input 
                                 type="checkbox"
@@ -464,7 +470,8 @@ export default function AdminModule({
                                       p.id, 
                                       e.target.checked, 
                                       p.can_access_remnant_entry !== false,
-                                      p.can_access_heat_seal_entry !== false
+                                      p.can_access_heat_seal_entry !== false,
+                                      p.can_access_poly_entry !== false
                                     );
                                   }
                                 }}
@@ -482,7 +489,8 @@ export default function AdminModule({
                                       p.id, 
                                       p.can_access_cutting_entry !== false, 
                                       e.target.checked,
-                                      p.can_access_heat_seal_entry !== false
+                                      p.can_access_heat_seal_entry !== false,
+                                      p.can_access_poly_entry !== false
                                     );
                                   }
                                 }}
@@ -500,13 +508,33 @@ export default function AdminModule({
                                       p.id, 
                                       p.can_access_cutting_entry !== false, 
                                       p.can_access_remnant_entry !== false,
-                                      e.target.checked
+                                      e.target.checked,
+                                      p.can_access_poly_entry !== false
                                     );
                                   }
                                 }}
                                 className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                               />
                               <span className="text-[10px] font-extrabold uppercase tracking-wider">Heat Seal</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-650 dark:text-slate-300 select-none" title="Allow/deny access to Poly Tracking form">
+                              <input 
+                                type="checkbox"
+                                checked={p.can_access_poly_entry !== false}
+                                onChange={(e) => {
+                                  if (onUpdatePermissions) {
+                                    onUpdatePermissions(
+                                      p.id, 
+                                      p.can_access_cutting_entry !== false, 
+                                      p.can_access_remnant_entry !== false,
+                                      p.can_access_heat_seal_entry !== false,
+                                      e.target.checked
+                                    );
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider">Poly Tracking</span>
                             </label>
                           </div>
                         </td>

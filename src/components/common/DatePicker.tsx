@@ -37,7 +37,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         onChange={handleChange}
         dateFormat="dd/MM/yyyy"
         placeholderText={placeholderText}
-        className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 pl-10 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition shadow-xs cursor-pointer"
+        className="w-full h-10 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 pl-10 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-750 dark:text-slate-200 transition shadow-xs cursor-pointer"
         wrapperClassName="w-full"
       />
       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">

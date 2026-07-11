@@ -36,8 +36,8 @@ export default function PolyTrackingModule({
   onDeletePolyEntry,
   polyPrice = 1.50
 }: PolyTrackingModuleProps) {
-  // Check access control (Only supervisor/officer and admin can access)
-  const hasAccess = ["supervisor", "admin"].includes(currentProfile.role);
+  // Check access control (Only supervisor/officer and admin can access, and must have permissions)
+  const hasAccess = ["supervisor", "admin"].includes(currentProfile.role) && currentProfile.can_access_poly_entry !== false;
 
   // Form states
   const [entryDate, setEntryDate] = useState<string>(() => {
@@ -312,6 +312,7 @@ export default function PolyTrackingModule({
   };
 
   if (!hasAccess) {
+    const isLockedByAdmin = currentProfile.can_access_poly_entry === false;
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center max-w-lg mx-auto" id="poly-no-access">
         <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mb-5 border border-rose-100 dark:border-rose-900/30 shadow-xs">
@@ -319,7 +320,9 @@ export default function PolyTrackingModule({
         </div>
         <h2 className="text-xl font-extrabold text-slate-950 dark:text-white tracking-tight">Access Restricted</h2>
         <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm leading-relaxed">
-          The Daily Poly Received and Re-Use module is restricted to **Officers (Supervisors)** and **Administrators** only. Operators and managers do not have viewing or editing privileges for this section.
+          {isLockedByAdmin 
+            ? "Poly Tracking access has been locked by Admin." 
+            : "The Daily Poly Received and Re-Use module is restricted to Officers (Supervisors) and Administrators only. Operators and managers do not have viewing or editing privileges for this section."}
         </p>
       </div>
     );

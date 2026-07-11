@@ -1186,7 +1186,8 @@ export default function App() {
     id: string,
     can_access_cutting_entry: boolean,
     can_access_remnant_entry: boolean,
-    can_access_heat_seal_entry: boolean
+    can_access_heat_seal_entry: boolean,
+    can_access_poly_entry: boolean
   ) => {
     try {
       const headers = {
@@ -1201,7 +1202,8 @@ export default function App() {
         body: JSON.stringify({ 
           can_access_cutting_entry, 
           can_access_remnant_entry,
-          can_access_heat_seal_entry
+          can_access_heat_seal_entry,
+          can_access_poly_entry
         })
       });
 
@@ -1219,7 +1221,8 @@ export default function App() {
           ...prev,
           can_access_cutting_entry: updatedProfile.can_access_cutting_entry,
           can_access_remnant_entry: updatedProfile.can_access_remnant_entry,
-          can_access_heat_seal_entry: updatedProfile.can_access_heat_seal_entry
+          can_access_heat_seal_entry: updatedProfile.can_access_heat_seal_entry,
+          can_access_poly_entry: updatedProfile.can_access_poly_entry
         }));
       }
 

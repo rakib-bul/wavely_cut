@@ -677,98 +677,271 @@ export default function HeatSealModule({
   };
 
   const handleExportExcel = () => {
-    const dayEntries = entries
-      .filter(e => e.entry_date === reportDate && (e.shift === 'D' || e.shift === 'A'))
-      .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
-    const nightEntries = entries
-      .filter(e => e.entry_date === reportDate && (e.shift === 'N' || e.shift === 'B'))
-      .sort((a, b) => a.operator_name.localeCompare(b.operator_name));
-    
     const dayLabels = HOURS_LABELS.slice(0, 12);
     const nightLabels = HOURS_LABELS.slice(12, 24);
 
+    const getExcelShiftRows = (shiftGroup: 'day' | 'night') => {
+      const currentShifts = shiftGroup === 'day' ? ['D', 'A'] : ['N', 'B'];
+      const labels = shiftGroup === 'day' ? dayLabels : nightLabels;
+
+      const relevantTargets = (targets || []).filter(t => t.target_date === reportDate && currentShifts.includes(t.shift));
+      const relevantEntries = entries.filter(e => e.entry_date === reportDate && currentShifts.includes(e.shift));
+
+      const uniquePairs = new Map<string, { operator_id: string, operator_name: string, job_no: string, color?: string, po_no?: string, target_id?: string }>();
+      
+      // Identify rows from targets
+      relevantTargets.forEach(t => {
+         const key = `${t.operator_id}-${t.job_no}`;
+         uniquePairs.set(key, { 
+            operator_id: t.operator_id, 
+            operator_name: t.operator_name, 
+            job_no: t.job_no, 
+            color: t.color,
+            po_no: t.po_no,
+            target_id: t.id
+         });
+      });
+
+      // Identify rows from entries (in case there's no target for an entry)
+      relevantEntries.forEach(e => {
+         const key = `${e.operator_id}-${e.job_no || 'no-job'}`;
+         if (!uniquePairs.has(key)) {
+            uniquePairs.set(key, { 
+               operator_id: e.operator_id, 
+               operator_name: e.operator_name, 
+               job_no: e.job_no || '', 
+               color: e.color,
+               po_no: e.po_no
+            });
+         }
+      });
+
+      return Array.from(uniquePairs.values()).map(pair => {
+         const entry = relevantEntries.find(e => e.operator_id === pair.operator_id && (e.job_no || '') === pair.job_no);
+         const target = relevantTargets.find(t => t.operator_id === pair.operator_id && t.job_no === pair.job_no);
+
+         return {
+            operator_name: pair.operator_name,
+            job_no: pair.job_no,
+            color: pair.color || entry?.color || target?.color || "-",
+            po_no: pair.po_no || entry?.po_no || target?.po_no || "-",
+            hourly_data: labels.map(slot => {
+               const hourEntry = entry?.hourly_data?.find(h => h.hour_slot === slot);
+               return {
+                  hour_slot: slot,
+                  production: hourEntry?.production || 0,
+                  target: hourEntry?.target || target?.hourly_target || 0
+               };
+            })
+         };
+      }).sort((a, b) => {
+         const nameCmp = a.operator_name.localeCompare(b.operator_name);
+         if (nameCmp !== 0) return nameCmp;
+         return a.job_no.localeCompare(b.job_no);
+      });
+    };
+
+    const dayEntries = getExcelShiftRows('day');
+    const nightEntries = getExcelShiftRows('night');
+
     const wb = utils.book_new();
 
-    const generateShiftSheet = (shiftEntries: typeof entries, labels: string[], shiftName: string) => {
+    const getColLetter = (colIdx: number): string => {
+      let temp = colIdx;
+      let letter = "";
+      while (temp >= 0) {
+        letter = String.fromCharCode((temp % 26) + 65) + letter;
+        temp = Math.floor(temp / 26) - 1;
+      }
+      return letter;
+    };
+
+    const generateShiftSheet = (shiftEntries: any[], labels: string[], shiftName: string) => {
       const data: any[] = [];
-      data.push([`HEAT-SEAL HOURLY PRODUCTION TALLY - ${shiftName}`]);
-      data.push([`Date: ${formatDate(reportDate)}`]);
-      data.push([]);
+      
+      // Title Block
+      data.push([
+        { t: 's', v: `HEAT-SEAL HOURLY PRODUCTION REPORT — ${shiftName}` }
+      ]);
+      data.push([
+        { t: 's', v: `Date: ${formatDate(reportDate)} | Shift Time: ${shiftName === "DAY SHIFT" ? "08:00 AM - 08:00 PM" : "08:00 PM - 08:00 AM"}` }
+      ]);
+      data.push([
+        { t: 's', v: `Report generated on: ${new Date().toLocaleString()}` }
+      ]);
+      data.push([]); // Spacer row 4
 
-      const header = ["Operator", "Job No", "Color", "PO No"];
-      labels.forEach(h => {
-        header.push(`${h} TGT`);
-        header.push(`${h} PROD`);
-        header.push(`${h} EFF%`);
+      // Row 5 & 6: Summary cards
+      const lastRow = 9 + shiftEntries.length;
+      data.push([
+        { t: 's', v: "SUMMARY METRICS:" },
+        { t: 's', v: "TOTAL PRODUCTION" },
+        "",
+        { t: 's', v: "TOTAL TARGET" },
+        "",
+        { t: 's', v: "OVERALL EFFICIENCY" }
+      ]);
+      data.push([
+        "",
+        { t: 'n', f: `SUM(AP10:AP${lastRow})`, z: '#,##0' },
+        "",
+        { t: 'n', f: `SUM(AO10:AO${lastRow})`, z: '#,##0' },
+        "",
+        { t: 'n', f: `IF(D6>0, B6/D6, 0)`, z: '0.0%' }
+      ]);
+      data.push([]); // Spacer row 7
+
+      // Row 8: Table Header Categories (Multi-level header)
+      const catHeader: any[] = [];
+      catHeader[0] = { t: 's', v: "OPERATOR & JOB INFO" };
+      catHeader[1] = "";
+      catHeader[2] = "";
+      catHeader[3] = "";
+      
+      labels.forEach((hour, idx) => {
+        const colIdx = 4 + idx * 3;
+        catHeader[colIdx] = { t: 's', v: hour };
+        catHeader[colIdx + 1] = "";
+        catHeader[colIdx + 2] = "";
       });
-      header.push("TOTAL PROD");
-      header.push("AVG EFF%");
-      data.push(header);
+      
+      const totalsColIdx = 4 + labels.length * 3;
+      catHeader[totalsColIdx] = { t: 's', v: "SHIFT SUMMARY TOTALS" };
+      catHeader[totalsColIdx + 1] = "";
+      catHeader[totalsColIdx + 2] = "";
+      
+      // Fill remaining columns in category header
+      for (let c = 0; c < 43; c++) {
+        if (catHeader[c] === undefined) catHeader[c] = "";
+      }
+      data.push(catHeader);
 
-      let shiftTotalProd = 0;
-      let shiftTotalTgt = 0;
-      const hourlyTotals = labels.map(() => ({ tgt: 0, prod: 0 }));
+      // Row 9: Table Header Columns
+      const subHeader: any[] = ["Operator Name", "Job No", "Color", "PO No"];
+      labels.forEach(() => {
+        subHeader.push("TGT", "PROD", "EFF%");
+      });
+      subHeader.push("TOTAL TGT", "TOTAL PROD", "AVG EFF");
+      data.push(subHeader);
 
-      shiftEntries.forEach(entry => {
+      // Rows 10+: Operator Rows
+      shiftEntries.forEach((entry, opIdx) => {
+        const R = 10 + opIdx;
         const row: any[] = [
-          entry.operator_name,
-          entry.job_no || "-",
-          entry.color || "-",
-          entry.po_no || "-",
+          { t: 's', v: entry.operator_name },
+          { t: 's', v: entry.job_no || "-" },
+          { t: 's', v: entry.color || "-" },
+          { t: 's', v: entry.po_no || "-" },
         ];
-        
-        let opTotalProd = 0;
-        let opTotalTgt = 0;
 
-        labels.forEach((hour, idx) => {
-          const hData = entry.hourly_data?.find(h => h.hour_slot === hour);
+        labels.forEach((hour, hIdx) => {
+          const hData = entry.hourly_data?.find((h: any) => h.hour_slot === hour);
           const p = Number(hData?.production) || 0;
           const t = Number(hData?.target) || 0;
-          const e = t > 0 ? (p / t) * 100 : 0;
           
-          row.push(t);
-          row.push(p);
-          row.push(t > 0 ? e.toFixed(0) + "%" : "0%");
+          row.push({ t: 'n', v: t, z: '#,##0' });
+          row.push({ t: 'n', v: p, z: '#,##0' });
           
-          opTotalProd += p;
-          opTotalTgt += t;
-          
-          hourlyTotals[idx].prod += p;
-          hourlyTotals[idx].tgt += t;
+          const tgtCol = getColLetter(4 + hIdx * 3);
+          const prodCol = getColLetter(5 + hIdx * 3);
+          row.push({ t: 'n', f: `IF(${tgtCol}${R}>0, ${prodCol}${R}/${tgtCol}${R}, 0)`, z: '0%' });
         });
 
-        const opAvgEff = opTotalTgt > 0 ? (opTotalProd / opTotalTgt) * 100 : 0;
-        row.push(opTotalProd);
-        row.push(opTotalTgt > 0 ? opAvgEff.toFixed(1) + "%" : "0%");
+        // Sum targets
+        const tgtColsSum = labels.map((_, hIdx) => `${getColLetter(4 + hIdx * 3)}${R}`).join("+");
+        row.push({ t: 'n', f: tgtColsSum, z: '#,##0' });
+
+        // Sum production
+        const prodColsSum = labels.map((_, hIdx) => `${getColLetter(5 + hIdx * 3)}${R}`).join("+");
+        row.push({ t: 'n', f: prodColsSum, z: '#,##0' });
+
+        // Avg Efficiency
+        row.push({ t: 'n', f: `IF(AO${R}>0, AP${R}/AO${R}, 0)`, z: '0.0%' });
+
         data.push(row);
-        shiftTotalProd += opTotalProd;
-        shiftTotalTgt += opTotalTgt;
       });
 
-      // Summary row
-      const summaryRow: any[] = ["TOTALS", "-", "-", "-"];
-      hourlyTotals.forEach(h => {
-        summaryRow.push(h.tgt);
-        summaryRow.push(h.prod);
-        summaryRow.push(h.tgt > 0 ? ((h.prod / h.tgt) * 100).toFixed(1) + "%" : "0%");
+      // Footer Row
+      const footerRow = 10 + shiftEntries.length;
+      const footer: any[] = [
+        { t: 's', v: "SHIFT GRAND TOTALS" },
+        "",
+        "",
+        "",
+      ];
+
+      labels.forEach((_, hIdx) => {
+        const tgtCol = getColLetter(4 + hIdx * 3);
+        const prodCol = getColLetter(5 + hIdx * 3);
+        
+        footer.push({ t: 'n', f: `SUM(${tgtCol}10:${tgtCol}${lastRow})`, z: '#,##0' });
+        footer.push({ t: 'n', f: `SUM(${prodCol}10:${prodCol}${lastRow})`, z: '#,##0' });
+        footer.push({ t: 'n', f: `IF(${tgtCol}${footerRow}>0, ${prodCol}${footerRow}/${tgtCol}${footerRow}, 0)`, z: '0%' });
       });
-      summaryRow.push(shiftTotalProd);
-      summaryRow.push(shiftTotalTgt > 0 ? ((shiftTotalProd / shiftTotalTgt) * 100).toFixed(1) + "%" : "0%");
-      data.push(summaryRow);
+
+      footer.push({ t: 'n', f: `SUM(AO10:AO${lastRow})`, z: '#,##0' });
+      footer.push({ t: 'n', f: `SUM(AP10:AP${lastRow})`, z: '#,##0' });
+      footer.push({ t: 'n', f: `IF(AO${footerRow}>0, AP${footerRow}/AO${footerRow}, 0)`, z: '0.0%' });
+
+      data.push(footer);
 
       const ws = utils.aoa_to_sheet(data);
       
+      // Apply Merges
+      const merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 42 } }, // Main title
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 42 } }, // Meta info
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 42 } }, // Timestamp
+        
+        { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } }, // Tot Prod Label
+        { s: { r: 4, c: 3 }, e: { r: 4, c: 4 } }, // Tot Tgt Label
+        { s: { r: 4, c: 5 }, e: { r: 4, c: 6 } }, // Overall Eff Label
+        
+        { s: { r: 5, c: 1 }, e: { r: 5, c: 2 } }, // Tot Prod Val
+        { s: { r: 5, c: 3 }, e: { r: 5, c: 4 } }, // Tot Tgt Val
+        { s: { r: 5, c: 5 }, e: { r: 5, c: 6 } }, // Overall Eff Val
+        
+        { s: { r: 7, c: 0 }, e: { r: 7, c: 3 } }, // Operator Job Info category label
+      ];
+      
+      labels.forEach((_, idx) => {
+        merges.push({
+          s: { r: 7, c: 4 + idx * 3 },
+          e: { r: 7, c: 6 + idx * 3 }
+        });
+      });
+      
+      merges.push({
+        s: { r: 7, c: 40 },
+        e: { r: 7, c: 42 }
+      });
+      
+      merges.push({
+        s: { r: footerRow - 1, c: 0 },
+        e: { r: footerRow - 1, c: 3 }
+      });
+      
+      ws['!merges'] = merges;
+
       // Set column widths
       const wscols = [
-        { wch: 25 }, // Operator
-        { wch: 15 }, // Job No
-        { wch: 15 }, // Color
-        { wch: 15 }, // PO
+        { wch: 22 }, // Operator Name
+        { wch: 12 }, // Job No
+        { wch: 12 }, // Color
+        { wch: 12 }, // PO No
       ];
       labels.forEach(() => {
-        wscols.push({ wch: 8 }, { wch: 8 }, { wch: 10 });
+        wscols.push(
+          { wch: 7 }, // TGT
+          { wch: 7 }, // PROD
+          { wch: 8 }  // EFF
+        );
       });
-      wscols.push({ wch: 12 }, { wch: 12 });
+      wscols.push(
+        { wch: 12 }, // Total TGT
+        { wch: 12 }, // Total PROD
+        { wch: 12 }  // Avg EFF
+      );
       ws['!cols'] = wscols;
 
       return ws;
@@ -1512,7 +1685,7 @@ export default function HeatSealModule({
         <div className="space-y-6 animate-fade-in">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Create Preset Form */}
-            {isAdminOrSupervisor ? (
+            {canEditEverything ? (
               <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm self-start">
               <h3 className="font-bold text-slate-900 dark:text-white text-base mb-4 flex items-center gap-2">
                 <Target size={18} className="text-indigo-500" />
@@ -1656,7 +1829,7 @@ export default function HeatSealModule({
               <div className="lg:col-span-1 bg-slate-50 dark:bg-slate-850 p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 self-start text-center">
                 <ShieldAlert size={36} className="mx-auto mb-3 text-slate-400" />
                 <h4 className="font-bold text-slate-800 dark:text-white text-sm mb-1">Preset Access Restricted</h4>
-                <p className="text-xs text-slate-500">Only Admins and Officers can pre-allocate standard hourly targets.</p>
+                <p className="text-xs text-slate-500">Only Admins, Officers, and Operators can pre-allocate standard hourly targets.</p>
               </div>
             )}
 
