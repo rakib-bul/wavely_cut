@@ -1651,8 +1651,8 @@ export default function ReportsModule({
                               </button>
                             )}
   
-                            {/* Only Admin and Officer (supervisor) can edit records */}
-                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                            {/* All roles can edit records (no admin approval/restriction) */}
+                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin" || currentProfile.role === "operator" || currentProfile.role === "manager") && (
                               <button
                                 onClick={() => onSelectEditEntry && onSelectEditEntry(entry)}
                                 className="text-slate-700 hover:text-white hover:bg-slate-800 bg-slate-100 p-1.5 rounded-lg transition cursor-pointer border border-slate-200"
@@ -1662,8 +1662,8 @@ export default function ReportsModule({
                               </button>
                             )}
   
-                            {/* S&A: Delete Action Button */}
-                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin") && (
+                            {/* All roles can delete records (no admin approval/restriction) */}
+                            {(currentProfile.role === "supervisor" || currentProfile.role === "admin" || currentProfile.role === "operator" || currentProfile.role === "manager") && (
                               <button
                                 onClick={() => {
                                   setEntryToDelete(entry);

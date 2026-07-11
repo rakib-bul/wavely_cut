@@ -251,10 +251,6 @@ export default function PolyTrackingModule({
   };
 
   const handleDelete = (id: string, date: string) => {
-    if (currentProfile.role === "operator") {
-      setAlertDialog({ isOpen: true, title: "Access Restricted", message: "Operators are not permitted to delete Poly Tracking entries." });
-      return;
-    }
     setConfirmDialog({
       isOpen: true,
       title: "Delete Poly Entry",
@@ -666,20 +662,18 @@ export default function PolyTrackingModule({
                               >
                                 <ClipboardList size={13} />
                               </button>
-                              {currentProfile.role !== "operator" && (
-                                <button
-                                  onClick={() => handleDelete(entry.id || entry.entry_date, entry.entry_date)}
-                                  disabled={deletingId === entry.id}
-                                  className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 text-slate-400 rounded-lg cursor-pointer transition shrink-0 inline-flex items-center justify-center disabled:opacity-50"
-                                  title="Delete entry"
-                                >
-                                  {deletingId === entry.id ? (
-                                    <Loader2 size={13} className="animate-spin text-rose-500" />
-                                  ) : (
-                                    <Trash2 size={13} />
-                                  )}
-                                </button>
-                              )}
+                              <button
+                                onClick={() => handleDelete(entry.id || entry.entry_date, entry.entry_date)}
+                                disabled={deletingId === entry.id}
+                                className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 text-slate-400 rounded-lg cursor-pointer transition shrink-0 inline-flex items-center justify-center disabled:opacity-50"
+                                title="Delete entry"
+                              >
+                                {deletingId === entry.id ? (
+                                  <Loader2 size={13} className="animate-spin text-rose-500" />
+                                ) : (
+                                  <Trash2 size={13} />
+                                )}
+                              </button>
                             </div>
                           )}
                         </td>

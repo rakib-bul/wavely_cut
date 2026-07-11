@@ -2468,7 +2468,7 @@ export default function App() {
 
               <div className="col-span-2 flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                 {/* Left side: Delete options for Admin and Supervisor */}
-                {currentProfile && (currentProfile.role === "admin" || currentProfile.role === "supervisor") ? (
+                {currentProfile && (currentProfile.role === "admin" || currentProfile.role === "supervisor" || currentProfile.role === "operator" || currentProfile.role === "manager") ? (
                   <div>
                     {!isConfirmingDelete ? (
                       <button

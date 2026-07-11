@@ -1020,14 +1020,9 @@ app.put("/api/entries/:id", async (req, res) => {
       Number(existingEntry.marker_efficiency_percent) === Number(data.marker_efficiency_percent)
     );
 
-    // Role policies: Only Admin, Officer (supervisor), and Manager can edit cutting entries
-    // But Operator CAN edit their OWN entry if it is still in 'draft' status.
-    const isOwnDraft = existingEntry.status === "draft" && callerProfile && existingEntry.created_by === callerProfile.id;
+    // Role policies: Any user can edit their own or any cutting entries (no admin approval/restriction)
     if (activeRole !== "admin" && activeRole !== "supervisor" && activeRole !== "manager") {
-      if (!isOnlyRemarksChanging && !isOwnDraft) {
-        return res.status(403).json({ error: "Permission Denied. Only Admin, Officer, and Manager roles can edit submitted/approved data." });
-      }
-      if (!canAccessRemnant) {
+      if (!canAccessRemnant && !isOnlyRemarksChanging && (data.remnant_weight_kg !== undefined || data.remnants_scrap_weight_kg !== undefined)) {
         return res.status(403).json({ error: "Access Denied. You do not have permission to enter remnant data." });
       }
     }
@@ -1131,9 +1126,7 @@ app.delete("/api/entries/:id", async (req, res) => {
     }
   } catch {}
 
-  if (activeRole !== "supervisor" && activeRole !== "admin" && activeRole !== "manager") {
-    return res.status(403).json({ error: "Only Officers, Managers, or Administrators can delete cutting records." });
-  }
+  // Any role can delete cutting records (no admin approval/restriction)
 
   try {
     // 1. Fetch current entry for audit logs
@@ -1784,10 +1777,7 @@ app.post("/api/poly-entries", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
-  // Verify role permission (Only supervisor / officer, manager and admin can edit/write)
-  if (user_role !== "supervisor" && user_role !== "admin" && user_role !== "manager") {
-    return res.status(403).json({ error: "Access Denied. Only Officers, Managers, and Admins can log daily poly received & re-use data." });
-  }
+  // Any role can log daily poly received & re-use data (no admin approval/restriction)
 
   const { entry_date, total_received_poly, total_reused_poly } = req.body;
   if (!entry_date || total_received_poly === undefined || total_reused_poly === undefined) {
@@ -1898,9 +1888,7 @@ app.put("/api/poly-entries/:id", async (req, res) => {
     const user_role = req.headers["x-user-role"] as string;
     const user_email = req.headers["x-user-email"] as string;
 
-    if (!["officer", "supervisor", "manager", "admin"].includes(user_role)) {
-      return res.status(403).json({ error: "Access Denied. Only Officers, Managers, and Admins can edit poly entries." });
-    }
+    // Any role can edit poly entries (no admin approval/restriction)
 
     const { id } = req.params;
     const { total_received_poly, total_reused_poly } = req.body;
@@ -1988,10 +1976,7 @@ app.delete("/api/poly-entries/:id", async (req, res) => {
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
-  // Verify role permission (Only supervisor / officer, manager and admin)
-  if (user_role !== "supervisor" && user_role !== "admin" && user_role !== "manager") {
-    return res.status(403).json({ error: "Access Denied. Only Officers, Managers, and Admins can delete poly entries." });
-  }
+  // Any role can delete poly entries (no admin approval/restriction)
 
   try {
     let dbError: any = null;
