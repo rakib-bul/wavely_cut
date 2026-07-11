@@ -57,7 +57,7 @@ export default function Sidebar({
     { id: "data_entry", label: "Cutting Entries", icon: ListPlus, roles: ["operator", "supervisor", "admin"] },
     { id: "reports", label: "Ledgers & Reports", icon: FileSpreadsheet, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["supervisor", "manager", "admin"] },
-    { id: "poly_tracking", label: "Poly Tracking", icon: RefreshCw, roles: ["supervisor", "admin"] },
+    { id: "poly_tracking", label: "Poly Tracking", icon: RefreshCw, roles: ["operator", "supervisor", "admin"] },
     { id: "heat_seal_tracking", label: "Heat Seal Tracking", icon: Flame, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "admin", label: "Factory & IAM Admin", icon: ShieldAlert, roles: ["admin"] }
   ];
