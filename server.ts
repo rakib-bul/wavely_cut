@@ -120,7 +120,7 @@ const supabase = createClient(
 async function fetchAllCuttingEntries() {
   const { data, error } = await supabase
     .from("cutting_entries")
-    .select("*")
+    .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
     .order("entry_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(300);
@@ -527,7 +527,7 @@ app.post("/api/auth/login", async (req, res) => {
       // Fetch profile
       const { data: profile, error: dbErr } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
         .eq("id", authData.user.id)
         .single();
 
@@ -564,7 +564,7 @@ app.get("/api/machines", async (req, res) => {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     const { data: supabaseMachines, error: sbError } = await supabase
       .from("machines")
-      .select("*")
+      .select("id, machine_name, machine_type")
       .order("machine_name", { ascending: true });
 
     if (sbError) {
@@ -644,7 +644,7 @@ app.get("/api/buyers", async (req, res) => {
 
     const { data: buyers, error } = await supabase
       .from("buyers")
-      .select("*")
+      .select("id, name, created_at")
       .order("name", { ascending: true });
 
     if (error) {
@@ -1012,7 +1012,7 @@ app.put("/api/entries/:id", async (req, res) => {
     // 1. Fetch current entry from Supabase
     const { data: existingEntry, error: fetchErr } = await supabase
       .from("cutting_entries")
-      .select("*")
+      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
       .eq("id", id)
       .single();
 
@@ -1180,7 +1180,7 @@ app.delete("/api/entries/:id", async (req, res) => {
     // 1. Fetch current entry for audit logs
     const { data: existingEntry, error: fetchErr } = await supabase
       .from("cutting_entries")
-      .select("*")
+      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
       .eq("id", id)
       .single();
 
@@ -1214,7 +1214,7 @@ app.post("/api/entries/:id/approve", async (req, res) => {
   try {
     const { data: existingEntry, error: fetchErr } = await supabase
       .from("cutting_entries")
-      .select("*")
+      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
       .eq("id", id)
       .single();
 
@@ -1276,7 +1276,7 @@ app.get("/api/logs", async (req, res) => {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     const { data: logs, error } = await supabase
       .from("audit_logs")
-      .select("*")
+      .select("id, user_email, action, entity_type, entity_id, old_value, new_value, created_at")
       .order("created_at", { ascending: false })
       .limit(200);
 
@@ -1304,7 +1304,7 @@ app.get("/api/profiles", async (req, res) => {
     res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
     const { data: profiles, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -1342,7 +1342,7 @@ app.put("/api/profiles/:id/role", async (req, res) => {
   try {
     const { data: currentProfile, error: fetchErr } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
       .eq("id", id)
       .single();
 
@@ -1382,7 +1382,7 @@ app.put("/api/profiles/:id/avatar", async (req, res) => {
   try {
     const { data: currentProfile, error: fetchErr } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
       .eq("id", id)
       .single();
 
@@ -1427,7 +1427,7 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
   try {
     const { data: currentProfile, error: fetchErr } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
       .eq("id", id)
       .single();
 
@@ -1554,19 +1554,19 @@ app.get("/api/sync", async (req, res) => {
     ] = await Promise.all([
       supabase.from("cutting_entries").select("updated_at").order("updated_at", { ascending: false }).limit(1),
       supabase.from("cutting_entries").select("created_at").order("created_at", { ascending: false }).limit(1),
-      supabase.from("cutting_entries").select("*", { count: "exact", head: true }),
-      supabase.from("audit_logs").select("*", { count: "exact", head: true }),
-      supabase.from("profiles").select("*", { count: "exact", head: true }),
-      supabase.from("machines").select("*", { count: "exact", head: true }),
-      supabase.from("buyers").select("*", { count: "exact", head: true }),
+      supabase.from("cutting_entries").select("id", { count: "exact", head: true }),
+      supabase.from("audit_logs").select("id", { count: "exact", head: true }),
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("machines").select("id", { count: "exact", head: true }),
+      supabase.from("buyers").select("id", { count: "exact", head: true }),
       // additional metadata to fix sync cache bypassing
       supabase.from("poly_entries").select("created_at").order("created_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.created_at || "", () => ""),
-      supabase.from("poly_entries").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("poly_entries").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
       supabase.from("heat_seal_entries").select("updated_at").order("updated_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.updated_at || "", () => ""),
-      supabase.from("heat_seal_entries").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
-      supabase.from("heat_seal_operators").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("heat_seal_entries").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("heat_seal_operators").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
       supabase.from("heat_seal_targets").select("updated_at").order("updated_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.updated_at || "", () => ""),
-      supabase.from("heat_seal_targets").select("*", { count: "exact", head: true }).then(r => r.count || 0, () => 0)
+      supabase.from("heat_seal_targets").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0)
     ]);
 
     server_version = "";
@@ -2106,7 +2106,7 @@ app.put("/api/heat-seal-entries/:id", async (req, res) => {
     const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
     const { id } = req.params;
     
-    const { data: existing } = await supabase.from("heat_seal_entries").select("*").eq("id", id).single();
+    const { data: existing } = await supabase.from("heat_seal_entries").select("id, entry_date, shift, operator_name, operator_id, designation, job_no, color, po_no, target_id, hourly_data, created_by, status, created_at, updated_at").eq("id", id).single();
     if (!existing) return res.status(404).json({ error: "Entry not found" });
 
     // Fetch the actual role from profiles to handle mismatch elegantly
@@ -2309,7 +2309,7 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
       return res.status(403).json({ error: "Access Denied. Only Operators, Supervisors, and Admins can update targets." });
     }
     const { id } = req.params;
-    const { data: existing } = await supabase.from("heat_seal_targets").select("*").eq("id", id).single();
+    const { data: existing } = await supabase.from("heat_seal_targets").select("id, target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target, status, created_by, created_at, updated_at").eq("id", id).single();
     if (!existing) return res.status(404).json({ error: "Target not found" });
 
     const {
