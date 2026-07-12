@@ -2054,6 +2054,8 @@ export default function App() {
                     buyers={buyers}
                     onSubmitDraft={handleSubmitDraft}
                     onRefresh={() => fetchData(true)}
+                    polyEntries={polyEntries}
+                    polyPrice={polyPrice}
                   />
                 </div>
               </div>
@@ -2087,6 +2089,8 @@ export default function App() {
                   buyers={buyers}
                   onSubmitDraft={handleSubmitDraft}
                   onRefresh={() => fetchData(true)}
+                  polyEntries={polyEntries}
+                  polyPrice={polyPrice}
                 />
               </div>
             )}

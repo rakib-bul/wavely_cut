@@ -359,7 +359,7 @@ export default function KPICards({
     },
     {
       id: "today-lay-layers",
-      title: "Today's Lay Layers",
+      title: "Today Total Lay",
       amount: (metrics.today_lay_layers || 0).toLocaleString(),
       unit: "Layers",
       desc: "Total layers laid for cutting on the latest active date",
@@ -370,7 +370,7 @@ export default function KPICards({
     },
     {
       id: "today-ratio-combined",
-      title: "Today's Size Ratios",
+      title: "Today Marker Ratio",
       amount: (metrics.today_total_ratio || 0).toFixed(1),
       unit: "Total",
       desc: "Combined view of today's sum of size ratios and mean size ratio",

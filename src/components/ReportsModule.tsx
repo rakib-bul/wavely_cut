@@ -19,9 +19,16 @@ import {
   FileSpreadsheet,
   AlertTriangle,
   Send,
-  Lock
+  Lock,
+  Scissors,
+  Layers,
+  Weight,
+  Coins,
+  Percent,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
-import { CuttingEntry, Machine, Profile, UserRole, Buyer } from "../types";
+import { CuttingEntry, Machine, Profile, UserRole, Buyer, PolyEntry } from "../types";
 
 interface ReportsModuleProps {
   entries: CuttingEntry[];
@@ -34,6 +41,8 @@ interface ReportsModuleProps {
   buyers?: Buyer[];
   onSubmitDraft?: (entry: CuttingEntry) => void;
   onRefresh?: () => void;
+  polyEntries?: PolyEntry[];
+  polyPrice?: number;
 }
 
 // Helpers for parsing/formatting "remarks" with packed remnants used data
@@ -255,7 +264,9 @@ export default function ReportsModule({
   onSelectEditEntry,
   buyers = [],
   onSubmitDraft,
-  onRefresh
+  onRefresh,
+  polyEntries = [],
+  polyPrice = 1.50
 }: ReportsModuleProps) {
   // --- Filtering State ---
   const [entryToDelete, setEntryToDelete] = useState<CuttingEntry | null>(null);
@@ -275,7 +286,7 @@ export default function ReportsModule({
   const [searchQuery, setSearchQuery] = useState("");
 
   // --- Sorting State ---
-  const [sortField, setSortField] = useState<keyof CuttingEntry>("entry_date");
+  const [sortField, setSortField] = useState<string>("entry_date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   // --- Pagination State ---
@@ -484,11 +495,83 @@ export default function ReportsModule({
 
     // Sort
     result.sort((a, b) => {
-      let aVal = a[sortField];
-      let bVal = b[sortField];
+      const getSortValue = (entry: CuttingEntry, field: string): string | number => {
+        if (field === "total_cut_qty") {
+          return (entry.lay || 0) * (entry.ratio || 0);
+        }
+        if (field === "remnants_fabric") {
+          const parsed = parseRemarksRemnants(entry.remarks);
+          return parsed.remnants_weight_kg;
+        }
+        if (field === "spread_fabric") {
+          const remnantsWeight = parseFloat(entry.remarks) || 0;
+          return Math.max(0, entry.fabric_used_kg - remnantsWeight);
+        }
+        if (field === "total_marker_len") {
+          return (entry.lay || 0) * (entry.marker_length_inch || 0);
+        }
+        if (field === "total_used_fabric_inch") {
+          return (entry.lay || 0) * (entry.marker_length_inch || 0) * ((entry.marker_efficiency_percent || 0) / 100);
+        }
+        if (field === "scrap_percent_per_marker") {
+          return 100 - (entry.marker_efficiency_percent || 0);
+        }
+        if (field === "percentage_of_cutting_scrap") {
+          return entry.fabric_used_kg > 0 ? ((entry.cutting_scrap_weight_kg || 0) / entry.fabric_used_kg) * 100 : 0;
+        }
+        if (field === "booking_vs_marker") {
+          const bookingCons = entry.booking_consumption !== undefined && entry.booking_consumption !== null ? Number(entry.booking_consumption) : null;
+          const markerCons = entry.marker_consumption !== undefined && entry.marker_consumption !== null ? Number(entry.marker_consumption) : null;
+          return (bookingCons !== null && markerCons !== null) ? (bookingCons - markerCons) : 0;
+        }
+        if (field === "cutting_con") {
+          const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+          return totalCutQty > 0 ? (Number(entry.fabric_used_kg) / totalCutQty) * 12 : 0;
+        }
+        if (field === "booking_vs_cut") {
+          const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+          const bookingCons = entry.booking_consumption !== undefined && entry.booking_consumption !== null ? Number(entry.booking_consumption) : null;
+          const cuttingCons = totalCutQty > 0 ? (Number(entry.fabric_used_kg) / totalCutQty) * 12 : null;
+          return (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : 0;
+        }
+        if (field === "fabric_save_loss_percent") {
+          const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+          const bookingCons = entry.booking_consumption !== undefined && entry.booking_consumption !== null ? Number(entry.booking_consumption) : null;
+          const cuttingCons = totalCutQty > 0 ? (Number(entry.fabric_used_kg) / totalCutQty) * 12 : null;
+          const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+          return (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : 0;
+        }
+        if (field === "fabric_save_loss_kg") {
+          const totalCutQty = (entry.lay || 0) * (entry.ratio || 0);
+          const bookingCons = entry.booking_consumption !== undefined && entry.booking_consumption !== null ? Number(entry.booking_consumption) : null;
+          const cuttingCons = totalCutQty > 0 ? (Number(entry.fabric_used_kg) / totalCutQty) * 12 : null;
+          const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+          const fabricSaveLossPct = (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : null;
+          return (fabricSaveLossPct !== null && entry.fabric_used_kg) ? Number(entry.fabric_used_kg) * (fabricSaveLossPct / 100) : 0;
+        }
+        if (field === "reject_qty") {
+          const parsed = parseRemarksRemnants(entry.remarks);
+          return parsed.reject_qty || 0;
+        }
+        if (field === "remnants_scrap") {
+          const parsed = parseRemarksRemnants(entry.remarks);
+          return parsed.remnants_scrap_kg || 0;
+        }
+        if (field === "remnants_fabric_used") {
+          const parsed = parseRemarksRemnants(entry.remarks);
+          return Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+        }
 
-      if (aVal === undefined) return 1;
-      if (bVal === undefined) return -1;
+        // Fallback to standard CuttingEntry key
+        const val = entry[field as keyof CuttingEntry];
+        if (val === undefined || val === null) {
+          return typeof entry[field as keyof CuttingEntry] === "number" ? 0 : "";
+        }
+        return val as string | number;
+      };
+
+      const aVal = getSortValue(a, sortField);
+      const bVal = getSortValue(b, sortField);
 
       if (typeof aVal === "string") {
         return sortDirection === "asc"
@@ -502,7 +585,7 @@ export default function ReportsModule({
     });
 
     return result;
-  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterJobNo, filterMachine, filterFabricType, filterShift, filterOperator, filterColor, sortField, sortDirection]);
+  }, [entries, searchQuery, dateStart, dateEnd, filterBuyer, filterJobNo, filterMachine, filterFabricType, filterShift, filterOperator, filterColor, filterTable, filterSupervisor, sortField, sortDirection]);
 
   // --- Page Sliced entries ---
   const paginatedEntries = useMemo(() => {
@@ -512,7 +595,7 @@ export default function ReportsModule({
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / itemsPerPage));
 
-  const handleSort = (field: keyof CuttingEntry) => {
+  const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(prev => prev === "asc" ? "desc" : "asc");
     } else {
@@ -547,12 +630,14 @@ export default function ReportsModule({
     let total_remnants_weight_kg = 0;
     let total_remnants_scrap_kg = 0;
     let total_remnants_used_kg = 0;
+    let total_reject_qty_val = 0;
 
     target.forEach(e => {
       const parsed = parseRemarksRemnants(e.remarks);
       total_remnants_weight_kg += parsed.remnants_weight_kg;
       total_remnants_scrap_kg += parsed.remnants_scrap_kg;
       total_remnants_used_kg += Math.max(0, parsed.remnants_weight_kg - parsed.remnants_scrap_kg);
+      total_reject_qty_val += parsed.reject_qty || 0;
     });
 
     const remnants_issued_percent = total_used > 0 ? (total_remnants_weight_kg / total_used) * 100 : 0;
@@ -575,6 +660,47 @@ export default function ReportsModule({
     const marker_provided_efficiency_weighted = total_used > 0 ? totalWeightedTheoreticalEff / total_used : 0;
     const actual_ete_efficiency_weighted = total_used > 0 ? (1 - (total_marker_scrap_kg / total_used)) * 100 : 0;
     const efficiency_gap = marker_provided_efficiency_weighted - actual_ete_efficiency_weighted;
+
+    // --- Fabric Save/Loss & Booking Deviations ---
+    let total_fabric_save_loss_kg = 0;
+    let total_fabric_used_for_save_loss = 0;
+    let total_booking_vs_marker_sum = 0;
+    let total_booking_vs_marker_count = 0;
+    let total_booking_vs_cut_sum = 0;
+    let total_booking_vs_cut_count = 0;
+
+    target.forEach(e => {
+      const totalCutQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+      const bookingCons = (e.booking_consumption !== undefined && e.booking_consumption !== null) ? Number(e.booking_consumption) : null;
+      const cuttingCons = totalCutQty > 0 ? (Number(e.fabric_used_kg) / totalCutQty) * 12 : null;
+      const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;
+      const fabricSaveLossPct = (bookingCons && bookingVsCut !== null) ? (bookingVsCut / bookingCons) * 100 : null;
+      const fabricSaveLossKg = (fabricSaveLossPct !== null && e.fabric_used_kg) ? Number(e.fabric_used_kg) * (fabricSaveLossPct / 100) : null;
+
+      const markerCons = (e.marker_consumption !== undefined && e.marker_consumption !== null) ? Number(e.marker_consumption) : null;
+      const bookingVsMarker = (bookingCons !== null && markerCons !== null) ? (bookingCons - markerCons) : null;
+
+      if (bookingVsMarker !== null) {
+        total_booking_vs_marker_sum += bookingVsMarker;
+        total_booking_vs_marker_count++;
+      }
+      if (bookingVsCut !== null) {
+        total_booking_vs_cut_sum += bookingVsCut;
+        total_booking_vs_cut_count++;
+      }
+
+      if (fabricSaveLossKg !== null && e.fabric_used_kg) {
+        total_fabric_save_loss_kg += fabricSaveLossKg;
+        total_fabric_used_for_save_loss += Number(e.fabric_used_kg);
+      }
+    });
+
+    const total_fabric_save_loss_percent = total_fabric_used_for_save_loss > 0 
+      ? (total_fabric_save_loss_kg / total_fabric_used_for_save_loss) * 100 
+      : 0;
+
+    const booking_vs_marker_avg = total_booking_vs_marker_count > 0 ? total_booking_vs_marker_sum / total_booking_vs_marker_count : 0;
+    const booking_vs_cut_avg = total_booking_vs_cut_count > 0 ? total_booking_vs_cut_sum / total_booking_vs_cut_count : 0;
 
     return {
       total_used: total_used.toFixed(1),
@@ -599,9 +725,47 @@ export default function ReportsModule({
       total_cutting_qty: total_cutting_qty_val.toLocaleString(),
       avg_size_ratio: avg_size_ratio_val.toFixed(1),
       total_lay_plies: total_lay_plies_val.toLocaleString(),
-      total_ratio: total_ratio_val.toFixed(1)
+      total_ratio: total_ratio_val.toFixed(1),
+      total_reject_qty: total_reject_qty_val.toLocaleString(),
+      total_fabric_save_loss_kg: (total_fabric_save_loss_kg >= 0 ? "+" : "") + total_fabric_save_loss_kg.toFixed(1),
+      total_fabric_save_loss_percent: (total_fabric_save_loss_percent >= 0 ? "+" : "") + total_fabric_save_loss_percent.toFixed(1) + "%",
+      booking_vs_marker_avg: (booking_vs_marker_avg >= 0 ? "+" : "") + booking_vs_marker_avg.toFixed(3) + " KG/Doz",
+      booking_vs_cut_avg: (booking_vs_cut_avg >= 0 ? "+" : "") + booking_vs_cut_avg.toFixed(3) + " KG/Doz"
     };
   }, [filteredEntries]);
+
+  const filteredPolyEntries = useMemo(() => {
+    if (!polyEntries) return [];
+    let result = [...polyEntries];
+    if (dateStart) {
+      result = result.filter(e => e.entry_date >= dateStart);
+    }
+    if (dateEnd) {
+      result = result.filter(e => e.entry_date <= dateEnd);
+    }
+    return result;
+  }, [polyEntries, dateStart, dateEnd]);
+
+  const polyStats = useMemo(() => {
+    let received = 0;
+    let reused = 0;
+    let saved = 0;
+    filteredPolyEntries.forEach(entry => {
+      const rec = Number(entry.total_received_poly) || 0;
+      const reu = Number(entry.total_reused_poly) || 0;
+      const prc = entry.price !== undefined ? Number(entry.price) : (polyPrice || 1.50);
+      received += rec;
+      reused += reu;
+      saved += entry.save !== undefined ? Number(entry.save) : (reu * prc);
+    });
+    const efficiency = received > 0 ? (reused / received) * 100 : 0;
+    return {
+      received: received.toLocaleString(),
+      reused: reused.toLocaleString(),
+      efficiency: efficiency.toFixed(1) + "%",
+      saved: saved.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    };
+  }, [filteredPolyEntries, polyPrice]);
 
   // --- EXPORT TO EXCEL / CSV (WITH BEAUTIFUL STYLES) ---
   const exportToCSV = () => {
@@ -1481,6 +1645,122 @@ export default function ReportsModule({
           </div>
         </div>
 
+        {/* BENTO SECTION 4: Remnants & Quality Performance */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Remnants & Quality Performance
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Issued</span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-blue-600 dark:text-blue-400 font-extrabold text-base">{reportMetrics.remnants_fabric_issued}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">KG</span>
+              </div>
+              <span className="text-[10px] text-blue-500 font-extrabold block mt-0.5">{reportMetrics.remnants_issued_percent} of total</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Returned remnants weight</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-emerald-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Re-Used</span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base">{reportMetrics.remnants_fabric_used}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">KG</span>
+              </div>
+              <span className="text-[10px] text-emerald-500 font-extrabold block mt-0.5">{reportMetrics.remnants_utilization} utilization</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Successfully cut remnants</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-rose-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Remnants Scrap/Waste</span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold text-base">{reportMetrics.remnants_scrap}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">KG</span>
+              </div>
+              <span className="text-[10px] text-rose-500 font-extrabold block mt-0.5">{reportMetrics.remnants_scrap_percent} scrap rate</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Unusable remnant discards</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-violet-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Reject Pcs</span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-violet-600 dark:text-violet-400 font-extrabold text-base">{reportMetrics.total_reject_qty}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">Pcs</span>
+              </div>
+              <span className="text-[10px] text-violet-500 font-extrabold block mt-0.5">Defective Panels</span>
+              <span className="text-[9px] text-slate-400 block mt-1">Total pieces rejected</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BENTO SECTION 5: Fabric Save/Loss & Booking Deviations */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-violet-500"></span> Fabric Save/Loss & Booking Deviations
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-emerald-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Save/Loss %</span>
+              <span className={`font-mono font-extrabold text-base block ${reportMetrics.total_fabric_save_loss_percent.startsWith('-') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {reportMetrics.total_fabric_save_loss_percent}
+              </span>
+              <span className="text-[9px] text-slate-400 block mt-3">Saved/lost vs booking cons</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-emerald-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Fabric Save/Loss (KG)</span>
+              <div className="flex items-baseline gap-1">
+                <span className={`font-mono font-extrabold text-base ${reportMetrics.total_fabric_save_loss_kg.startsWith('-') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {reportMetrics.total_fabric_save_loss_kg}
+                </span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">KG</span>
+              </div>
+              <span className="text-[9px] text-slate-400 block mt-3">Weight saved/lost all-time</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Booking vs Marker Ratio</span>
+              <span className="font-mono text-blue-600 dark:text-blue-400 font-extrabold text-sm block truncate">{reportMetrics.booking_vs_marker_avg}</span>
+              <span className="text-[9px] text-slate-400 block mt-3">Marker deviation vs booking</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-indigo-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Booking vs Cut Deviation</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400 font-extrabold text-sm block truncate">{reportMetrics.booking_vs_cut_avg}</span>
+              <span className="text-[9px] text-slate-400 block mt-3">Floor deviation vs booking</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BENTO SECTION 6: Poly & Packing Tracking */}
+        <div className="space-y-3">
+          <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Poly & Packing Tracking
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-amber-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Poly Received</span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-amber-600 dark:text-amber-500 font-extrabold text-base">{polyStats.received}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">Pcs</span>
+              </div>
+              <span className="text-[9px] text-slate-400 block mt-3">Bags received into packing</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-emerald-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Total Poly Re-Used</span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base">{polyStats.reused}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase">Pcs</span>
+              </div>
+              <span className="text-[9px] text-slate-400 block mt-3">Bags successfully re-used</span>
+            </div>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs hover:border-blue-500/20 transition-all">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-black uppercase tracking-wider mb-1">Poly Re-Use Efficiency</span>
+              <span className="font-mono text-blue-600 dark:text-blue-400 font-extrabold text-base block">{polyStats.efficiency}</span>
+              <span className="text-[9px] text-slate-400 block mt-3">Re-use as % of received</span>
+            </div>
+            <div className="bg-emerald-50/40 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-800/60 p-4 rounded-2xl shadow-xs hover:border-emerald-500/30 transition-all">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-black uppercase tracking-wider mb-1">Cumulative Poly Savings</span>
+              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base block">৳{polyStats.saved}</span>
+              <span className="text-[9px] text-slate-400 block mt-3">Total savings at current rate</span>
+            </div>
+          </div>
+        </div>
+
       </div>
       </>
       )}
@@ -1520,35 +1800,87 @@ export default function ReportsModule({
             <table className="w-full text-left border-collapse text-xs min-w-[2450px]">
               <thead>
                 <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
-                  <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
+                  <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("entry_date")}>
                     Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
                   </th>
-                  <th className="p-4 whitespace-nowrap">Shift</th>
-                  <th className="p-4 whitespace-nowrap">Machine</th>
-                  <th className="p-4 whitespace-nowrap">Buyer</th>
-                  <th className="p-4 whitespace-nowrap">Job No</th>
-                  <th className="p-4 whitespace-nowrap">PO No</th>
-                  <th className="p-4 whitespace-nowrap">Color</th>
-                  <th className="p-4 whitespace-nowrap">Item</th>
-                  <th className="p-4 whitespace-nowrap">Cut No</th>
-                  <th className="p-4 text-right whitespace-nowrap">Lay Plies</th>
-                  <th className="p-4 text-right whitespace-nowrap">Size Ratio</th>
-                  <th className="p-4 text-right whitespace-nowrap">Total Cut Qty</th>
-                  <th className="p-4 whitespace-nowrap">Table No</th>
-                  <th className="p-4 whitespace-nowrap">Fabric Type</th>
-                  <th className="p-4 whitespace-nowrap">Parts To Cut</th>
-                  <th className="p-4 text-right whitespace-nowrap">Fabric Wt Used (KG)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Remnants Fabric (KG)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Spread Fabric (KG)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Spreading Scrap (KG)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Cutting Scrap (KG)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Marker Length Inch</th>
-                  <th className="p-4 text-right whitespace-nowrap">Marker Efficiency %</th>
-                  <th className="p-4 text-right whitespace-nowrap">Total Marker Len (In)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Total Used Fabric (Inch)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Scrap% per Marker</th>
-                  <th className="p-4 text-right whitespace-nowrap">% of Cutting Scrap</th>
-                  <th className="p-4 text-center whitespace-nowrap">Status</th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("shift")}>
+                    Shift {sortField === "shift" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("machine_id")}>
+                    Machine {sortField === "machine_id" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("buyer")}>
+                    Buyer {sortField === "buyer" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("job_no")}>
+                    Job No {sortField === "job_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("po_no")}>
+                    PO No {sortField === "po_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("color")}>
+                    Color {sortField === "color" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("item")}>
+                    Item {sortField === "item" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("cut_no")}>
+                    Cut No {sortField === "cut_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("lay")}>
+                    Lay Plies {sortField === "lay" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("ratio")}>
+                    Size Ratio {sortField === "ratio" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("total_cut_qty")}>
+                    Total Cut Qty {sortField === "total_cut_qty" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("table_no")}>
+                    Table No {sortField === "table_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("fabric_type")}>
+                    Fabric Type {sortField === "fabric_type" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("parts")}>
+                    Parts To Cut {sortField === "parts" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("fabric_used_kg")}>
+                    Fabric Wt Used (KG) {sortField === "fabric_used_kg" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("remnants_fabric")}>
+                    Remnants Fabric (KG) {sortField === "remnants_fabric" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("spread_fabric")}>
+                    Spread Fabric (KG) {sortField === "spread_fabric" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("remnant_weight_kg")}>
+                    Spreading Scrap (KG) {sortField === "remnant_weight_kg" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("cutting_scrap_weight_kg")}>
+                    Cutting Scrap (KG) {sortField === "cutting_scrap_weight_kg" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("marker_length_inch")}>
+                    Marker Length Inch {sortField === "marker_length_inch" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("marker_efficiency_percent")}>
+                    Marker Efficiency % {sortField === "marker_efficiency_percent" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("total_marker_len")}>
+                    Total Marker Len (In) {sortField === "total_marker_len" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("total_used_fabric_inch")}>
+                    Total Used Fabric (Inch) {sortField === "total_used_fabric_inch" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("scrap_percent_per_marker")}>
+                    Scrap% per Marker {sortField === "scrap_percent_per_marker" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("percentage_of_cutting_scrap")}>
+                    % of Cutting Scrap {sortField === "percentage_of_cutting_scrap" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-center cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("status")}>
+                    Status {sortField === "status" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
                   <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
                 </tr>
               </thead>
@@ -1687,25 +2019,57 @@ export default function ReportsModule({
             <table className="w-full text-left border-collapse text-xs min-w-[1500px]">
               <thead>
                 <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
-                  <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort("entry_date")}>
+                  <th className="p-4 pl-5 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("entry_date")}>
                     Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
                   </th>
-                  <th className="p-4 whitespace-nowrap">Buyer</th>
-                  <th className="p-4 whitespace-nowrap">Job</th>
-                  <th className="p-4 whitespace-nowrap">PO</th>
-                  <th className="p-4 whitespace-nowrap">Color</th>
-                  <th className="p-4 whitespace-nowrap">Item</th>
-                  <th className="p-4 whitespace-nowrap">Cut Num</th>
-                  <th className="p-4 text-right whitespace-nowrap">Cutting Qty</th>
-                  <th className="p-4 text-right whitespace-nowrap">Fabric Wt Used (KG)</th>
-                  <th className="p-4 text-right whitespace-nowrap">Booking Consumption</th>
-                  <th className="p-4 text-right whitespace-nowrap">Marker Cons</th>
-                  <th className="p-4 text-right whitespace-nowrap">Booking vs Marker Con</th>
-                  <th className="p-4 text-right whitespace-nowrap">Cutting Con</th>
-                  <th className="p-4 text-right whitespace-nowrap">Booking vs Cut Con</th>
-                  <th className="p-4 text-right whitespace-nowrap">Fabric Save/Loss %</th>
-                  <th className="p-4 text-right whitespace-nowrap">Fabric Save/Loss (KG)</th>
-                  <th className="p-4 whitespace-nowrap">Supervisor</th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("buyer")}>
+                    Buyer {sortField === "buyer" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("job_no")}>
+                    Job {sortField === "job_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("po_no")}>
+                    PO {sortField === "po_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("color")}>
+                    Color {sortField === "color" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("item")}>
+                    Item {sortField === "item" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("cut_no")}>
+                    Cut Num {sortField === "cut_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("total_cut_qty")}>
+                    Cutting Qty {sortField === "total_cut_qty" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("fabric_used_kg")}>
+                    Fabric Wt Used (KG) {sortField === "fabric_used_kg" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("booking_consumption")}>
+                    Booking Consumption {sortField === "booking_consumption" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("marker_consumption")}>
+                    Marker Cons {sortField === "marker_consumption" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("booking_vs_marker")}>
+                    Booking vs Marker Con {sortField === "booking_vs_marker" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("cutting_con")}>
+                    Cutting Con {sortField === "cutting_con" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("booking_vs_cut")}>
+                    Booking vs Cut Con {sortField === "booking_vs_cut" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("fabric_save_loss_percent")}>
+                    Fabric Save/Loss % {sortField === "fabric_save_loss_percent" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 text-right cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("fabric_save_loss_kg")}>
+                    Fabric Save/Loss (KG) {sortField === "fabric_save_loss_kg" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
+                  <th className="p-4 cursor-pointer select-none whitespace-nowrap hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("supervisor_name")}>
+                    Supervisor {sortField === "supervisor_name" && (sortDirection === "asc" ? "▲" : "▼")}
+                  </th>
                   <th className="p-4 text-right pr-5 whitespace-nowrap print:hidden">Actions</th>
                 </tr>
               </thead>
@@ -1871,24 +2235,54 @@ export default function ReportsModule({
               <table className="w-full text-left border-collapse text-xs min-w-[1950px]">
                 <thead>
                   <tr className="bg-slate-50/50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-800 font-extrabold uppercase tracking-wider text-[10px]">
-                    <th className="p-4 pl-5 whitespace-nowrap cursor-pointer select-none" onClick={() => handleSort("entry_date")}>
+                    <th className="p-4 pl-5 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("entry_date")}>
                       Date {sortField === "entry_date" && (sortDirection === "asc" ? "▲" : "▼")}
                     </th>
-                    <th className="p-4 whitespace-nowrap">Shift</th>
-                    <th className="p-4 whitespace-nowrap">Machine</th>
-                    <th className="p-4 whitespace-nowrap">Buyer</th>
-                    <th className="p-4 whitespace-nowrap">Job No</th>
-                    <th className="p-4 whitespace-nowrap">Color</th>
-                    <th className="p-4 whitespace-nowrap">PO Number</th>
-                    <th className="p-4 whitespace-nowrap">Item</th>
-                    <th className="p-4 whitespace-nowrap">Cut No</th>
-                    <th className="p-4 text-right whitespace-nowrap">Total Cut Qty</th>
-                    <th className="p-4 whitespace-nowrap">Reject Qty</th>
-                    <th className="p-4 whitespace-nowrap">Table No</th>
-                    <th className="p-4 whitespace-nowrap">Fabric Type</th>
-                    <th className="p-4 text-right whitespace-nowrap">Remnants Fabric (KG)</th>
-                    <th className="p-4 whitespace-nowrap">Remnants Scrap KG</th>
-                    <th className="p-4 text-right whitespace-nowrap">Remnants Fabric Used (KG)</th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("shift")}>
+                      Shift {sortField === "shift" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("machine_id")}>
+                      Machine {sortField === "machine_id" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("buyer")}>
+                      Buyer {sortField === "buyer" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("job_no")}>
+                      Job No {sortField === "job_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("color")}>
+                      Color {sortField === "color" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("po_no")}>
+                      PO Number {sortField === "po_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("item")}>
+                      Item {sortField === "item" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("cut_no")}>
+                      Cut No {sortField === "cut_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 text-right whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("total_cut_qty")}>
+                      Total Cut Qty {sortField === "total_cut_qty" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("reject_qty")}>
+                      Reject Qty {sortField === "reject_qty" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("table_no")}>
+                      Table No {sortField === "table_no" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("fabric_type")}>
+                      Fabric Type {sortField === "fabric_type" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 text-right whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("remnants_fabric")}>
+                      Remnants Fabric (KG) {sortField === "remnants_fabric" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("remnants_scrap")}>
+                      Remnants Scrap KG {sortField === "remnants_scrap" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
+                    <th className="p-4 text-right whitespace-nowrap cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 transition-colors" onClick={() => handleSort("remnants_fabric_used")}>
+                      Remnants Fabric Used (KG) {sortField === "remnants_fabric_used" && (sortDirection === "asc" ? "▲" : "▼")}
+                    </th>
                     <th className="p-4 text-center whitespace-nowrap print:hidden">Actions</th>
                   </tr>
                 </thead>
