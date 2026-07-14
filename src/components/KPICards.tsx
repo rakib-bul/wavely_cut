@@ -744,16 +744,6 @@ export default function KPICards({
         }
       },
       {
-        title: "Achieved Marker Efficiency",
-        amount: (metrics.today_avg_marker_efficiency || 0).toFixed(1),
-        unit: "%",
-        desc: "Today's average achieved marker efficiency",
-        icon: Activity,
-        color: "text-rose-400 bg-rose-500/10",
-        statusText: "Achieved Eff",
-        statusColor: "bg-rose-500/15 text-rose-400 border-rose-500/20",
-      },
-      {
         title: "Number of Lay cut qty",
         amount: (metrics.today_cutting_lots || 0).toLocaleString(),
         unit: "Cuts",
@@ -1144,67 +1134,197 @@ export default function KPICards({
       {/* ---------------------------------------------
           1. HIGH-IMPACT HERO KPIs SECTION
           --------------------------------------------- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {(group === "daily" && useCustomKPIs ? customSerialKpis : heroKpis).map((hero, idx) => {
-          const Icon = hero.icon;
-          const aesthetic = resolveCardAesthetic(hero.color, "indigo");
-          return (
-            <div 
-              key={idx} 
-              className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
-              id={`hero-card-${idx}`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  {hero.title}
-                </span>
-                <div className={`p-2 rounded-lg flex items-center justify-center ${aesthetic.icon}`}>
-                  <Icon size={16} />
+      {group === "daily" && useCustomKPIs ? (
+        <div className="space-y-4">
+          {/* Top Row: 4 KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {customSerialKpis.slice(0, 4).map((hero, idx) => {
+              const Icon = hero.icon;
+              const aesthetic = resolveCardAesthetic((hero as any).color, "indigo");
+              return (
+                <div 
+                  key={`top-${idx}`} 
+                  className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
+                  id={`hero-card-top-${idx}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      {hero.title}
+                    </span>
+                    <div className={`p-2 rounded-lg flex items-center justify-center ${aesthetic.icon}`}>
+                      <Icon size={16} />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+                      {hero.amount}
+                    </span>
+                    <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase">
+                      {hero.unit}
+                    </span>
+                  </div>
+
+                  {/* Secondary Value Rendering (e.g. Avg Ratio) */}
+                  {(hero as any).secondary && (
+                    <div className="mt-1 flex items-baseline gap-1 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{(hero as any).secondary.label}:</span>
+                      <span className="font-black font-mono text-slate-800 dark:text-slate-200">{(hero as any).secondary.amount}</span>
+                      <span className="font-extrabold text-[9px] text-slate-400 dark:text-slate-500 uppercase">{(hero as any).secondary.unit}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="truncate max-w-[120px] text-slate-500 dark:text-slate-400" title={hero.desc}>
+                      {hero.desc}
+                    </span>
+                    {(hero as any).trend && (
+                      <span className={`font-mono font-bold px-1.5 py-0.5 rounded-sm ${(hero as any).trend.positive ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
+                        {(hero as any).trend.value}
+                      </span>
+                    )}
+                    {(hero as any).scrapPct && (
+                      <span className="font-mono font-bold px-1.5 py-0.5 rounded-sm bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                        {(hero as any).scrapPct}
+                      </span>
+                    )}
+                    {(hero as any).statusText && (
+                      <span className={`font-mono text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wider ${aesthetic.status}`}>
+                        {(hero as any).statusText}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom Row: Rest of the KPI Cards (6 cards) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {customSerialKpis.slice(4).map((hero, idx) => {
+              const Icon = hero.icon;
+              const aesthetic = resolveCardAesthetic((hero as any).color, "indigo");
+              return (
+                <div 
+                  key={`bottom-${idx}`} 
+                  className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
+                  id={`hero-card-bottom-${idx}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      {hero.title}
+                    </span>
+                    <div className={`p-2 rounded-lg flex items-center justify-center ${aesthetic.icon}`}>
+                      <Icon size={16} />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+                      {hero.amount}
+                    </span>
+                    <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase">
+                      {hero.unit}
+                    </span>
+                  </div>
+
+                  {/* Secondary Value Rendering (e.g. Avg Ratio) */}
+                  {(hero as any).secondary && (
+                    <div className="mt-1 flex items-baseline gap-1 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{(hero as any).secondary.label}:</span>
+                      <span className="font-black font-mono text-slate-800 dark:text-slate-200">{(hero as any).secondary.amount}</span>
+                      <span className="font-extrabold text-[9px] text-slate-400 dark:text-slate-500 uppercase">{(hero as any).secondary.unit}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="truncate max-w-[120px] text-slate-500 dark:text-slate-400" title={hero.desc}>
+                      {hero.desc}
+                    </span>
+                    {(hero as any).trend && (
+                      <span className={`font-mono font-bold px-1.5 py-0.5 rounded-sm ${(hero as any).trend.positive ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
+                        {(hero as any).trend.value}
+                      </span>
+                    )}
+                    {(hero as any).scrapPct && (
+                      <span className="font-mono font-bold px-1.5 py-0.5 rounded-sm bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                        {(hero as any).scrapPct}
+                      </span>
+                    )}
+                    {(hero as any).statusText && (
+                      <span className={`font-mono text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wider ${aesthetic.status}`}>
+                        {(hero as any).statusText}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {heroKpis.map((hero, idx) => {
+            const Icon = hero.icon;
+            const aesthetic = resolveCardAesthetic((hero as any).color, "indigo");
+            return (
+              <div 
+                key={idx} 
+                className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
+                id={`hero-card-${idx}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    {hero.title}
+                  </span>
+                  <div className={`p-2 rounded-lg flex items-center justify-center ${aesthetic.icon}`}>
+                    <Icon size={16} />
+                  </div>
+                </div>
+                
+                <div className="mt-4 flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+                    {hero.amount}
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase">
+                    {hero.unit}
+                  </span>
+                </div>
+
+                {/* Secondary Value Rendering (e.g. Avg Ratio) */}
+                {(hero as any).secondary && (
+                  <div className="mt-1 flex items-baseline gap-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{(hero as any).secondary.label}:</span>
+                    <span className="font-black font-mono text-slate-800 dark:text-slate-200">{(hero as any).secondary.amount}</span>
+                    <span className="font-extrabold text-[9px] text-slate-400 dark:text-slate-500 uppercase">{(hero as any).secondary.unit}</span>
+                  </div>
+                )}
+
+                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                  <span className="truncate max-w-[120px] text-slate-500 dark:text-slate-400" title={hero.desc}>
+                    {hero.desc}
+                  </span>
+                  {(hero as any).trend && (
+                    <span className={`font-mono font-bold px-1.5 py-0.5 rounded-sm ${(hero as any).trend.positive ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
+                      {(hero as any).trend.value}
+                    </span>
+                  )}
+                  {(hero as any).scrapPct && (
+                    <span className="font-mono font-bold px-1.5 py-0.5 rounded-sm bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                      {(hero as any).scrapPct}
+                    </span>
+                  )}
+                  {(hero as any).statusText && (
+                    <span className={`font-mono text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wider ${aesthetic.status}`}>
+                      {(hero as any).statusText}
+                    </span>
+                  )}
                 </div>
               </div>
-              
-              <div className="mt-4 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
-                  {hero.amount}
-                </span>
-                <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase">
-                  {hero.unit}
-                </span>
-              </div>
-
-              {/* Secondary Value Rendering (e.g. Avg Ratio) */}
-              {(hero as any).secondary && (
-                <div className="mt-1 flex items-baseline gap-1 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{(hero as any).secondary.label}:</span>
-                  <span className="font-black font-mono text-slate-800 dark:text-slate-200">{(hero as any).secondary.amount}</span>
-                  <span className="font-extrabold text-[9px] text-slate-400 dark:text-slate-500 uppercase">{(hero as any).secondary.unit}</span>
-                </div>
-              )}
-
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
-                <span className="truncate max-w-[120px] text-slate-500 dark:text-slate-400" title={hero.desc}>
-                  {hero.desc}
-                </span>
-                {hero.trend && (
-                  <span className={`font-mono font-bold px-1.5 py-0.5 rounded-sm ${hero.trend.positive ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
-                    {hero.trend.value}
-                  </span>
-                )}
-                {hero.scrapPct && (
-                  <span className="font-mono font-bold px-1.5 py-0.5 rounded-sm bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                    {hero.scrapPct}
-                  </span>
-                )}
-                {hero.statusText && (
-                  <span className={`font-mono text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wider ${aesthetic.status}`}>
-                    {hero.statusText}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ---------------------------------------------
           2. THE REDESIGNED CATEGORIZED AREA
