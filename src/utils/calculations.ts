@@ -302,6 +302,11 @@ export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: str
     ? parseFloat((todayEntries.reduce((sum, e) => sum + (Number(e.ratio) || 0), 0) / todayEntries.length).toFixed(1))
     : 0;
 
+  // Today's average marker efficiency (Achieved Marker Efficiency)
+  const today_avg_marker_efficiency = todayEntries.length > 0
+    ? parseFloat((todayEntries.reduce((sum, e) => sum + (Number(e.marker_efficiency_percent) || 0), 0) / todayEntries.length).toFixed(1))
+    : 0;
+
   return {
     total_fabric_used: parseFloat(total_fabric_used.toFixed(1)),
     total_fabric_spread: parseFloat(total_fabric_spread.toFixed(1)),
@@ -344,6 +349,7 @@ export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: str
     today_fabric_spread: parseFloat(today_fabric_spread.toFixed(1)),
     today_spreading_scrap: parseFloat(today_spreading_scrap.toFixed(1)),
     today_cutting_scrap: parseFloat(today_cutting_scrap.toFixed(1)),
+    today_cutting_lots: todayEntries.length,
     // Overall totals for new KPI cards
     total_cutting_lots,
     total_lay_layers,
@@ -351,6 +357,7 @@ export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: str
     total_used_fabric_inch,
     avg_size_ratio,
     today_avg_size_ratio,
+    today_avg_marker_efficiency,
     today_booking_vs_marker: today_booking_vs_marker_count > 0 ? today_booking_vs_marker_sum / today_booking_vs_marker_count : 0,
     today_booking_vs_cut: today_booking_vs_cut_count > 0 ? today_booking_vs_cut_sum / today_booking_vs_cut_count : 0,
     total_fabric_save_loss_kg,

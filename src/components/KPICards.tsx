@@ -80,6 +80,7 @@ interface KPICardsProps {
     today_fabric_spread?: number;
     today_spreading_scrap?: number;
     today_cutting_scrap?: number;
+    today_cutting_lots?: number;
     // Cumulative/Overall KPIs
     total_cutting_lots?: number;
     total_lay_layers?: number;
@@ -87,6 +88,7 @@ interface KPICardsProps {
     total_used_fabric_inch?: number;
     avg_size_ratio?: number;
     today_avg_size_ratio?: number;
+    today_avg_marker_efficiency?: number;
     total_fabric_save_loss_percent?: number;
     total_fabric_save_loss_kg?: number;
     today_fabric_save_loss_percent?: number;
@@ -103,6 +105,81 @@ interface KPICardsProps {
   entries?: CuttingEntry[];
 }
 
+const themeMap: Record<string, {
+  icon: string;
+  status: string;
+  glow: string;
+}> = {
+  indigo: {
+    icon: "text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100/70 dark:border-indigo-500/15",
+    status: "bg-indigo-50/60 dark:bg-indigo-950/35 text-indigo-600 dark:text-indigo-400 border-indigo-100/70 dark:border-indigo-500/15",
+    glow: "bg-indigo-500/5 dark:bg-indigo-500/20",
+  },
+  blue: {
+    icon: "text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100/70 dark:border-blue-500/15",
+    status: "bg-blue-50/60 dark:bg-blue-950/35 text-blue-600 dark:text-blue-400 border-blue-100/70 dark:border-blue-500/15",
+    glow: "bg-blue-500/5 dark:bg-blue-500/20",
+  },
+  violet: {
+    icon: "text-violet-600 dark:text-violet-400 bg-violet-50/70 dark:bg-violet-950/40 border border-violet-100/70 dark:border-violet-500/15",
+    status: "bg-violet-50/60 dark:bg-violet-950/35 text-violet-600 dark:text-violet-400 border-violet-100/70 dark:border-violet-500/15",
+    glow: "bg-violet-500/5 dark:bg-violet-500/20",
+  },
+  teal: {
+    icon: "text-teal-600 dark:text-teal-400 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-100/70 dark:border-teal-500/15",
+    status: "bg-teal-50/60 dark:bg-teal-950/35 text-teal-600 dark:text-teal-400 border-teal-100/70 dark:border-teal-500/15",
+    glow: "bg-teal-500/5 dark:bg-teal-500/20",
+  },
+  emerald: {
+    icon: "text-emerald-600 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100/70 dark:border-emerald-500/15",
+    status: "bg-emerald-50/60 dark:bg-emerald-950/35 text-emerald-600 dark:text-emerald-400 border-emerald-100/70 dark:border-emerald-500/15",
+    glow: "bg-emerald-500/5 dark:bg-emerald-500/20",
+  },
+  cyan: {
+    icon: "text-cyan-600 dark:text-cyan-400 bg-cyan-50/70 dark:bg-cyan-950/40 border border-cyan-100/70 dark:border-cyan-500/15",
+    status: "bg-cyan-50/60 dark:bg-cyan-950/35 text-cyan-600 dark:text-cyan-400 border-cyan-100/70 dark:border-cyan-500/15",
+    glow: "bg-cyan-500/5 dark:bg-cyan-500/20",
+  },
+  rose: {
+    icon: "text-rose-600 dark:text-rose-400 bg-rose-50/70 dark:bg-rose-950/40 border border-rose-100/70 dark:border-rose-500/15",
+    status: "bg-rose-50/60 dark:bg-rose-950/35 text-rose-600 dark:text-rose-400 border-rose-100/70 dark:border-rose-500/15",
+    glow: "bg-rose-500/5 dark:bg-rose-500/20",
+  },
+  amber: {
+    icon: "text-amber-600 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-100/70 dark:border-amber-500/15",
+    status: "bg-amber-50/60 dark:bg-amber-950/35 text-amber-600 dark:text-amber-400 border-amber-100/70 dark:border-amber-500/15",
+    glow: "bg-amber-500/5 dark:bg-amber-500/20",
+  },
+  orange: {
+    icon: "text-orange-600 dark:text-orange-400 bg-orange-50/70 dark:bg-orange-950/40 border border-orange-100/70 dark:border-orange-500/15",
+    status: "bg-orange-50/60 dark:bg-orange-950/35 text-orange-600 dark:text-orange-400 border-orange-100/70 dark:border-orange-500/15",
+    glow: "bg-orange-500/5 dark:bg-orange-500/20",
+  },
+  sky: {
+    icon: "text-sky-600 dark:text-sky-400 bg-sky-50/70 dark:bg-sky-950/40 border border-sky-100/70 dark:border-sky-500/15",
+    status: "bg-sky-50/60 dark:bg-sky-950/35 text-sky-600 dark:text-sky-400 border-sky-100/70 dark:border-sky-500/15",
+    glow: "bg-sky-500/5 dark:bg-sky-500/20",
+  }
+};
+
+const resolveCardAesthetic = (colorClass: string | undefined, defaultTheme = "indigo") => {
+  let theme = defaultTheme;
+  const lower = (colorClass || "").toLowerCase();
+  
+  if (lower.includes("3b82f6") || lower.includes("blue") || lower === "blue") theme = "blue";
+  else if (lower.includes("indigo") || lower === "indigo") theme = "indigo";
+  else if (lower.includes("ef4444") || lower.includes("rose") || lower === "rose") theme = "rose";
+  else if (lower.includes("10b981") || lower.includes("emerald") || lower === "emerald") theme = "emerald";
+  else if (lower.includes("f59e0b") || lower.includes("amber") || lower === "amber") theme = "amber";
+  else if (lower.includes("violet") || lower === "violet") theme = "violet";
+  else if (lower.includes("teal") || lower === "teal") theme = "teal";
+  else if (lower.includes("cyan") || lower === "cyan") theme = "cyan";
+  else if (lower.includes("orange") || lower === "orange") theme = "orange";
+  else if (lower.includes("sky") || lower === "sky") theme = "sky";
+  
+  return themeMap[theme] || themeMap.indigo;
+};
+
 export default function KPICards({ 
   metrics, 
   group = "all", 
@@ -115,6 +192,7 @@ export default function KPICards({
 }: KPICardsProps) {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [activeCategory, setActiveCategory] = useState<"fabric" | "efficiency" | "volume">("fabric");
+  const [useCustomKPIs, setUseCustomKPIs] = useState<boolean>(true);
 
   // Poly Tracking Stats calculation
   const polyStats = useMemo(() => {
@@ -626,6 +704,129 @@ export default function KPICards({
   ], [metrics, group, polyStats, polyPrice]);
 
   // ---------------------------------------------
+  // CUSTOM SERIAL-WISE 10 KPI CARDS (Default for Daily Operations)
+  // ---------------------------------------------
+  const customSerialKpis = useMemo(() => {
+    return [
+      {
+        title: "Today Total Cutting Qty",
+        amount: (metrics.today_cut_qty || 0).toLocaleString(),
+        unit: "Pcs",
+        desc: "Total planned garment parts cut today",
+        icon: Package,
+        color: "text-indigo-400 bg-indigo-500/10",
+        statusText: "Today's Volume",
+        statusColor: "bg-indigo-500/15 text-indigo-400 border-indigo-500/20",
+      },
+      {
+        title: "Today Total Lay",
+        amount: (metrics.today_lay_layers || 0).toLocaleString(),
+        unit: "Layers",
+        desc: "Total layers laid for cutting today",
+        icon: Layers,
+        color: "text-blue-400 bg-blue-500/10",
+        statusText: "Today's Lay",
+        statusColor: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      },
+      {
+        title: "Today Total Marker Ratio",
+        amount: (metrics.today_total_ratio || 0).toFixed(1),
+        unit: "Ratio",
+        desc: "Combined sum of size ratios today",
+        icon: Hash,
+        color: "text-violet-400 bg-violet-500/10",
+        statusText: "Ratio Stats",
+        statusColor: "bg-violet-500/15 text-violet-400 border-violet-500/20",
+        secondary: {
+          label: "Avg Ratio",
+          amount: (metrics.today_avg_size_ratio || 0).toFixed(1),
+          unit: "Ratio"
+        }
+      },
+      {
+        title: "Achieved Marker Efficiency",
+        amount: (metrics.today_avg_marker_efficiency || 0).toFixed(1),
+        unit: "%",
+        desc: "Today's average achieved marker efficiency",
+        icon: Activity,
+        color: "text-rose-400 bg-rose-500/10",
+        statusText: "Achieved Eff",
+        statusColor: "bg-rose-500/15 text-rose-400 border-rose-500/20",
+      },
+      {
+        title: "Number of Lay cut qty",
+        amount: (metrics.today_cutting_lots || 0).toLocaleString(),
+        unit: "Cuts",
+        desc: "Number of cutting lots / lay segments processed today",
+        icon: Activity,
+        color: "text-teal-400 bg-teal-500/10",
+        statusText: "Lots Today",
+        statusColor: "bg-teal-500/15 text-teal-400 border-teal-500/20",
+      },
+      {
+        title: "Total Used Fabric KG",
+        amount: (metrics.today_fabric_used || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        unit: "KG",
+        desc: "Today's total physical fabric weight used",
+        icon: Weight,
+        color: "text-emerald-400 bg-emerald-500/10",
+        statusText: "Fabric Weight",
+        statusColor: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+      },
+      {
+        title: "Spreading Used Fabric",
+        amount: (metrics.today_fabric_spread || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        unit: "KG",
+        desc: "Fabric laid today after subtracting remnants waste",
+        icon: Layers,
+        color: "text-cyan-400 bg-cyan-500/10",
+        statusText: "Fabric Spread",
+        statusColor: "bg-cyan-500/15 text-cyan-400 border-cyan-500/20",
+      },
+      {
+        title: "Remnents",
+        amount: (metrics.today_remnants || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        unit: "KG",
+        desc: "Total remnant weight returned or re-entered today",
+        icon: Package,
+        color: "text-blue-400 bg-blue-500/10",
+        statusText: "Remnants Issued",
+        statusColor: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      },
+      {
+        title: "Total Cutting Scrap",
+        amount: (metrics.today_cutting_scrap || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        unit: "KG",
+        desc: "Direct physical cutting scrap collected today",
+        icon: Scissors,
+        color: "text-rose-400 bg-rose-500/10",
+        statusText: "Cutting Scrap",
+        statusColor: "bg-rose-500/15 text-rose-400 border-rose-500/20",
+      },
+      {
+        title: "Spreading Scrap",
+        amount: (metrics.today_spreading_scrap || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        unit: "KG",
+        desc: "Waste weight generated during spreading today",
+        icon: Scissors,
+        color: "text-amber-400 bg-amber-500/10",
+        statusText: "Spreading Waste",
+        statusColor: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      },
+      {
+        title: "Remnent Scrap",
+        amount: (metrics.today_remnants_scrap_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        unit: "KG",
+        desc: "Waste / short roll-ends discarded as scrap from remnants today",
+        icon: Scissors,
+        color: "text-orange-400 bg-orange-500/10",
+        statusText: "Remnant Scrap",
+        statusColor: "bg-orange-500/15 text-orange-400 border-orange-500/20",
+      }
+    ];
+  }, [metrics]);
+
+  // ---------------------------------------------
   // HERO KPIs SELECTION (At the top of the view)
   // ---------------------------------------------
   const heroKpis = useMemo(() => {
@@ -880,73 +1081,123 @@ export default function KPICards({
           )}
         </div>
 
-        {/* View Toggle (Card vs Table) */}
-        <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-850 self-start sm:self-auto shadow-2xs">
-          <button
-            onClick={() => setViewMode("card")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-              viewMode === "card"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
-            }`}
-          >
-            <LayoutGrid size={13} />
-            <span>Card Bento</span>
-          </button>
-          <button
-            onClick={() => setViewMode("table")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-              viewMode === "table"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
-            }`}
-          >
-            <Table size={13} />
-            <span>Table Ledger</span>
-          </button>
+        {/* Combined Toggles Container */}
+        <div className="flex flex-wrap items-center gap-3">
+          {group === "daily" && (
+            <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900/40 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+              <span className={`text-[11px] font-extrabold transition-colors ${!useCustomKPIs ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-600"}`}>
+                Standard
+              </span>
+              
+              {/* Interactive Slide Switch */}
+              <button
+                type="button"
+                onClick={() => setUseCustomKPIs(prev => !prev)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  useCustomKPIs ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.45)]" : "bg-slate-300 dark:bg-slate-750"
+                }`}
+                aria-label="Toggle Operational View"
+                title="Switch between Operational View KPIs and Standard Dashboard KPIs"
+              >
+                {/* Sliding Knob */}
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    useCustomKPIs ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+
+              <span className={`text-[11px] font-extrabold transition-colors ${useCustomKPIs ? "text-amber-500 dark:text-amber-400" : "text-slate-400 dark:text-slate-600"}`}>
+                Operational View
+              </span>
+            </div>
+          )}
+
+          {/* View Toggle (Card vs Table) */}
+          <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-850 shadow-2xs">
+            <button
+              onClick={() => setViewMode("card")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === "card"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
+              }`}
+            >
+              <LayoutGrid size={13} />
+              <span>Card Bento</span>
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
+              }`}
+            >
+              <Table size={13} />
+              <span>Table Ledger</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ---------------------------------------------
           1. HIGH-IMPACT HERO KPIs SECTION
           --------------------------------------------- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {heroKpis.map((hero, idx) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {(group === "daily" && useCustomKPIs ? customSerialKpis : heroKpis).map((hero, idx) => {
           const Icon = hero.icon;
+          const aesthetic = resolveCardAesthetic(hero.color, "indigo");
           return (
             <div 
               key={idx} 
-              className="bg-slate-900 dark:bg-[#0f172a] text-white border border-slate-800/90 rounded-2xl p-5 shadow-sm hover:scale-[1.01] transition-transform duration-200 flex flex-col justify-between"
+              className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
               id={`hero-card-${idx}`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {hero.title}
                 </span>
-                <div className="p-2 rounded-lg bg-slate-800 text-indigo-400">
+                <div className={`p-2 rounded-lg flex items-center justify-center ${aesthetic.icon}`}>
                   <Icon size={16} />
                 </div>
               </div>
               
               <div className="mt-4 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight">
+                <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
                   {hero.amount}
                 </span>
-                <span className="text-xs font-extrabold text-slate-400 uppercase">
+                <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase">
                   {hero.unit}
                 </span>
               </div>
 
-              <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
-                <span className="truncate max-w-[120px]">{hero.desc}</span>
+              {/* Secondary Value Rendering (e.g. Avg Ratio) */}
+              {(hero as any).secondary && (
+                <div className="mt-1 flex items-baseline gap-1 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{(hero as any).secondary.label}:</span>
+                  <span className="font-black font-mono text-slate-800 dark:text-slate-200">{(hero as any).secondary.amount}</span>
+                  <span className="font-extrabold text-[9px] text-slate-400 dark:text-slate-500 uppercase">{(hero as any).secondary.unit}</span>
+                </div>
+              )}
+
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                <span className="truncate max-w-[120px] text-slate-500 dark:text-slate-400" title={hero.desc}>
+                  {hero.desc}
+                </span>
                 {hero.trend && (
-                  <span className={`font-mono font-bold px-1.5 py-0.5 rounded-sm ${hero.trend.positive ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
+                  <span className={`font-mono font-bold px-1.5 py-0.5 rounded-sm ${hero.trend.positive ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
                     {hero.trend.value}
                   </span>
                 )}
                 {hero.scrapPct && (
-                  <span className="font-mono font-bold px-1.5 py-0.5 rounded-sm bg-rose-500/15 text-rose-400">
+                  <span className="font-mono font-bold px-1.5 py-0.5 rounded-sm bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400">
                     {hero.scrapPct}
+                  </span>
+                )}
+                {hero.statusText && (
+                  <span className={`font-mono text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wider ${aesthetic.status}`}>
+                    {hero.statusText}
                   </span>
                 )}
               </div>
@@ -1008,54 +1259,55 @@ export default function KPICards({
             <div className={`${activeCategory === "efficiency" ? "lg:col-span-7 grid-cols-1 sm:grid-cols-2" : "lg:col-span-12 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"} grid gap-4`}>
               {activeCategoryKpis.map((kpi) => {
                 const Icon = kpi.icon;
+                const aesthetic = resolveCardAesthetic(kpi.color, "indigo");
                 const containerClasses = kpi.highlight
-                  ? "bg-slate-900 dark:bg-[#0f172a] text-white border-2 border-emerald-500/40 p-5 rounded-2xl shadow-xs hover:shadow-md transition duration-200 flex flex-col justify-between"
-                  : "bg-slate-900 dark:bg-[#0f172a] text-white border border-slate-800 p-5 rounded-2xl shadow-xs hover:shadow-md transition duration-200 flex flex-col justify-between";
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 dark:border-emerald-500/40 p-5 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
+                  : "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800/80 p-5 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between";
 
                 const kpiItem = kpi as typeof kpi & { secondary?: { title: string; amount: string; unit: string } };
 
                 return (
                   <div key={kpi.id} className={containerClasses} id={`kpi-card-${kpi.id}`}>
                     <div className="flex items-center justify-between mb-3">
-                      <div className={`p-2.5 rounded-xl ${kpi.color}`}>
+                      <div className={`p-2.5 rounded-xl flex items-center justify-center ${aesthetic.icon}`}>
                         <Icon size={18} className="stroke-[2.5]" />
                       </div>
-                      <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border tracking-wider ${kpi.statusColor}`}>
+                      <span className={`text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border tracking-wider ${aesthetic.status}`}>
                         {kpi.statusText}
                       </span>
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
+                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400">
                         {kpi.title}
                       </span>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black font-mono tracking-tight">
+                        <span className="text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
                           {kpi.amount}
                         </span>
-                        <span className="text-xs text-slate-400 font-extrabold uppercase">
+                        <span className="text-xs text-slate-400 dark:text-slate-500 font-extrabold uppercase">
                           {kpi.unit}
                         </span>
                       </div>
                     </div>
 
                     {kpiItem.secondary && (
-                      <div className="mt-3 pt-3 border-t border-dashed border-slate-800 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <div className="mt-3 pt-3 border-t border-dashed border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                           {kpiItem.secondary.title}
                         </span>
                         <div className="flex items-baseline gap-1">
-                          <span className="text-base font-extrabold font-mono text-white leading-none">
+                          <span className="text-base font-extrabold font-mono text-slate-900 dark:text-white leading-none">
                             {kpiItem.secondary.amount}
                           </span>
-                          <span className="text-[9px] text-slate-400 font-bold uppercase">
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                             {kpiItem.secondary.unit}
                           </span>
                         </div>
                       </div>
                     )}
 
-                    <p className="text-[11px] text-slate-400 mt-3 border-t border-slate-800/50 pt-2.5 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3 border-t border-slate-100 dark:border-slate-800/60 pt-2.5 leading-relaxed">
                       {kpi.desc}
                     </p>
                   </div>
