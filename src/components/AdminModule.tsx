@@ -37,7 +37,8 @@ interface AdminModuleProps {
     can_access_cutting_entry: boolean, 
     can_access_remnant_entry: boolean, 
     can_access_heat_seal_entry: boolean,
-    can_access_poly_entry: boolean
+    can_access_poly_entry: boolean,
+    can_access_requisition: boolean
   ) => Promise<void>;
   onAddMachine: (name: string, type: string) => void;
   schemaDDL: string;
@@ -471,7 +472,8 @@ export default function AdminModule({
                                       e.target.checked, 
                                       p.can_access_remnant_entry !== false,
                                       p.can_access_heat_seal_entry !== false,
-                                      p.can_access_poly_entry !== false
+                                      p.can_access_poly_entry !== false,
+                                      p.can_access_requisition !== false
                                     );
                                   }
                                 }}
@@ -490,7 +492,8 @@ export default function AdminModule({
                                       p.can_access_cutting_entry !== false, 
                                       e.target.checked,
                                       p.can_access_heat_seal_entry !== false,
-                                      p.can_access_poly_entry !== false
+                                      p.can_access_poly_entry !== false,
+                                      p.can_access_requisition !== false
                                     );
                                   }
                                 }}
@@ -509,7 +512,8 @@ export default function AdminModule({
                                       p.can_access_cutting_entry !== false, 
                                       p.can_access_remnant_entry !== false,
                                       e.target.checked,
-                                      p.can_access_poly_entry !== false
+                                      p.can_access_poly_entry !== false,
+                                      p.can_access_requisition !== false
                                     );
                                   }
                                 }}
@@ -528,13 +532,34 @@ export default function AdminModule({
                                       p.can_access_cutting_entry !== false, 
                                       p.can_access_remnant_entry !== false,
                                       p.can_access_heat_seal_entry !== false,
-                                      e.target.checked
+                                      e.target.checked,
+                                      p.can_access_requisition !== false
                                     );
                                   }
                                 }}
                                 className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                               />
                               <span className="text-[10px] font-extrabold uppercase tracking-wider">Poly Tracking</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-650 dark:text-slate-300 select-none" title="Allow/deny access to Requisitions">
+                              <input 
+                                type="checkbox"
+                                checked={p.can_access_requisition !== false}
+                                onChange={(e) => {
+                                  if (onUpdatePermissions) {
+                                    onUpdatePermissions(
+                                      p.id, 
+                                      p.can_access_cutting_entry !== false, 
+                                      p.can_access_remnant_entry !== false,
+                                      p.can_access_heat_seal_entry !== false,
+                                      p.can_access_poly_entry !== false,
+                                      e.target.checked
+                                    );
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-650 dark:text-indigo-400">Requisitions</span>
                             </label>
                           </div>
                         </td>

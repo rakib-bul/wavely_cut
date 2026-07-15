@@ -12,6 +12,7 @@ export interface Profile {
   can_access_remnant_entry?: boolean;
   can_access_heat_seal_entry?: boolean;
   can_access_poly_entry?: boolean;
+  can_access_requisition?: boolean;
 }
 
 export interface Machine {
@@ -146,3 +147,23 @@ export interface HeatSealEntry {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface Requisition {
+  id: string;
+  req_id: string;
+  item_description: string;
+  request_person: string;
+  qty: number;
+  sent_date: string;
+  received_date?: string;
+  work_order_no: string;
+  mrri_no: string;
+  issue_no: string;
+  remarks: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_by?: string;
+  created_at: string;
+  approved_by?: string;
+  approved_at?: string;
+}
+

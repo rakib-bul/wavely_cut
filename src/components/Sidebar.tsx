@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Flame,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ClipboardList
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -59,6 +60,7 @@ export default function Sidebar({
     { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["supervisor", "manager", "admin"] },
     { id: "poly_tracking", label: "Poly Tracking", icon: RefreshCw, roles: ["operator", "supervisor", "admin"] },
     { id: "heat_seal_tracking", label: "Heat Seal Tracking", icon: Flame, roles: ["operator", "supervisor", "manager", "admin"] },
+    { id: "requisitions", label: "Requisitions", icon: ClipboardList, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "admin", label: "Factory & IAM Admin", icon: ShieldAlert, roles: ["admin"] }
   ];
 
@@ -109,6 +111,12 @@ export default function Sidebar({
             hasAccess = false;
             useLockIcon = true;
             tooltipMessage = "Poly Tracking access has been locked by Admin.";
+          }
+
+          if (hasAccess && item.id === "requisitions" && currentProfile.can_access_requisition === false) {
+            hasAccess = false;
+            useLockIcon = true;
+            tooltipMessage = "Requisitions access has been locked by Admin.";
           }
 
           const Icon = useLockIcon ? Lock : item.icon;

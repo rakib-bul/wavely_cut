@@ -236,3 +236,23 @@ CREATE POLICY select_heat_seal_targets ON public.heat_seal_targets
 
 CREATE POLICY all_heat_seal_targets_admin ON public.heat_seal_targets
     FOR ALL TO authenticated USING (public.get_user_role() IN ('supervisor', 'admin', 'manager'));
+
+-- ==========================================
+-- 8. REQUISITIONS POLICIES
+-- ==========================================
+
+ALTER TABLE public.requisitions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY select_requisitions ON public.requisitions
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY insert_requisitions ON public.requisitions
+    FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY update_requisitions ON public.requisitions
+    FOR UPDATE TO authenticated USING (true);
+
+CREATE POLICY delete_requisitions ON public.requisitions
+    FOR DELETE TO authenticated USING (
+        public.get_user_role() IN ('supervisor', 'admin', 'manager')
+    );

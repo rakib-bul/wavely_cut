@@ -415,7 +415,8 @@ app.post("/api/auth/signup", async (req, res) => {
           can_access_cutting_entry: true,
           can_access_remnant_entry: true,
           can_access_heat_seal_entry: true,
-          can_access_poly_entry: true
+          can_access_poly_entry: true,
+          can_access_requisition: true
         });
       dbError = error;
     } catch (err: any) {
@@ -442,7 +443,8 @@ app.post("/api/auth/signup", async (req, res) => {
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
       can_access_heat_seal_entry: true,
-      can_access_poly_entry: true
+      can_access_poly_entry: true,
+      can_access_requisition: true
     };
     saveSettings(systemSettings);
 
@@ -451,7 +453,8 @@ app.post("/api/auth/signup", async (req, res) => {
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
       can_access_heat_seal_entry: true,
-      can_access_poly_entry: true
+      can_access_poly_entry: true,
+      can_access_requisition: true
     };
 
     return res.json({ profile: enrichedProfile, message: "Account created successfully" });
@@ -543,7 +546,8 @@ app.post("/api/auth/login", async (req, res) => {
           can_access_cutting_entry: userPerms?.can_access_cutting_entry ?? profile.can_access_cutting_entry ?? true,
           can_access_remnant_entry: userPerms?.can_access_remnant_entry ?? profile.can_access_remnant_entry ?? true,
           can_access_heat_seal_entry: userPerms?.can_access_heat_seal_entry ?? profile.can_access_heat_seal_entry ?? true,
-          can_access_poly_entry: userPerms?.can_access_poly_entry ?? profile.can_access_poly_entry ?? true
+          can_access_poly_entry: userPerms?.can_access_poly_entry ?? profile.can_access_poly_entry ?? true,
+          can_access_requisition: userPerms?.can_access_requisition ?? (profile as any).can_access_requisition ?? true
         };
         return res.json({ profile: enrichedProfile });
       }
@@ -1314,12 +1318,18 @@ app.get("/api/profiles", async (req, res) => {
     const enrichedProfiles = (profiles || []).map(p => {
       const perms = (systemSettings as any).user_permissions?.[p.id] || {
         can_access_cutting_entry: true,
-        can_access_remnant_entry: true
+        can_access_remnant_entry: true,
+        can_access_heat_seal_entry: true,
+        can_access_poly_entry: true,
+        can_access_requisition: true
       };
       return {
         ...p,
         can_access_cutting_entry: p.can_access_cutting_entry !== undefined ? p.can_access_cutting_entry : (perms.can_access_cutting_entry !== false),
-        can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false)
+        can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false),
+        can_access_heat_seal_entry: p.can_access_heat_seal_entry !== undefined ? p.can_access_heat_seal_entry : (perms.can_access_heat_seal_entry !== false),
+        can_access_poly_entry: p.can_access_poly_entry !== undefined ? p.can_access_poly_entry : (perms.can_access_poly_entry !== false),
+        can_access_requisition: (p as any).can_access_requisition !== undefined ? (p as any).can_access_requisition : (perms.can_access_requisition !== false)
       };
     });
 
@@ -1416,7 +1426,7 @@ app.put("/api/profiles/:id/avatar", async (req, res) => {
 
 app.put("/api/profiles/:id/permissions", async (req, res) => {
   const { id } = req.params;
-  const { can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry } = req.body;
+  const { can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry, can_access_requisition } = req.body;
   const user_role = req.headers["x-user-role"] as UserRole;
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
@@ -1444,7 +1454,8 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
           can_access_cutting_entry: !!can_access_cutting_entry,
           can_access_remnant_entry: !!can_access_remnant_entry,
           can_access_heat_seal_entry: !!can_access_heat_seal_entry,
-          can_access_poly_entry: !!can_access_poly_entry
+          can_access_poly_entry: !!can_access_poly_entry,
+          can_access_requisition: !!can_access_requisition
         })
         .eq("id", id);
       dbError = error;
@@ -1468,14 +1479,16 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
       can_access_cutting_entry: currentProfile.can_access_cutting_entry !== false,
       can_access_remnant_entry: currentProfile.can_access_remnant_entry !== false,
       can_access_heat_seal_entry: currentProfile.can_access_heat_seal_entry !== false,
-      can_access_poly_entry: currentProfile.can_access_poly_entry !== false
+      can_access_poly_entry: currentProfile.can_access_poly_entry !== false,
+      can_access_requisition: (currentProfile as any).can_access_requisition !== false
     };
 
     (systemSettings as any).user_permissions[id] = {
       can_access_cutting_entry: !!can_access_cutting_entry,
       can_access_remnant_entry: !!can_access_remnant_entry,
       can_access_heat_seal_entry: !!can_access_heat_seal_entry,
-      can_access_poly_entry: !!can_access_poly_entry
+      can_access_poly_entry: !!can_access_poly_entry,
+      can_access_requisition: !!can_access_requisition
     };
 
     const success = saveSettings(systemSettings);
@@ -1488,7 +1501,8 @@ app.put("/api/profiles/:id/permissions", async (req, res) => {
       can_access_cutting_entry: !!can_access_cutting_entry,
       can_access_remnant_entry: !!can_access_remnant_entry,
       can_access_heat_seal_entry: !!can_access_heat_seal_entry,
-      can_access_poly_entry: !!can_access_poly_entry
+      can_access_poly_entry: !!can_access_poly_entry,
+      can_access_requisition: !!can_access_requisition
     };
 
     await addAuditLog(
@@ -1693,14 +1707,16 @@ app.get("/api/sync", async (req, res) => {
           can_access_cutting_entry: true,
           can_access_remnant_entry: true,
           can_access_heat_seal_entry: true,
-          can_access_poly_entry: true
+          can_access_poly_entry: true,
+          can_access_requisition: true
         };
         return {
           ...p,
           can_access_cutting_entry: p.can_access_cutting_entry !== undefined ? p.can_access_cutting_entry : (perms.can_access_cutting_entry !== false),
           can_access_remnant_entry: p.can_access_remnant_entry !== undefined ? p.can_access_remnant_entry : (perms.can_access_remnant_entry !== false),
           can_access_heat_seal_entry: p.can_access_heat_seal_entry !== undefined ? p.can_access_heat_seal_entry : (perms.can_access_heat_seal_entry !== false),
-          can_access_poly_entry: p.can_access_poly_entry !== undefined ? p.can_access_poly_entry : (perms.can_access_poly_entry !== false)
+          can_access_poly_entry: p.can_access_poly_entry !== undefined ? p.can_access_poly_entry : (perms.can_access_poly_entry !== false),
+          can_access_requisition: (p as any).can_access_requisition !== undefined ? (p as any).can_access_requisition : (perms.can_access_requisition !== false)
         };
       });
       return enriched;
@@ -1774,7 +1790,24 @@ app.get("/api/sync", async (req, res) => {
       }
     })();
 
-    const [machines, buyers, entries, auditLogs, profiles, polyEntries, heatSealEntries, heatSealOperators, heatSealTargets] = await Promise.all([
+    const requisitionsPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("requisitions")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (error) {
+          console.warn("Could not fetch requisitions from Supabase, returning local setting fallback:", error.message);
+          return (systemSettings as any).requisitions || [];
+        }
+        return data || [];
+      } catch (err: any) {
+        console.warn("Could not fetch requisitions from Supabase, returning local setting fallback:", err.message);
+        return (systemSettings as any).requisitions || [];
+      }
+    })();
+
+    const [machines, buyers, entries, auditLogs, profiles, polyEntries, heatSealEntries, heatSealOperators, heatSealTargets, requisitions] = await Promise.all([
       machinesPromise,
       buyersPromise,
       entriesPromise,
@@ -1783,7 +1816,8 @@ app.get("/api/sync", async (req, res) => {
       polyPromise,
       heatSealPromise,
       heatSealOperatorsPromise,
-      heatSealTargetsPromise
+      heatSealTargetsPromise,
+      requisitionsPromise
     ]);
 
     return res.json({
@@ -1796,6 +1830,7 @@ app.get("/api/sync", async (req, res) => {
       heatSealEntries,
       heatSealOperators,
       heatSealTargets,
+      requisitions,
       settings: systemSettings,
       version: res.locals.server_version || ""
     });
@@ -2620,7 +2655,8 @@ app.post("/api/admin/create-user", async (req, res) => {
           can_access_cutting_entry: true,
           can_access_remnant_entry: true,
           can_access_heat_seal_entry: true,
-          can_access_poly_entry: true
+          can_access_poly_entry: true,
+          can_access_requisition: true
         });
       dbError = error;
     } catch (err: any) {
@@ -2650,7 +2686,8 @@ app.post("/api/admin/create-user", async (req, res) => {
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
       can_access_heat_seal_entry: true,
-      can_access_poly_entry: true
+      can_access_poly_entry: true,
+      can_access_requisition: true
     };
     saveSettings(systemSettings);
 
@@ -2669,7 +2706,8 @@ app.post("/api/admin/create-user", async (req, res) => {
       can_access_cutting_entry: true,
       can_access_remnant_entry: true,
       can_access_heat_seal_entry: true,
-      can_access_poly_entry: true
+      can_access_poly_entry: true,
+      can_access_requisition: true
     };
 
     return res.json({ profile: enrichedProfile, message: "User account created successfully by admin" });
@@ -2677,6 +2715,169 @@ app.post("/api/admin/create-user", async (req, res) => {
   } catch (err: any) {
     console.error("Supabase Admin direct user creation error:", err.message);
     return res.status(400).json({ error: err.message });
+  }
+});
+
+
+// ==========================================
+// REQUISITION ENDPOINTS (CRUD & WORKFLOW)
+// ==========================================
+
+app.post("/api/requisitions", async (req, res) => {
+  const reqData = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from("requisitions")
+      .insert([reqData])
+      .select("*");
+      
+    if (error) {
+      console.warn("Database insert failed for requisition, falling back to local settings.json:", error.message);
+      throw error;
+    }
+    return res.json(data?.[0] || reqData);
+  } catch (err: any) {
+    if (!(systemSettings as any).requisitions) {
+      (systemSettings as any).requisitions = [];
+    }
+    (systemSettings as any).requisitions.push(reqData);
+    
+    try {
+      fs.writeFileSync(settingsFilePath, JSON.stringify(systemSettings, null, 2), "utf-8");
+    } catch (writeErr) {
+      console.error("Failed to write fallback requisitions to settings.json");
+    }
+    
+    return res.json(reqData);
+  }
+});
+
+app.post("/api/requisitions/:id/approve", async (req, res) => {
+  const { id } = req.params;
+  const { approved_by } = req.body;
+  const approved_at = new Date().toISOString().split('T')[0];
+  
+  try {
+    const { data, error } = await supabase
+      .from("requisitions")
+      .update({ status: "approved", approved_by, approved_at })
+      .eq("id", id)
+      .select("*");
+      
+    if (error) {
+      console.warn("Database update failed for requisition, falling back to local settings.json:", error.message);
+      throw error;
+    }
+    return res.json(data?.[0] || { status: "success" });
+  } catch (err: any) {
+    if ((systemSettings as any).requisitions) {
+      const idx = (systemSettings as any).requisitions.findIndex((r: any) => r.id === id);
+      if (idx >= 0) {
+        (systemSettings as any).requisitions[idx].status = "approved";
+        (systemSettings as any).requisitions[idx].approved_by = approved_by;
+        (systemSettings as any).requisitions[idx].approved_at = approved_at;
+        
+        try {
+          fs.writeFileSync(settingsFilePath, JSON.stringify(systemSettings, null, 2), "utf-8");
+        } catch (writeErr) {}
+      }
+    }
+    return res.json({ status: "success" });
+  }
+});
+
+app.post("/api/requisitions/:id/reject", async (req, res) => {
+  const { id } = req.params;
+  const { rejected_by } = req.body;
+  const approved_at = new Date().toISOString().split('T')[0];
+  
+  try {
+    const { data, error } = await supabase
+      .from("requisitions")
+      .update({ status: "rejected", approved_by: rejected_by, approved_at })
+      .eq("id", id)
+      .select("*");
+      
+    if (error) {
+      console.warn("Database update failed for requisition, falling back to local settings.json:", error.message);
+      throw error;
+    }
+    return res.json(data?.[0] || { status: "success" });
+  } catch (err: any) {
+    if ((systemSettings as any).requisitions) {
+      const idx = (systemSettings as any).requisitions.findIndex((r: any) => r.id === id);
+      if (idx >= 0) {
+        (systemSettings as any).requisitions[idx].status = "rejected";
+        (systemSettings as any).requisitions[idx].approved_by = rejected_by;
+        (systemSettings as any).requisitions[idx].approved_at = approved_at;
+        
+        try {
+          fs.writeFileSync(settingsFilePath, JSON.stringify(systemSettings, null, 2), "utf-8");
+        } catch (writeErr) {}
+      }
+    }
+    return res.json({ status: "success" });
+  }
+});
+
+app.put("/api/requisitions/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedFields = req.body;
+  
+  try {
+    const { data, error } = await supabase
+      .from("requisitions")
+      .update(updatedFields)
+      .eq("id", id)
+      .select("*");
+      
+    if (error) {
+      console.warn("Database update failed for requisition, falling back to local settings.json:", error.message);
+      throw error;
+    }
+    return res.json(data?.[0] || { status: "success" });
+  } catch (err: any) {
+    if ((systemSettings as any).requisitions) {
+      const idx = (systemSettings as any).requisitions.findIndex((r: any) => r.id === id);
+      if (idx >= 0) {
+        (systemSettings as any).requisitions[idx] = {
+          ...(systemSettings as any).requisitions[idx],
+          ...updatedFields
+        };
+        
+        try {
+          fs.writeFileSync(settingsFilePath, JSON.stringify(systemSettings, null, 2), "utf-8");
+        } catch (writeErr) {}
+      }
+    }
+    return res.json({ status: "success" });
+  }
+});
+
+app.delete("/api/requisitions/:id", async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { error } = await supabase
+      .from("requisitions")
+      .delete()
+      .eq("id", id);
+      
+    if (error) {
+      console.warn("Database delete failed for requisition, falling back to local settings.json:", error.message);
+      throw error;
+    }
+    return res.json({ success: true });
+  } catch (err: any) {
+    if ((systemSettings as any).requisitions) {
+      (systemSettings as any).requisitions = (systemSettings as any).requisitions.filter((r: any) => r.id !== id);
+      
+      try {
+        fs.writeFileSync(settingsFilePath, JSON.stringify(systemSettings, null, 2), "utf-8");
+      } catch (writeErr) {}
+    }
+    return res.json({ success: true });
   }
 });
 

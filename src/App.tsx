@@ -9,11 +9,12 @@ import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import TableProductionView from "./components/TableProductionView";
-import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, HeatSealEntry, HeatSealOperator, HeatSealTarget } from "./types";
+import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, HeatSealEntry, HeatSealOperator, HeatSealTarget, Requisition } from "./types";
 import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
 import PolyTrackingModule from "./components/PolyTrackingModule";
 import HeatSealModule from "./components/HeatSealModule";
 import HeatSealDashboardInsight from "./components/HeatSealDashboardInsight";
+import RequisitionModule from "./components/RequisitionModule";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -167,6 +168,21 @@ export default function App() {
       return [];
     }
   });
+
+  const [requisitions, setRequisitions] = useState<Requisition[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_requisitions");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("erp_cached_requisitions", JSON.stringify(requisitions));
+    } catch (e) {}
+  }, [requisitions]);
 
   // --- Loading / Network feedback ---
   const [isLoading, setIsLoading] = useState<boolean>(() => {
@@ -367,6 +383,14 @@ export default function App() {
           setHeatSealTargets(syncData.heatSealTargets);
           try {
             localStorage.setItem("erp_cached_heat_seal_targets", JSON.stringify(syncData.heatSealTargets));
+          } catch (e) {}
+        }
+
+        // Update requisitions state
+        if (syncData.requisitions) {
+          setRequisitions(syncData.requisitions);
+          try {
+            localStorage.setItem("erp_cached_requisitions", JSON.stringify(syncData.requisitions));
           } catch (e) {}
         }
 
@@ -877,6 +901,119 @@ export default function App() {
     }
   };
 
+  // --- REQUISITION ACTIONS ---
+  const handleAddRequisition = async (reqData: Omit<Requisition, 'id' | 'status' | 'created_at'>) => {
+    const newReq: Requisition = {
+      ...reqData,
+      id: "req-" + Math.random().toString(36).substring(2, 11),
+      status: 'pending',
+      created_by: currentProfile?.email || "anonymous",
+      created_at: new Date().toISOString()
+    };
+
+    setRequisitions(prev => [newReq, ...prev]);
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+      await fetch("/api/requisitions", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(newReq)
+      });
+    } catch (err) {
+      console.warn("Backend save failed for requisition, saved locally:", err);
+    }
+  };
+
+  const handleApproveRequisition = async (id: string, approvedBy: string) => {
+    setRequisitions(prev => prev.map(r => r.id === id ? { 
+      ...r, 
+      status: 'approved' as const, 
+      approved_by: approvedBy, 
+      approved_at: new Date().toISOString().split('T')[0] 
+    } : r));
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+      await fetch(`/api/requisitions/${encodeURIComponent(id)}/approve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ approved_by: approvedBy })
+      });
+    } catch (err) {
+      console.warn("Backend approve failed for requisition, updated locally:", err);
+    }
+  };
+
+  const handleRejectRequisition = async (id: string, rejectedBy: string) => {
+    setRequisitions(prev => prev.map(r => r.id === id ? { 
+      ...r, 
+      status: 'rejected' as const, 
+      approved_by: rejectedBy, 
+      approved_at: new Date().toISOString().split('T')[0] 
+    } : r));
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+      await fetch(`/api/requisitions/${encodeURIComponent(id)}/reject`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ rejected_by: rejectedBy })
+      });
+    } catch (err) {
+      console.warn("Backend reject failed for requisition, updated locally:", err);
+    }
+  };
+
+  const handleUpdateRequisition = async (id: string, updatedFields: Partial<Requisition>) => {
+    setRequisitions(prev => prev.map(r => r.id === id ? { ...r, ...updatedFields } : r));
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+      await fetch(`/api/requisitions/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(updatedFields)
+      });
+    } catch (err) {
+      console.warn("Backend update failed for requisition, updated locally:", err);
+    }
+  };
+
+  const handleDeleteRequisition = async (id: string) => {
+    setRequisitions(prev => prev.filter(r => r.id !== id));
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+      await fetch(`/api/requisitions/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers
+      });
+    } catch (err) {
+      console.warn("Backend delete failed for requisition, updated locally:", err);
+    }
+  };
+
   // --- DELETE ENTRY ACTION ---
   const handleDeleteEntry = async (id: string) => {
     try {
@@ -1189,7 +1326,8 @@ export default function App() {
     can_access_cutting_entry: boolean,
     can_access_remnant_entry: boolean,
     can_access_heat_seal_entry: boolean,
-    can_access_poly_entry: boolean
+    can_access_poly_entry: boolean,
+    can_access_requisition: boolean
   ) => {
     try {
       const headers = {
@@ -1205,7 +1343,8 @@ export default function App() {
           can_access_cutting_entry, 
           can_access_remnant_entry,
           can_access_heat_seal_entry,
-          can_access_poly_entry
+          can_access_poly_entry,
+          can_access_requisition
         })
       });
 
@@ -1224,7 +1363,8 @@ export default function App() {
           can_access_cutting_entry: updatedProfile.can_access_cutting_entry,
           can_access_remnant_entry: updatedProfile.can_access_remnant_entry,
           can_access_heat_seal_entry: updatedProfile.can_access_heat_seal_entry,
-          can_access_poly_entry: updatedProfile.can_access_poly_entry
+          can_access_poly_entry: updatedProfile.can_access_poly_entry,
+          can_access_requisition: updatedProfile.can_access_requisition
         }));
       }
 
@@ -2137,6 +2277,21 @@ export default function App() {
                   onDeleteTarget={handleDeleteHeatSealTarget}
                   schemaDDL={SCHEMA_DDL_STRING}
                   rlsDDL={RLS_DDL_STRING}
+                />
+              </div>
+            )}
+
+            {/* TAB 4.7: REQUISITIONS MODULE */}
+            {activeTab === "requisitions" && (
+              <div className="animate-fade-in">
+                <RequisitionModule
+                  requisitions={requisitions}
+                  currentProfile={currentProfile!}
+                  onAddRequisition={handleAddRequisition}
+                  onApproveRequisition={handleApproveRequisition}
+                  onRejectRequisition={handleRejectRequisition}
+                  onUpdateRequisition={handleUpdateRequisition}
+                  onDeleteRequisition={handleDeleteRequisition}
                 />
               </div>
             )}

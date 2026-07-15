@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     can_access_remnant_entry BOOLEAN NOT NULL DEFAULT true,
     can_access_heat_seal_entry BOOLEAN NOT NULL DEFAULT true,
     can_access_poly_entry BOOLEAN NOT NULL DEFAULT true,
+    can_access_requisition BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -251,4 +252,26 @@ CREATE TRIGGER update_heat_seal_targets_modtime
     BEFORE UPDATE ON public.heat_seal_targets
     FOR EACH ROW
     EXECUTE PROCEDURE update_heat_seal_targets_modtime_fn();
+
+-- ====================================================================
+-- 13. Requisitions Table
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.requisitions (
+    id VARCHAR(255) PRIMARY KEY,
+    req_id VARCHAR(100) NOT NULL UNIQUE,
+    item_description TEXT NOT NULL,
+    request_person VARCHAR(255) NOT NULL,
+    qty NUMERIC NOT NULL CHECK (qty > 0),
+    sent_date DATE NOT NULL,
+    received_date DATE,
+    work_order_no VARCHAR(100) NOT NULL,
+    mrri_no VARCHAR(100),
+    issue_no VARCHAR(100),
+    remarks TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    created_by VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    approved_by VARCHAR(255),
+    approved_at DATE
+);
 
