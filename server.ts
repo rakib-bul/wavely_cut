@@ -1679,7 +1679,9 @@ app.get("/api/sync", async (req, res) => {
       hsEntryCount,
       hsOpCount,
       hsTargetMax,
-      hsTargetCount
+      hsTargetCount,
+      fabricMax,
+      fabricCount
     ] = await Promise.all([
       supabase.from("cutting_entries").select("updated_at").order("updated_at", { ascending: false }).limit(1),
       supabase.from("cutting_entries").select("created_at").order("created_at", { ascending: false }).limit(1),
@@ -1695,7 +1697,9 @@ app.get("/api/sync", async (req, res) => {
       supabase.from("heat_seal_entries").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
       supabase.from("heat_seal_operators").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
       supabase.from("heat_seal_targets").select("updated_at").order("updated_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.updated_at || "", () => ""),
-      supabase.from("heat_seal_targets").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0)
+      supabase.from("heat_seal_targets").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0),
+      supabase.from("fabric_metrics").select("updated_at").order("updated_at", { ascending: false }).limit(1).then(r => r.data?.[0]?.updated_at || "", () => ""),
+      supabase.from("fabric_metrics").select("id", { count: "exact", head: true }).then(r => r.count || 0, () => 0)
     ]);
 
     server_version = "";
@@ -1717,6 +1721,8 @@ app.get("/api/sync", async (req, res) => {
         hsOpCount,
         hsTargetMax,
         hsTargetCount,
+        fabricMax,
+        fabricCount,
         systemSettings?.whats_new_updated_at || ""
       ].join("|");
 
@@ -1922,7 +1928,24 @@ app.get("/api/sync", async (req, res) => {
       }
     })();
 
-    const [machines, buyers, entries, auditLogs, profiles, polyEntries, heatSealEntries, heatSealOperators, heatSealTargets, requisitions] = await Promise.all([
+    const fabricMetricsPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("fabric_metrics")
+          .select("*")
+          .order("entry_date", { ascending: false });
+        if (error) {
+          console.warn("Could not fetch fabric_metrics from Supabase, returning local setting fallback:", error.message);
+          return (systemSettings as any).fabric_metrics || [];
+        }
+        return data || [];
+      } catch (err: any) {
+        console.warn("Could not fetch fabric_metrics from Supabase, returning local setting fallback:", err.message);
+        return (systemSettings as any).fabric_metrics || [];
+      }
+    })();
+
+    const [machines, buyers, entries, auditLogs, profiles, polyEntries, heatSealEntries, heatSealOperators, heatSealTargets, requisitions, fabricMetrics] = await Promise.all([
       machinesPromise,
       buyersPromise,
       entriesPromise,
@@ -1932,7 +1955,8 @@ app.get("/api/sync", async (req, res) => {
       heatSealPromise,
       heatSealOperatorsPromise,
       heatSealTargetsPromise,
-      requisitionsPromise
+      requisitionsPromise,
+      fabricMetricsPromise
     ]);
 
     return res.json({
@@ -1946,6 +1970,7 @@ app.get("/api/sync", async (req, res) => {
       heatSealOperators,
       heatSealTargets,
       requisitions,
+      fabricMetrics,
       settings: systemSettings,
       version: res.locals.server_version || ""
     });
@@ -2206,6 +2231,346 @@ app.delete("/api/poly-entries/:id", async (req, res) => {
   } catch (err: any) {
     console.error("Failed to delete poly entry:", err.message);
     return res.status(500).json({ error: "Failed to delete poly entry: " + err.message });
+  }
+});
+
+
+// ==========================================
+// FABRIC METRICS ENTRY PANEL API
+// ==========================================
+
+app.post("/api/fabric-metrics", async (req, res) => {
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role === "manager") {
+    return res.status(403).json({ error: "Permission Denied. Managers do not have write access." });
+  }
+
+  const data = req.body;
+  if (!data.entry_date || !data.buyer || !data.job_no || !data.color || !data.item || !data.fabric_type || !data.po_no) {
+    return res.status(400).json({ error: "Missing required core fields (Date, Buyer, Job No, Color, Item, Fabric Type, PO Number)." });
+  }
+
+  try {
+    let creatorId: string | null = null;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+      if (prof) {
+        creatorId = prof.id;
+      }
+    } catch {}
+
+    const finalStatus = data.status === "submitted" ? "approved" : (data.status || "draft");
+
+    const payload = {
+      entry_date: data.entry_date,
+      buyer: data.buyer,
+      job_no: data.job_no,
+      color: data.color,
+      item: data.item,
+      fabric_type: data.fabric_type,
+      po_no: data.po_no,
+      po_order_qty: parseInt(data.po_order_qty) || 0,
+      booking_kg: parseFloat(data.booking_kg) || 0,
+      booking_gsm: parseInt(data.booking_gsm) || 0,
+      booking_dia: parseInt(data.booking_dia) || 0,
+      net_consumption: parseFloat(data.net_consumption) || 0,
+      gross_consumption: parseFloat(data.gross_consumption) || 0,
+      rib_fabric_type: data.rib_fabric_type || null,
+      rib_gsm: data.rib_gsm ? parseInt(data.rib_gsm) : null,
+      rib_dia: data.rib_dia ? parseInt(data.rib_dia) : null,
+      rib_consumption: data.rib_consumption ? parseFloat(data.rib_consumption) : null,
+      has_back_neck_tape: !!data.has_back_neck_tape,
+      back_neck_tape_con: data.has_back_neck_tape && data.back_neck_tape_con ? parseFloat(data.back_neck_tape_con) : null,
+      back_neck_tape_gsm: data.has_back_neck_tape && data.back_neck_tape_gsm ? parseInt(data.back_neck_tape_gsm) : null,
+      back_neck_tape_dia: data.has_back_neck_tape && data.back_neck_tape_dia ? parseInt(data.back_neck_tape_dia) : null,
+      has_neck_binding: !!data.has_neck_binding,
+      neck_binding_con: data.has_neck_binding && data.neck_binding_con ? parseFloat(data.neck_binding_con) : null,
+      neck_binding_gsm: data.has_neck_binding && data.neck_binding_gsm ? parseInt(data.neck_binding_gsm) : null,
+      neck_binding_dia: data.has_neck_binding && data.neck_binding_dia ? parseInt(data.neck_binding_dia) : null,
+      status: finalStatus,
+      created_by: creatorId,
+      updated_at: new Date().toISOString()
+    };
+
+    let dbError: any = null;
+    let insertedData: any = null;
+
+    try {
+      const { data: dbData, error } = await supabase
+        .from("fabric_metrics")
+        .insert([payload])
+        .select();
+      dbError = error;
+      insertedData = dbData;
+    } catch (err: any) {
+      dbError = err;
+    }
+
+    if (dbError) {
+      console.warn("Database insert failed for fabric metrics, falling back to local settings.json:", dbError.message || dbError);
+      if (!(systemSettings as any).fabric_metrics) {
+        (systemSettings as any).fabric_metrics = [];
+      }
+      const uuidPlaceholder = "local_" + Math.random().toString(36).substring(2, 15);
+      const newLocalEntry = {
+        id: uuidPlaceholder,
+        ...payload,
+        created_at: new Date().toISOString()
+      };
+      (systemSettings as any).fabric_metrics.push(newLocalEntry);
+      saveSettings(systemSettings);
+      insertedData = [newLocalEntry];
+    }
+
+    await addAuditLog(
+      user_email,
+      "create",
+      "fabric_metrics",
+      insertedData?.[0]?.id,
+      null,
+      payload
+    );
+
+    return res.json({ success: true, message: "Fabric metrics logged successfully.", data: insertedData?.[0] });
+
+  } catch (err: any) {
+    console.error("Failed to log fabric metrics:", err.message);
+    return res.status(500).json({ error: "Failed to log fabric metrics: " + err.message });
+  }
+});
+
+app.put("/api/fabric-metrics/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role === "manager") {
+    return res.status(403).json({ error: "Permission Denied. Managers do not have write access." });
+  }
+
+  const data = req.body;
+
+  try {
+    const payload = {
+      entry_date: data.entry_date,
+      buyer: data.buyer,
+      job_no: data.job_no,
+      color: data.color,
+      item: data.item,
+      fabric_type: data.fabric_type,
+      po_no: data.po_no,
+      po_order_qty: parseInt(data.po_order_qty) || 0,
+      booking_kg: parseFloat(data.booking_kg) || 0,
+      booking_gsm: parseInt(data.booking_gsm) || 0,
+      booking_dia: parseInt(data.booking_dia) || 0,
+      net_consumption: parseFloat(data.net_consumption) || 0,
+      gross_consumption: parseFloat(data.gross_consumption) || 0,
+      rib_fabric_type: data.rib_fabric_type || null,
+      rib_gsm: data.rib_gsm ? parseInt(data.rib_gsm) : null,
+      rib_dia: data.rib_dia ? parseInt(data.rib_dia) : null,
+      rib_consumption: data.rib_consumption ? parseFloat(data.rib_consumption) : null,
+      has_back_neck_tape: !!data.has_back_neck_tape,
+      back_neck_tape_con: data.has_back_neck_tape && data.back_neck_tape_con ? parseFloat(data.back_neck_tape_con) : null,
+      back_neck_tape_gsm: data.has_back_neck_tape && data.back_neck_tape_gsm ? parseInt(data.back_neck_tape_gsm) : null,
+      back_neck_tape_dia: data.has_back_neck_tape && data.back_neck_tape_dia ? parseInt(data.back_neck_tape_dia) : null,
+      has_neck_binding: !!data.has_neck_binding,
+      neck_binding_con: data.has_neck_binding && data.neck_binding_con ? parseFloat(data.neck_binding_con) : null,
+      neck_binding_gsm: data.has_neck_binding && data.neck_binding_gsm ? parseInt(data.neck_binding_gsm) : null,
+      neck_binding_dia: data.has_neck_binding && data.neck_binding_dia ? parseInt(data.neck_binding_dia) : null,
+      status: data.status || "draft",
+      updated_at: new Date().toISOString()
+    };
+
+    let dbError: any = null;
+    let updatedData: any = null;
+
+    if (id && !id.startsWith("local_")) {
+      try {
+        const { data: dbData, error } = await supabase
+          .from("fabric_metrics")
+          .update(payload)
+          .eq("id", id)
+          .select();
+        dbError = error;
+        updatedData = dbData;
+      } catch (err: any) {
+        dbError = err;
+      }
+    }
+
+    if (dbError || !updatedData || updatedData.length === 0) {
+      if ((systemSettings as any).fabric_metrics) {
+        const existingIndex = (systemSettings as any).fabric_metrics.findIndex((e: any) => e.id === id);
+        if (existingIndex >= 0) {
+          const merged = { ...(systemSettings as any).fabric_metrics[existingIndex], ...payload };
+          (systemSettings as any).fabric_metrics[existingIndex] = merged;
+          saveSettings(systemSettings);
+          updatedData = [merged];
+        }
+      }
+    }
+
+    if (!updatedData || updatedData.length === 0) {
+      return res.status(404).json({ error: "Fabric metrics entry not found." });
+    }
+
+    await addAuditLog(
+      user_email,
+      "edit",
+      "fabric_metrics",
+      id,
+      null,
+      payload
+    );
+
+    return res.json({ success: true, message: "Fabric metrics updated successfully.", data: updatedData[0] });
+
+  } catch (err: any) {
+    console.error("Failed to update fabric metrics:", err.message);
+    return res.status(500).json({ error: "Failed to update fabric metrics: " + err.message });
+  }
+});
+
+app.delete("/api/fabric-metrics/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (user_role === "operator" || user_role === "manager") {
+    if ((systemSettings as any).fabric_metrics) {
+      const entry = (systemSettings as any).fabric_metrics.find((e: any) => e.id === id);
+      if (entry && entry.status !== "draft") {
+        return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can delete approved/submitted entries." });
+      }
+    }
+  }
+
+  try {
+    let dbError: any = null;
+    let deletedCount = 0;
+
+    if (id && !id.startsWith("local_")) {
+      try {
+        const { data, error } = await supabase
+          .from("fabric_metrics")
+          .delete()
+          .eq("id", id)
+          .select();
+        dbError = error;
+        if (data && data.length > 0) {
+          deletedCount = data.length;
+        }
+      } catch (err: any) {
+        dbError = err;
+      }
+    }
+
+    if (dbError || deletedCount === 0) {
+      if ((systemSettings as any).fabric_metrics) {
+        const initialLength = (systemSettings as any).fabric_metrics.length;
+        (systemSettings as any).fabric_metrics = (systemSettings as any).fabric_metrics.filter((e: any) => e.id !== id);
+        if ((systemSettings as any).fabric_metrics.length < initialLength) {
+          saveSettings(systemSettings);
+          deletedCount = 1;
+        }
+      }
+    }
+
+    if (deletedCount > 0) {
+      await addAuditLog(user_email, "delete", "fabric_metrics", id, null, null);
+      return res.json({ success: true, message: "Fabric metrics deleted successfully." });
+    } else {
+      return res.status(404).json({ error: "Fabric metrics entry not found." });
+    }
+
+  } catch (err: any) {
+    console.error("Failed to delete fabric metrics:", err.message);
+    return res.status(500).json({ error: "Failed to delete fabric metrics: " + err.message });
+  }
+});
+
+app.put("/api/fabric-metrics/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const user_role = req.headers["x-user-role"] as UserRole;
+  const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
+
+  if (!["supervisor", "admin"].includes(user_role)) {
+    return res.status(403).json({ error: "Access Denied. Only Supervisors and Admins can approve entries." });
+  }
+
+  if (!status) {
+    return res.status(400).json({ error: "Status is required." });
+  }
+
+  try {
+    let approverId: string | null = null;
+    try {
+      const { data: prof } = await supabase.from("profiles").select("id").eq("email", user_email).single();
+      if (prof) {
+        approverId = prof.id;
+      }
+    } catch {}
+
+    const payload = {
+      status,
+      approved_by: status === "approved" ? approverId : null,
+      updated_at: new Date().toISOString()
+    };
+
+    let dbError: any = null;
+    let updatedData: any = null;
+
+    if (id && !id.startsWith("local_")) {
+      try {
+        const { data: dbData, error } = await supabase
+          .from("fabric_metrics")
+          .update(payload)
+          .eq("id", id)
+          .select();
+        dbError = error;
+        updatedData = dbData;
+      } catch (err: any) {
+        dbError = err;
+      }
+    }
+
+    if (dbError || !updatedData || updatedData.length === 0) {
+      if ((systemSettings as any).fabric_metrics) {
+        const existingIndex = (systemSettings as any).fabric_metrics.findIndex((e: any) => e.id === id);
+        if (existingIndex >= 0) {
+          const merged = { 
+            ...(systemSettings as any).fabric_metrics[existingIndex], 
+            ...payload,
+            approved_by: status === "approved" ? user_email : null
+          };
+          (systemSettings as any).fabric_metrics[existingIndex] = merged;
+          saveSettings(systemSettings);
+          updatedData = [merged];
+        }
+      }
+    }
+
+    if (!updatedData || updatedData.length === 0) {
+      return res.status(404).json({ error: "Fabric metrics entry not found." });
+    }
+
+    await addAuditLog(
+      user_email,
+      "approve",
+      "fabric_metrics",
+      id,
+      null,
+      { status }
+    );
+
+    return res.json({ success: true, message: `Fabric metrics entry ${status} successfully.`, data: updatedData[0] });
+
+  } catch (err: any) {
+    console.error("Failed to update status of fabric metrics:", err.message);
+    return res.status(500).json({ error: "Failed to update status of fabric metrics: " + err.message });
   }
 });
 

@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
 
 -- Seed Settings
 INSERT INTO public.settings (key, value)
-VALUES ('app_settings', '{"job_no_digits": 7, "is_po_number_required": false, "poly_price": 1.50}')
+VALUES ('app_settings', '{"job_no_digits": 7, "is_po_number_required": false, "poly_price": 1.50, "color_type_metrics": {"Solid": {"above_10000": 3.0, "between_5001_9999": 4.0, "between_2001_5000": 5.0, "between_1000_2000": 6.0, "below_1000": 8.0}, "RFD Wash": {"above_10000": 8.0, "between_5001_9999": 10.0, "between_2001_5000": 12.0, "between_1000_2000": 14.0, "below_1000": 17.0}, "RFD Wash(Print/Embordery)": {"above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5}, "Print/Embordery Send": {"above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5}, "Print & Embordery Send": {"above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5}}}')
 ON CONFLICT (key) DO NOTHING;
 
 -- Buyers Table
@@ -276,4 +276,47 @@ CREATE TABLE IF NOT EXISTS public.requisitions (
     approved_by VARCHAR(255),
     approved_at DATE
 );
+
+-- ====================================================================
+-- 14. Fabric Metrics Table
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.fabric_metrics (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entry_date DATE NOT NULL,
+    buyer VARCHAR(100) NOT NULL,
+    job_no VARCHAR(100) NOT NULL,
+    color VARCHAR(100) NOT NULL,
+    item VARCHAR(100) NOT NULL,
+    fabric_type VARCHAR(100) NOT NULL,
+    po_no VARCHAR(100) NOT NULL,
+    po_order_qty INT NOT NULL CHECK (po_order_qty >= 0),
+    booking_kg NUMERIC(10, 3) NOT NULL CHECK (booking_kg >= 0),
+    booking_gsm INT NOT NULL CHECK (booking_gsm >= 0),
+    booking_dia INT NOT NULL CHECK (booking_dia >= 0),
+    net_consumption NUMERIC(10, 3) NOT NULL CHECK (net_consumption >= 0),
+    gross_consumption NUMERIC(10, 3) NOT NULL CHECK (gross_consumption >= 0),
+    rib_fabric_type VARCHAR(100),
+    rib_gsm INT,
+    rib_dia INT,
+    rib_consumption NUMERIC(10, 3),
+    has_back_neck_tape BOOLEAN NOT NULL DEFAULT false,
+    back_neck_tape_con NUMERIC(10, 3),
+    back_neck_tape_gsm INT,
+    back_neck_tape_dia INT,
+    has_neck_binding BOOLEAN NOT NULL DEFAULT false,
+    neck_binding_con NUMERIC(10, 3),
+    neck_binding_gsm INT,
+    neck_binding_dia INT,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved')),
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TRIGGER update_fabric_metrics_modtime
+    BEFORE UPDATE ON public.fabric_metrics
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_modified_column();
+
 

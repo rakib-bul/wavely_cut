@@ -9,12 +9,13 @@ import ReportsModule from "./components/ReportsModule";
 import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import TableProductionView from "./components/TableProductionView";
-import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, HeatSealEntry, HeatSealOperator, HeatSealTarget, Requisition } from "./types";
+import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, HeatSealEntry, HeatSealOperator, HeatSealTarget, Requisition, FabricMetricsEntry } from "./types";
 import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
 import PolyTrackingModule from "./components/PolyTrackingModule";
 import HeatSealModule from "./components/HeatSealModule";
 import HeatSealDashboardInsight from "./components/HeatSealDashboardInsight";
 import RequisitionModule from "./components/RequisitionModule";
+import FabricMetricsModule from "./components/FabricMetricsModule";
 import { SCHEMA_DDL_STRING, RLS_DDL_STRING } from "./db/ddl_strings";
 import { 
   BarChart, 
@@ -191,6 +192,21 @@ export default function App() {
       localStorage.setItem("erp_cached_requisitions", JSON.stringify(requisitions));
     } catch (e) {}
   }, [requisitions]);
+
+  const [fabricMetrics, setFabricMetrics] = useState<FabricMetricsEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_fabric_metrics");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("erp_cached_fabric_metrics", JSON.stringify(fabricMetrics));
+    } catch (e) {}
+  }, [fabricMetrics]);
 
   // --- Loading / Network feedback ---
   const [isLoading, setIsLoading] = useState<boolean>(() => {
@@ -399,6 +415,14 @@ export default function App() {
           setRequisitions(syncData.requisitions);
           try {
             localStorage.setItem("erp_cached_requisitions", JSON.stringify(syncData.requisitions));
+          } catch (e) {}
+        }
+
+        // Update fabric metrics state
+        if (syncData.fabricMetrics) {
+          setFabricMetrics(syncData.fabricMetrics);
+          try {
+            localStorage.setItem("erp_cached_fabric_metrics", JSON.stringify(syncData.fabricMetrics));
           } catch (e) {}
         }
 
@@ -1025,6 +1049,110 @@ export default function App() {
       });
     } catch (err) {
       console.warn("Backend delete failed for requisition, updated locally:", err);
+    }
+  };
+
+  // --- FABRIC METRICS ENTRY ACTIONS ---
+  const handleSubmitFabricMetrics = async (formData: any) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch("/api/fabric-metrics", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(formData)
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Server validation failed");
+      }
+
+      await fetchData();
+      return { success: true };
+    } catch (err: any) {
+      throw new Error(err.message || "Submission failed");
+    }
+  };
+
+  const handleUpdateFabricMetrics = async (id: string, formData: any) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/fabric-metrics/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(formData)
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Server update failed");
+      }
+
+      await fetchData();
+      return { success: true };
+    } catch (err: any) {
+      throw new Error(err.message || "Update failed");
+    }
+  };
+
+  const handleDeleteFabricMetrics = async (id: string) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/fabric-metrics/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Server delete failed");
+      }
+
+      await fetchData();
+      return { success: true };
+    } catch (err: any) {
+      throw new Error(err.message || "Delete failed");
+    }
+  };
+
+  const handleApproveFabricMetrics = async (id: string, status: "approved" | "rejected") => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile?.role || "operator",
+        "X-User-Email": currentProfile?.email || ""
+      };
+
+      const res = await fetch(`/api/fabric-metrics/${encodeURIComponent(id)}/status`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ status })
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Status update failed");
+      }
+
+      await fetchData();
+      return { success: true };
+    } catch (err: any) {
+      throw new Error(err.message || "Status update failed");
     }
   };
 
@@ -2170,6 +2298,22 @@ export default function App() {
                 ) : (
                   <TableProductionView entries={mainEntries} />
                 )}
+              </div>
+            )}
+
+            {/* TAB 1.2: FABRIC METRICS SPECIFICATION */}
+            {activeTab === "fabric_metrics" && (
+              <div className="space-y-6 animate-fade-in">
+                <FabricMetricsModule
+                  fabricMetrics={fabricMetrics}
+                  buyers={buyers}
+                  currentProfile={currentProfile}
+                  onSubmitEntry={handleSubmitFabricMetrics}
+                  onUpdateEntry={handleUpdateFabricMetrics}
+                  onDeleteEntry={handleDeleteFabricMetrics}
+                  onApproveEntry={handleApproveFabricMetrics}
+                  onRefresh={() => fetchData(true)}
+                />
               </div>
             )}
 

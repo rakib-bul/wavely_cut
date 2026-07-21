@@ -18,7 +18,8 @@ import {
   Flame,
   ChevronLeft,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Ruler
 } from "lucide-react";
 import { Profile, UserRole } from "../types";
 
@@ -54,6 +55,7 @@ export default function Sidebar({
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["operator", "supervisor", "manager", "admin"] },
+    { id: "fabric_metrics", label: "Fabric Metrics", icon: Ruler, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "stripe_dashboard", label: "Stripe Panel", icon: Sparkles, roles: ["operator", "supervisor", "manager", "admin"] },
     { id: "data_entry", label: "Cutting Entries", icon: ListPlus, roles: ["operator", "supervisor", "admin"] },
     { id: "reports", label: "Ledgers & Reports", icon: FileSpreadsheet, roles: ["operator", "supervisor", "manager", "admin"] },

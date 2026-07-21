@@ -676,35 +676,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                 />
               </div>
 
-              {/* Order Qty */}
-              <div>
-                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Order Qty (for Max Qty restriction)</label>
-                <input
-                  type="number"
-                  name="order_qty"
-                  value={formData.order_qty}
-                  onChange={handleInputChange}
-                  placeholder="e.g. 10000"
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
-                />
-              </div>
 
-              {/* Color Type */}
-              <div>
-                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Color Type</label>
-                <select
-                  name="color_type"
-                  value={formData.color_type}
-                  onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
-                >
-                  <option value="Solid">Solid</option>
-                  <option value="RFD Wash">RFD Wash</option>
-                  <option value="RFD Wash(Print/Embordery)">RFD Wash(Print/Embordery)</option>
-                  <option value="Print/Embordery Send">Print/Embordery Send</option>
-                  <option value="Print & Embordery Send">Print & Embordery Send</option>
-                </select>
-              </div>
 
               {/* 4. item */}
               <div>

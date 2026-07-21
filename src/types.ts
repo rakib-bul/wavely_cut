@@ -169,3 +169,38 @@ export interface Requisition {
   approved_at?: string;
 }
 
+export interface FabricMetricsEntry {
+  id: string;
+  entry_date: string; // YYYY-MM-DD
+  buyer: string;
+  job_no: string;
+  color: string;
+  item: string;
+  fabric_type: string;
+  po_no: string;
+  po_order_qty: number;
+  booking_kg: number;
+  booking_gsm: number;
+  booking_dia: number;
+  net_consumption: number;
+  gross_consumption: number;
+  rib_fabric_type?: string;
+  rib_gsm?: number;
+  rib_dia?: number;
+  rib_consumption?: number;
+  has_back_neck_tape: boolean;
+  back_neck_tape_con?: number;
+  back_neck_tape_gsm?: number;
+  back_neck_tape_dia?: number;
+  has_neck_binding: boolean;
+  neck_binding_con?: number;
+  neck_binding_gsm?: number;
+  neck_binding_dia?: number;
+  status: EntryStatus;
+  created_by: string; // email / profile_id
+  approved_by?: string; // email / profile_id
+  created_at: string;
+  updated_at: string;
+}
+
+
