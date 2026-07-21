@@ -22,7 +22,8 @@ import {
   ImagePlus,
   X,
   Coins,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
 import { Profile, Machine, AuditLog, UserRole, Buyer } from "../types";
 
@@ -58,6 +59,58 @@ interface AdminModuleProps {
   onUpdateWhatsNew?: (title: string, content: string) => Promise<void>;
   polyPrice?: number;
   onUpdatePolyPrice?: (price: number) => Promise<void>;
+  colorTypeMetrics?: any;
+  onUpdateColorTypeMetrics?: (metrics: any) => Promise<void>;
+}
+
+function normalizeMetrics(rawMetrics: any) {
+  const defaultBase: any = {
+    "Solid": { "above_10000": 3.0, "between_5001_9999": 4.0, "between_2001_5000": 5.0, "between_1000_2000": 6.0, "below_1000": 8.0 },
+    "RFD Wash": { "above_10000": 8.0, "between_5001_9999": 10.0, "between_2001_5000": 12.0, "between_1000_2000": 14.0, "below_1000": 17.0 },
+    "RFD Wash(Print/Embordery)": { "above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5 },
+    "Print/Embordery Send": { "above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5 },
+    "Print & Embordery Send": { "above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5 }
+  };
+
+  const result: any = {};
+  const keys = ["Solid", "RFD Wash", "RFD Wash(Print/Embordery)", "Print/Embordery Send", "Print & Embordery Send"];
+
+  keys.forEach(k => {
+    const source = rawMetrics?.[k] || defaultBase[k];
+    if (source && source.above_10000 !== undefined && source.default === undefined) {
+      // Old flat structure
+      result[k] = {
+        default: {
+          above_10000: Number(source.above_10000),
+          between_5001_9999: Number(source.between_5001_9999),
+          between_2001_5000: Number(source.between_2001_5000),
+          between_1000_2000: Number(source.between_1000_2000),
+          below_1000: Number(source.below_1000),
+        },
+        buyers: {}
+      };
+    } else if (source && source.default) {
+      // New structure
+      result[k] = {
+        default: {
+          above_10000: Number(source.default.above_10000 ?? 0),
+          between_5001_9999: Number(source.default.between_5001_9999 ?? 0),
+          between_2001_5000: Number(source.default.between_2001_5000 ?? 0),
+          between_1000_2000: Number(source.default.between_1000_2000 ?? 0),
+          below_1000: Number(source.default.below_1000 ?? 0),
+        },
+        buyers: source.buyers || {}
+      };
+    } else {
+      // Fallback
+      result[k] = {
+        default: { ...defaultBase[k] },
+        buyers: {}
+      };
+    }
+  });
+
+  return result;
 }
 
 export default function AdminModule({
@@ -84,7 +137,9 @@ export default function AdminModule({
   whatsNewUpdatedAt = "",
   onUpdateWhatsNew,
   polyPrice = 1.50,
-  onUpdatePolyPrice
+  onUpdatePolyPrice,
+  colorTypeMetrics,
+  onUpdateColorTypeMetrics
 }: AdminModuleProps) {
   // --- Admin Views State ---
   const [activeAdminTab, setActiveAdminTab] = useState<'iam' | 'machines' | 'buyers' | 'settings' | 'logs' | 'ddl'>('iam');
@@ -112,6 +167,23 @@ export default function AdminModule({
   React.useEffect(() => {
     setLocalContent(whatsNewContent);
   }, [whatsNewContent]);
+
+  // Color Type Metrics States
+  const [localMetrics, setLocalMetrics] = useState<any>(() => normalizeMetrics(colorTypeMetrics));
+  const [isSavingMetrics, setIsSavingMetrics] = useState(false);
+  const [selectedBuyerToAdd, setSelectedBuyerToAdd] = useState<{ [colorType: string]: string }>({
+    "Solid": "",
+    "RFD Wash": "",
+    "RFD Wash(Print/Embordery)": "",
+    "Print/Embordery Send": "",
+    "Print & Embordery Send": ""
+  });
+
+  React.useEffect(() => {
+    if (colorTypeMetrics) {
+      setLocalMetrics(normalizeMetrics(colorTypeMetrics));
+    }
+  }, [colorTypeMetrics]);
 
   // Profile picture editor states
   const [selectedProfileForAvatar, setSelectedProfileForAvatar] = useState<Profile | null>(null);
@@ -181,6 +253,120 @@ export default function AdminModule({
       alert("Error persisting settings: " + err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDefaultMetricChange = (colorType: string, range: string, value: string) => {
+    setLocalMetrics((prev: any) => {
+      const currentConfig = prev[colorType] || { default: {}, buyers: {} };
+      return {
+        ...prev,
+        [colorType]: {
+          ...currentConfig,
+          default: {
+            ...currentConfig.default,
+            [range]: value === "" ? "" : (parseFloat(value) || 0)
+          }
+        }
+      };
+    });
+  };
+
+  const handleBuyerMetricChange = (colorType: string, buyerName: string, range: string, value: string) => {
+    setLocalMetrics((prev: any) => {
+      const currentConfig = prev[colorType] || { default: {}, buyers: {} };
+      const currentBuyers = { ...currentConfig.buyers };
+      const currentBuyerConfig = currentBuyers[buyerName] || { "above_10000": 0, "between_5001_9999": 0, "between_2001_5000": 0, "between_1000_2000": 0, "below_1000": 0 };
+      
+      currentBuyers[buyerName] = {
+        ...currentBuyerConfig,
+        [range]: value === "" ? "" : (parseFloat(value) || 0)
+      };
+
+      return {
+        ...prev,
+        [colorType]: {
+          ...currentConfig,
+          buyers: currentBuyers
+        }
+      };
+    });
+  };
+
+  const handleAddBuyerMetric = (colorType: string, buyerName: string) => {
+    if (!buyerName) return;
+    setLocalMetrics((prev: any) => {
+      const currentConfig = prev[colorType] || { default: {}, buyers: {} };
+      const currentBuyers = { ...currentConfig.buyers };
+      if (currentBuyers[buyerName]) {
+        alert("This buyer already has specific thresholds configured for this color type.");
+        return prev;
+      }
+      
+      // Initialize with default thresholds as a starting point
+      currentBuyers[buyerName] = {
+        ...currentConfig.default
+      };
+
+      return {
+        ...prev,
+        [colorType]: {
+          ...currentConfig,
+          buyers: currentBuyers
+        }
+      };
+    });
+  };
+
+  const handleRemoveBuyerMetric = (colorType: string, buyerName: string) => {
+    setLocalMetrics((prev: any) => {
+      const currentConfig = prev[colorType] || { default: {}, buyers: {} };
+      const currentBuyers = { ...currentConfig.buyers };
+      delete currentBuyers[buyerName];
+
+      return {
+        ...prev,
+        [colorType]: {
+          ...currentConfig,
+          buyers: currentBuyers
+        }
+      };
+    });
+  };
+
+  const handleSaveMetrics = async () => {
+    if (!onUpdateColorTypeMetrics) return;
+    setIsSavingMetrics(true);
+    try {
+      const finalMetrics: any = {};
+      Object.keys(localMetrics).forEach(colorType => {
+        const config = localMetrics[colorType] || { default: {}, buyers: {} };
+        
+        const cleanDefault: any = {};
+        Object.keys(config.default || {}).forEach(range => {
+          cleanDefault[range] = config.default[range] === "" ? 0 : Number(config.default[range]);
+        });
+
+        const cleanBuyers: any = {};
+        Object.keys(config.buyers || {}).forEach(buyer => {
+          cleanBuyers[buyer] = {};
+          Object.keys(config.buyers[buyer] || {}).forEach(range => {
+            cleanBuyers[buyer][range] = config.buyers[buyer][range] === "" ? 0 : Number(config.buyers[buyer][range]);
+          });
+        });
+
+        finalMetrics[colorType] = {
+          default: cleanDefault,
+          buyers: cleanBuyers
+        };
+      });
+
+      await onUpdateColorTypeMetrics(finalMetrics);
+      alert("Color type-wise allowance metrics with buyer-specific rules updated successfully!");
+    } catch (err: any) {
+      alert("Error persisting metrics: " + err.message);
+    } finally {
+      setIsSavingMetrics(false);
     }
   };
 
@@ -1117,6 +1303,256 @@ export default function AdminModule({
                   </span>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Color Type Wise Allowance metrics */}
+          <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-850">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Settings2 size={16} className="text-[#2563EB]" /> Color Type-Wise Allowance Metrics
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-6 font-medium">
+              Configure the allowance limit ("Max Qty" percentage threshold) for Cutting Entry submissions based on the order quantity ranges, fabric/color type, and specific buyer overrides.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[
+                { name: "Solid", key: "Solid" },
+                { name: "RFD Wash", key: "RFD Wash" },
+                { name: "RFD Wash(Print/Embordery)", key: "RFD Wash(Print/Embordery)" },
+                { name: "Print/Embordery Send", key: "Print/Embordery Send" },
+                { name: "Print & Embordery Send", key: "Print & Embordery Send" }
+              ].map(ct => {
+                const config = localMetrics[ct.key] || {
+                  default: { "above_10000": 0, "between_5001_9999": 0, "between_2001_5000": 0, "between_1000_2000": 0, "below_1000": 0 },
+                  buyers: {}
+                };
+                const defaultRules = config.default || { "above_10000": 0, "between_5001_9999": 0, "between_2001_5000": 0, "between_1000_2000": 0, "below_1000": 0 };
+                const buyerRules = config.buyers || {};
+
+                return (
+                  <div key={ct.key} className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-xs animate-fade-in flex flex-col gap-5">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2 uppercase tracking-wide flex items-center justify-between">
+                        <span>{ct.name}</span>
+                        <span className="text-[10px] text-blue-500 font-extrabold uppercase">Default & Overrides</span>
+                      </h4>
+                    </div>
+
+                    {/* 1. Default Rules Section */}
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block mb-2.5">Global Default Allowance</span>
+                      <div className="grid grid-cols-5 gap-2">
+                        <div>
+                          <label className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">≥ 10k</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={defaultRules.above_10000}
+                              onChange={e => handleDefaultMetricChange(ct.key, "above_10000", e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-1 px-1.5 pr-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition text-slate-850 dark:text-slate-100 text-[10px]"
+                            />
+                            <span className="absolute right-1 top-1 text-[8px] font-bold text-slate-400">%</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">5k-10k</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={defaultRules.between_5001_9999}
+                              onChange={e => handleDefaultMetricChange(ct.key, "between_5001_9999", e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-1 px-1.5 pr-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition text-slate-850 dark:text-slate-100 text-[10px]"
+                            />
+                            <span className="absolute right-1 top-1 text-[8px] font-bold text-slate-400">%</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">2k-5k</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={defaultRules.between_2001_5000}
+                              onChange={e => handleDefaultMetricChange(ct.key, "between_2001_5000", e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-1 px-1.5 pr-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition text-slate-850 dark:text-slate-100 text-[10px]"
+                            />
+                            <span className="absolute right-1 top-1 text-[8px] font-bold text-slate-400">%</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">1k-2k</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={defaultRules.between_1000_2000}
+                              onChange={e => handleDefaultMetricChange(ct.key, "between_1000_2000", e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-1 px-1.5 pr-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition text-slate-850 dark:text-slate-100 text-[10px]"
+                            />
+                            <span className="absolute right-1 top-1 text-[8px] font-bold text-slate-400">%</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">&lt; 1k</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={defaultRules.below_1000}
+                              onChange={e => handleDefaultMetricChange(ct.key, "below_1000", e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-1 px-1.5 pr-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 transition text-slate-850 dark:text-slate-100 text-[10px]"
+                            />
+                            <span className="absolute right-1 top-1 text-[8px] font-bold text-slate-400">%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. Buyer Specific Overrides Section */}
+                    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 block">Buyer Overrides ({Object.keys(buyerRules).length})</span>
+                      </div>
+
+                      {Object.keys(buyerRules).length === 0 ? (
+                        <div className="py-4 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-[10px] font-semibold">
+                          No buyer-specific rules configured.
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                          {Object.keys(buyerRules).map(buyer => {
+                            const rules = buyerRules[buyer];
+                            return (
+                              <div key={buyer} className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-900 relative">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-[10px] font-black text-blue-600 dark:text-blue-400">{buyer} Allowance</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveBuyerMetric(ct.key, buyer)}
+                                    className="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
+                                    title="Delete override"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-5 gap-1.5">
+                                  <div>
+                                    <label className="text-[7px] font-extrabold text-slate-400 uppercase block mb-0.5">≥ 10k</label>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={rules.above_10000}
+                                      onChange={e => handleBuyerMetricChange(ct.key, buyer, "above_10000", e.target.value)}
+                                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md py-0.5 px-1 font-bold outline-none text-slate-800 dark:text-slate-100 text-[10px]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[7px] font-extrabold text-slate-400 uppercase block mb-0.5">5k-10k</label>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={rules.between_5001_9999}
+                                      onChange={e => handleBuyerMetricChange(ct.key, buyer, "between_5001_9999", e.target.value)}
+                                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md py-0.5 px-1 font-bold outline-none text-slate-800 dark:text-slate-100 text-[10px]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[7px] font-extrabold text-slate-400 uppercase block mb-0.5">2k-5k</label>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={rules.between_2001_5000}
+                                      onChange={e => handleBuyerMetricChange(ct.key, buyer, "between_2001_5000", e.target.value)}
+                                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md py-0.5 px-1 font-bold outline-none text-slate-800 dark:text-slate-100 text-[10px]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[7px] font-extrabold text-slate-400 uppercase block mb-0.5">1k-2k</label>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={rules.between_1000_2000}
+                                      onChange={e => handleBuyerMetricChange(ct.key, buyer, "between_1000_2000", e.target.value)}
+                                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md py-0.5 px-1 font-bold outline-none text-slate-800 dark:text-slate-100 text-[10px]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[7px] font-extrabold text-slate-400 uppercase block mb-0.5">&lt; 1k</label>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={rules.below_1000}
+                                      onChange={e => handleBuyerMetricChange(ct.key, buyer, "below_1000", e.target.value)}
+                                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md py-0.5 px-1 font-bold outline-none text-slate-800 dark:text-slate-100 text-[10px]"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Add Override Control */}
+                      <div className="flex gap-2 items-center bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 mt-1">
+                        <select
+                          value={selectedBuyerToAdd[ct.key] || ""}
+                          onChange={e => setSelectedBuyerToAdd(prev => ({ ...prev, [ct.key]: e.target.value }))}
+                          className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg py-1 px-1.5 outline-none font-bold text-slate-800 dark:text-slate-100 text-[11px] cursor-pointer"
+                        >
+                          <option value="">-- Select Buyer --</option>
+                          {buyers.map(b => (
+                            <option key={b.id} value={b.name}>{b.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const bName = selectedBuyerToAdd[ct.key];
+                            if (!bName) {
+                              alert("Please select a buyer first.");
+                              return;
+                            }
+                            handleAddBuyerMetric(ct.key, bName);
+                            setSelectedBuyerToAdd(prev => ({ ...prev, [ct.key]: "" }));
+                          }}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[9px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                        >
+                          <Plus size={11} /> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 flex items-center gap-4">
+              <button
+                onClick={handleSaveMetrics}
+                disabled={isSavingMetrics}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isSavingMetrics ? "Saving Metrics..." : "Save Metrics Configuration"}
+              </button>
             </div>
           </div>
         </div>

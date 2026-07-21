@@ -167,7 +167,44 @@ let systemSettings = {
   whats_new_title: "",
   whats_new_content: "",
   whats_new_updated_at: "",
-  poly_price: 1.50
+  poly_price: 1.50,
+  color_type_metrics: {
+    "Solid": {
+      "above_10000": 3.0,
+      "between_5001_9999": 4.0,
+      "between_2001_5000": 5.0,
+      "between_1000_2000": 6.0,
+      "below_1000": 8.0
+    },
+    "RFD Wash": {
+      "above_10000": 8.0,
+      "between_5001_9999": 10.0,
+      "between_2001_5000": 12.0,
+      "between_1000_2000": 14.0,
+      "below_1000": 17.0
+    },
+    "RFD Wash(Print/Embordery)": {
+      "above_10000": 9.5,
+      "between_5001_9999": 11.5,
+      "between_2001_5000": 13.8,
+      "between_1000_2000": 18.0,
+      "below_1000": 19.5
+    },
+    "Print/Embordery Send": {
+      "above_10000": 9.5,
+      "between_5001_9999": 11.5,
+      "between_2001_5000": 13.8,
+      "between_1000_2000": 18.0,
+      "below_1000": 19.5
+    },
+    "Print & Embordery Send": {
+      "above_10000": 9.5,
+      "between_5001_9999": 11.5,
+      "between_2001_5000": 13.8,
+      "between_1000_2000": 18.0,
+      "below_1000": 19.5
+    }
+  }
 };
 
 function loadSettings() {
@@ -799,7 +836,7 @@ app.post("/api/entries", async (req, res) => {
     // Compute lay, ratio and calculate remaining fields
     const layNum = Number(data.lay) || 1;
     const ratioNum = Number(data.ratio) || 1;
-    const dataToInsert = {
+    const dataToInsert: any = {
       entry_date: data.entry_date,
       shift: sanitizeShift(data.shift),
       machine_id: data.machine_id,
@@ -807,6 +844,8 @@ app.post("/api/entries", async (req, res) => {
       job_no: (data.job_no || "").trim() || "DRAFT",
       color: (data.color || "").trim() || "DRAFT",
       po_no: data.po_no || null,
+      order_qty: data.order_qty !== undefined && data.order_qty !== null && data.order_qty !== "" ? Number(data.order_qty) : null,
+      color_type: data.color_type || null,
       item: (data.item || "").trim() || "DRAFT",
       cut_no: (data.cut_no || "").trim() || "DRAFT",
       lay: layNum,
@@ -829,11 +868,34 @@ app.post("/api/entries", async (req, res) => {
       approved_by: finalStatus === "approved" ? profId : null
     };
 
-    const { data: insertedEntry, error: insertErr } = await supabase
-      .from("cutting_entries")
-      .insert(dataToInsert)
-      .select()
-      .single();
+    let insertedEntry: any = null;
+    let insertErr: any = null;
+
+    try {
+      const { data: ins, error: err } = await supabase
+        .from("cutting_entries")
+        .insert(dataToInsert)
+        .select()
+        .single();
+      insertedEntry = ins;
+      insertErr = err;
+    } catch (e: any) {
+      insertErr = e;
+    }
+
+    if (insertErr && (insertErr.message?.includes("order_qty") || insertErr.message?.includes("color_type") || insertErr.code === "42703")) {
+      console.warn("DB columns missing for color type wise metrics. Falling back to retry without them.");
+      const fallbackData = { ...dataToInsert };
+      delete fallbackData.order_qty;
+      delete fallbackData.color_type;
+      const { data: ins, error: err } = await supabase
+        .from("cutting_entries")
+        .insert(fallbackData)
+        .select()
+        .single();
+      insertedEntry = ins;
+      insertErr = err;
+    }
 
     if (insertErr) {
       return res.status(500).json({ error: insertErr.message });
@@ -942,7 +1004,7 @@ app.post("/api/entries/bulk", async (req, res) => {
         }
       }
 
-      const dataToInsert = {
+      const dataToInsert: any = {
         entry_date: item.entry_date,
         shift: sanitizeShift(item.shift),
         machine_id: finalMachineIdToUse,
@@ -950,6 +1012,8 @@ app.post("/api/entries/bulk", async (req, res) => {
         job_no: item.job_no,
         color: item.color || "Default",
         po_no: item.po_no || null,
+        order_qty: item.order_qty !== undefined && item.order_qty !== null && item.order_qty !== "" ? Number(item.order_qty) : null,
+        color_type: item.color_type || null,
         item: item.item || "Tee",
         cut_no: item.cut_no,
         lay: Number(item.lay) || 1,
@@ -972,11 +1036,34 @@ app.post("/api/entries/bulk", async (req, res) => {
         approved_by: profId
       };
 
-      const { data: insertedEntry, error: insertErr } = await supabase
-        .from("cutting_entries")
-        .insert(dataToInsert)
-        .select()
-        .single();
+      let insertedEntry: any = null;
+      let insertErr: any = null;
+
+      try {
+        const { data: ins, error: err } = await supabase
+          .from("cutting_entries")
+          .insert(dataToInsert)
+          .select()
+          .single();
+        insertedEntry = ins;
+        insertErr = err;
+      } catch (e: any) {
+        insertErr = e;
+      }
+
+      if (insertErr && (insertErr.message?.includes("order_qty") || insertErr.message?.includes("color_type") || insertErr.code === "42703")) {
+        console.warn("DB columns missing for color type wise metrics on bulk import. Retrying fallback without them.");
+        const fallbackData = { ...dataToInsert };
+        delete fallbackData.order_qty;
+        delete fallbackData.color_type;
+        const { data: ins, error: err } = await supabase
+          .from("cutting_entries")
+          .insert(fallbackData)
+          .select()
+          .single();
+        insertedEntry = ins;
+        insertErr = err;
+      }
 
       if (insertErr) {
         errors.push(`Row ${item.cut_no}: Supabase insertion failed: ${insertErr.message}`);
@@ -1101,39 +1188,67 @@ app.put("/api/entries/:id", async (req, res) => {
     const approvedBy = finalStatus === "approved" ? (existingEntry.approved_by || editorId) : null;
 
     // Update inside Supabase
-    const { data: updatedEntry, error: updateErr } = await supabase
-      .from("cutting_entries")
-      .update({
-        entry_date: data.entry_date,
-        shift: sanitizeShift(data.shift),
-        buyer: (data.buyer || "").trim() || "DRAFT",
-        job_no: (data.job_no || "").trim() || "DRAFT",
-        color: (data.color || "").trim() || "DRAFT",
-        po_no: data.po_no || null,
-        item: (data.item || "").trim() || "DRAFT",
-        cut_no: (data.cut_no || "").trim() || "DRAFT",
-        lay: Number(data.lay),
-        ratio: Number(data.ratio),
-        table_no: data.table_no,
-        fabric_type: data.fabric_type,
-        parts: data.parts,
-        fabric_used_kg: Number(data.fabric_used_kg),
-        remnant_weight_kg: Number(data.remnant_weight_kg),
-        booking_consumption: data.booking_consumption !== undefined && data.booking_consumption !== null && data.booking_consumption !== "" ? Number(data.booking_consumption) : null,
-        cutting_consumption: data.cutting_consumption !== undefined && data.cutting_consumption !== null && data.cutting_consumption !== "" ? Number(data.cutting_consumption) : null,
-        cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg),
-        reject_qty: Number(data.reject_qty) || 0,
-        marker_length_inch: Number(data.marker_length_inch),
-        marker_consumption: data.marker_consumption !== undefined && data.marker_consumption !== null && data.marker_consumption !== "" ? Number(data.marker_consumption) : null,
-        marker_efficiency_percent: Number(data.marker_efficiency_percent),
-        remarks: data.remarks,
-        supervisor_name: data.supervisor_name || null,
-        status: finalStatus,
-        approved_by: approvedBy
-      })
-      .eq("id", id)
-      .select()
-      .single();
+    const updateData: any = {
+      entry_date: data.entry_date,
+      shift: sanitizeShift(data.shift),
+      buyer: (data.buyer || "").trim() || "DRAFT",
+      job_no: (data.job_no || "").trim() || "DRAFT",
+      color: (data.color || "").trim() || "DRAFT",
+      po_no: data.po_no || null,
+      order_qty: data.order_qty !== undefined && data.order_qty !== null && data.order_qty !== "" ? Number(data.order_qty) : null,
+      color_type: data.color_type || null,
+      item: (data.item || "").trim() || "DRAFT",
+      cut_no: (data.cut_no || "").trim() || "DRAFT",
+      lay: Number(data.lay),
+      ratio: Number(data.ratio),
+      table_no: data.table_no,
+      fabric_type: data.fabric_type,
+      parts: data.parts,
+      fabric_used_kg: Number(data.fabric_used_kg),
+      remnant_weight_kg: Number(data.remnant_weight_kg),
+      booking_consumption: data.booking_consumption !== undefined && data.booking_consumption !== null && data.booking_consumption !== "" ? Number(data.booking_consumption) : null,
+      cutting_consumption: data.cutting_consumption !== undefined && data.cutting_consumption !== null && data.cutting_consumption !== "" ? Number(data.cutting_consumption) : null,
+      cutting_scrap_weight_kg: Number(data.cutting_scrap_weight_kg),
+      reject_qty: Number(data.reject_qty) || 0,
+      marker_length_inch: Number(data.marker_length_inch),
+      marker_consumption: data.marker_consumption !== undefined && data.marker_consumption !== null && data.marker_consumption !== "" ? Number(data.marker_consumption) : null,
+      marker_efficiency_percent: Number(data.marker_efficiency_percent),
+      remarks: data.remarks,
+      supervisor_name: data.supervisor_name || null,
+      status: finalStatus,
+      approved_by: approvedBy
+    };
+
+    let updatedEntry: any = null;
+    let updateErr: any = null;
+
+    try {
+      const { data: upd, error: err } = await supabase
+        .from("cutting_entries")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+      updatedEntry = upd;
+      updateErr = err;
+    } catch (e: any) {
+      updateErr = e;
+    }
+
+    if (updateErr && (updateErr.message?.includes("order_qty") || updateErr.message?.includes("color_type") || updateErr.code === "42703")) {
+      console.warn("DB columns missing for color type wise metrics on update. Falling back to retry without them.");
+      const fallbackData = { ...updateData };
+      delete fallbackData.order_qty;
+      delete fallbackData.color_type;
+      const { data: upd, error: err } = await supabase
+        .from("cutting_entries")
+        .update(fallbackData)
+        .eq("id", id)
+        .select()
+        .single();
+      updatedEntry = upd;
+      updateErr = err;
+    }
 
     if (updateErr) {
       return res.status(500).json({ error: updateErr.message });
@@ -2542,7 +2657,7 @@ app.post("/api/settings", async (req, res) => {
     return res.status(403).json({ error: "Only Admins can modify system configurations." });
   }
 
-  const { job_no_digits, is_po_number_required, whats_new_title, whats_new_content, whats_new_updated_at, poly_price } = req.body;
+  const { job_no_digits, is_po_number_required, whats_new_title, whats_new_content, whats_new_updated_at, poly_price, color_type_metrics } = req.body;
   if (job_no_digits === undefined || typeof job_no_digits !== "number" || job_no_digits <= 0 || job_no_digits > 20) {
     return res.status(400).json({ error: "Job No digits must be a positive integer between 1 and 20." });
   }
@@ -2560,7 +2675,8 @@ app.post("/api/settings", async (req, res) => {
     whats_new_title: typeof whats_new_title === "string" ? whats_new_title : (systemSettings.whats_new_title || ""),
     whats_new_content: typeof whats_new_content === "string" ? whats_new_content : (systemSettings.whats_new_content || ""),
     whats_new_updated_at: typeof whats_new_updated_at === "string" ? whats_new_updated_at : (systemSettings.whats_new_updated_at || ""),
-    poly_price: newPolyPrice
+    poly_price: newPolyPrice,
+    color_type_metrics: color_type_metrics !== undefined ? color_type_metrics : ((systemSettings as any).color_type_metrics || null)
   };
 
   const success = saveSettings(newSettings);

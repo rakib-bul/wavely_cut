@@ -27,6 +27,7 @@ interface DataEntryFormProps {
   onWebImport: (entries: any[]) => Promise<{ success: boolean; count?: number; errors?: string[] }>;
   jobNoDigits?: number;
   isPoNumberRequired?: boolean;
+  colorTypeMetrics?: any;
 }
 
 const PREDEFINED_ITEMS = [
@@ -82,7 +83,7 @@ const SUPERVISORS = [
   "Raju Islam"
 ];
 
-export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport, jobNoDigits = 7, isPoNumberRequired = false }: DataEntryFormProps) {
+export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport, jobNoDigits = 7, isPoNumberRequired = false, colorTypeMetrics }: DataEntryFormProps) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
 
@@ -111,7 +112,9 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     marker_efficiency_percent: "",
     remarks: "",
     po_no: "",
-    supervisor_name: ""
+    supervisor_name: "",
+    order_qty: "",
+    color_type: "Solid"
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -225,6 +228,65 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
 
       const markerEff = Number(formData.marker_efficiency_percent);
       if (!markerEff || markerEff <= 0 || markerEff > 100) return setValidationError("Marker Efficiency must be between 1% and 100%.");
+
+      // --- COLOR-TYPE WISE METRICS VALIDATION ---
+      const orderQtyVal = Number(formData.order_qty);
+      if (formData.order_qty && !isNaN(orderQtyVal) && orderQtyVal > 0) {
+        const colorType = formData.color_type || "Solid";
+        const selectedBuyer = (formData.buyer || "").trim().toUpperCase();
+        const actualCutQty = layNum * ratioNum;
+        
+        const metrics = colorTypeMetrics || {
+          "Solid": { "above_10000": 3.0, "between_5001_9999": 4.0, "between_2001_5000": 5.0, "between_1000_2000": 6.0, "below_1000": 8.0 },
+          "RFD Wash": { "above_10000": 8.0, "between_5001_9999": 10.0, "between_2001_5000": 12.0, "between_1000_2000": 14.0, "below_1000": 17.0 },
+          "RFD Wash(Print/Embordery)": { "above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5 },
+          "Print/Embordery Send": { "above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5 },
+          "Print & Embordery Send": { "above_10000": 9.5, "between_5001_9999": 11.5, "between_2001_5000": 13.8, "between_1000_2000": 18.0, "below_1000": 19.5 }
+        };
+
+        const typeConfig = metrics[colorType];
+        let typeRules = null;
+
+        if (typeConfig) {
+          if (typeConfig.default !== undefined || typeConfig.buyers !== undefined) {
+            const buyersMap = typeConfig.buyers || {};
+            const matchingBuyerKey = Object.keys(buyersMap).find(
+              k => k.trim().toUpperCase() === selectedBuyer
+            );
+            if (matchingBuyerKey) {
+              typeRules = buyersMap[matchingBuyerKey];
+            } else {
+              typeRules = typeConfig.default;
+            }
+          } else {
+            typeRules = typeConfig;
+          }
+        }
+
+        if (typeRules) {
+          let percentage = 0;
+          if (orderQtyVal >= 10000) {
+            percentage = Number(typeRules.above_10000);
+          } else if (orderQtyVal >= 5001) {
+            percentage = Number(typeRules.between_5001_9999);
+          } else if (orderQtyVal >= 2001) {
+            percentage = Number(typeRules.between_2001_5000);
+          } else if (orderQtyVal >= 1000) {
+            percentage = Number(typeRules.between_1000_2000);
+          } else {
+            percentage = Number(typeRules.below_1000);
+          }
+
+          const allowedAllowance = orderQtyVal * (percentage / 100);
+          const maxAllowedCutQty = orderQtyVal + allowedAllowance;
+
+          if (actualCutQty > maxAllowedCutQty) {
+            return setValidationError(
+              `Validation Error: Actual Cut Qty (${actualCutQty.toLocaleString()} pcs) exceeds the maximum allowed quantity (${maxAllowedCutQty.toLocaleString()} pcs) for ${colorType} color type. Allowed allowance is ${percentage}% (${allowedAllowance.toLocaleString()} pcs) for order quantity of ${orderQtyVal.toLocaleString()} pcs.`
+            );
+          }
+        }
+      }
     } else {
       // For draft mode, at least some identifier is good
       if (!formData.buyer.trim() && !formData.job_no.trim() && !formData.cut_no.trim()) {
@@ -259,6 +321,8 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         marker_efficiency_percent: Number(formData.marker_efficiency_percent) || 80,
         remarks: formData.remarks.trim(),
         supervisor_name: formData.supervisor_name || undefined,
+        order_qty: formData.order_qty !== "" ? Number(formData.order_qty) : undefined,
+        color_type: formData.color_type || "Solid",
         status
       };
 
@@ -610,6 +674,36 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   onChange={handleInputChange}
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
+              </div>
+
+              {/* Order Qty */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Order Qty (for Max Qty restriction)</label>
+                <input
+                  type="number"
+                  name="order_qty"
+                  value={formData.order_qty}
+                  onChange={handleInputChange}
+                  placeholder="e.g. 10000"
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+                />
+              </div>
+
+              {/* Color Type */}
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Color Type</label>
+                <select
+                  name="color_type"
+                  value={formData.color_type}
+                  onChange={handleInputChange}
+                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
+                >
+                  <option value="Solid">Solid</option>
+                  <option value="RFD Wash">RFD Wash</option>
+                  <option value="RFD Wash(Print/Embordery)">RFD Wash(Print/Embordery)</option>
+                  <option value="Print/Embordery Send">Print/Embordery Send</option>
+                  <option value="Print & Embordery Send">Print & Embordery Send</option>
+                </select>
               </div>
 
               {/* 4. item */}

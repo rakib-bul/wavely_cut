@@ -55,6 +55,8 @@ export interface CuttingEntry {
   marker_efficiency_percent: number;
   remarks: string;
   po_no?: string;
+  order_qty?: number;
+  color_type?: string;
   supervisor_name?: string;
   created_by: string; // profile_id / email
   approved_by?: string; // profile_id / email

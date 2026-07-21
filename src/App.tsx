@@ -96,6 +96,14 @@ export default function App() {
       return false;
     }
   });
+  const [colorTypeMetrics, setColorTypeMetrics] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem("erp_cached_color_type_metrics");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [whatsNewTitle, setWhatsNewTitle] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_title") || "");
   const [whatsNewContent, setWhatsNewContent] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_content") || "");
   const [whatsNewUpdatedAt, setWhatsNewUpdatedAt] = useState<string>(() => localStorage.getItem("erp_cached_whats_new_updated_at") || "");
@@ -413,6 +421,12 @@ export default function App() {
             setJobNoDigits(settingsData.job_no_digits);
             try {
               localStorage.setItem("erp_cached_job_no_digits", String(settingsData.job_no_digits));
+            } catch (e) {}
+          }
+          if (settingsData.color_type_metrics) {
+            setColorTypeMetrics(settingsData.color_type_metrics);
+            try {
+              localStorage.setItem("erp_cached_color_type_metrics", JSON.stringify(settingsData.color_type_metrics));
             } catch (e) {}
           }
           if (typeof settingsData.whats_new_title === "string") {
@@ -1150,6 +1164,39 @@ export default function App() {
       await fetchData();
     } catch (err: any) {
       alert("Failed to update system settings: " + err.message);
+    }
+  };
+
+  const handleUpdateColorTypeMetrics = async (metrics: any) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-User-Role": currentProfile.role,
+        "X-User-Email": currentProfile.email
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          job_no_digits: jobNoDigits,
+          color_type_metrics: metrics
+        })
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        alert(body.error || "Metrics update failed.");
+        return;
+      }
+
+      const updated = await res.json();
+      if (updated.color_type_metrics) {
+        setColorTypeMetrics(updated.color_type_metrics);
+      }
+      await fetchData();
+    } catch (err: any) {
+      alert("Failed to update color metrics: " + err.message);
     }
   };
 
@@ -2211,6 +2258,7 @@ export default function App() {
                   onWebImport={handleBulkImport}
                   jobNoDigits={jobNoDigits}
                   isPoNumberRequired={isPoNumberRequired}
+                  colorTypeMetrics={colorTypeMetrics}
                 />
               </div>
             )}
@@ -2324,6 +2372,8 @@ export default function App() {
                   onUpdateWhatsNew={handleUpdateWhatsNew}
                   polyPrice={polyPrice}
                   onUpdatePolyPrice={handleUpdatePolyPrice}
+                  colorTypeMetrics={colorTypeMetrics}
+                  onUpdateColorTypeMetrics={handleUpdateColorTypeMetrics}
                 />
               </div>
             )}

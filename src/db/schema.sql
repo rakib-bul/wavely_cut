@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     marker_length_inch NUMERIC(10, 2) NOT NULL CHECK (marker_length_inch > 0),
     marker_consumption NUMERIC(10, 3),
     marker_efficiency_percent NUMERIC(5, 2) NOT NULL CHECK (marker_efficiency_percent > 0 AND marker_efficiency_percent <= 100),
+    order_qty INT,
+    color_type VARCHAR(100),
     remarks TEXT,
     supervisor_name VARCHAR(150),
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
