@@ -602,7 +602,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/machines", async (req, res) => {
   try {
-    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
     const { data: supabaseMachines, error: sbError } = await supabase
       .from("machines")
       .select("id, machine_name, machine_type")
@@ -677,7 +677,7 @@ app.post("/api/machines", async (req, res) => {
 
 app.get("/api/buyers", async (req, res) => {
   try {
-    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
     // If we have cached buyers, return them immediately
     if (cachedBuyers !== null) {
       return res.json(cachedBuyers);
@@ -746,7 +746,7 @@ app.get("/api/entries", async (req, res) => {
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
   try {
-    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
     
     const entries = await fetchAllCuttingEntries();
 
@@ -1392,7 +1392,7 @@ app.get("/api/logs", async (req, res) => {
   }
 
   try {
-    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
     const { data: logs, error } = await supabase
       .from("audit_logs")
       .select("id, user_email, action, entity_type, entity_id, old_value, new_value, created_at")
@@ -1420,7 +1420,7 @@ app.get("/api/profiles", async (req, res) => {
   }
 
   try {
-    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
     const { data: profiles, error } = await supabase
       .from("profiles")
       .select("id, full_name, email, role, department, avatar_url, created_at, can_access_cutting_entry, can_access_remnant_entry, can_access_heat_seal_entry, can_access_poly_entry")
@@ -1649,7 +1649,7 @@ app.get("/api/sync", async (req, res) => {
   }
 
   try {
-    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
 
     const client_version = req.query.version as string;
     const now = Date.now();
@@ -3010,7 +3010,7 @@ app.get("/api/settings", async (req, res) => {
   if (!user_email) {
     return res.status(401).json({ error: "Unauthorized. Session required to read system settings." });
   }
-  res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+  res.setHeader("Cache-Control", "private, no-cache, must-revalidate");
   return res.json(systemSettings);
 });
 
@@ -3387,16 +3387,19 @@ if (process.env.NODE_ENV !== "production") {
   app.use(express.static(distPath, {
     maxAge: "1d",
     setHeaders: (res, filePath) => {
+      const isAsset = filePath.includes(path.join("dist", "assets")) || 
+                      filePath.includes("/assets/") || 
+                      filePath.includes("\\assets\\");
       // Vite production builds place compiled JS/CSS in the dist/assets folder with content hashes.
       // Since these are fully immutable, we can safely cache them forever (1 year).
-      if (filePath.includes(path.join("dist", "assets")) || filePath.includes("/assets/")) {
+      if (isAsset) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       } else if (filePath.endsWith(".html")) {
         // Main index.html or other HTML entrypoints must never cache indefinitely to ensure
         // client browsers fetch new releases when the app updates.
         res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
       } else {
-        // Other non-hashed root assets (like manifest.json, favicon.ico, images in /public)
+        // Other non-hashed root assets (like manifest.json, favicon.ico, images)
         // are cached for 1 day with revalidation required afterwards.
         res.setHeader("Cache-Control", "public, max-age=86400, must-revalidate");
       }
