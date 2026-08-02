@@ -10,7 +10,7 @@ import AnalyticsModule from "./components/AnalyticsModule";
 import AdminModule from "./components/AdminModule";
 import TableProductionView from "./components/TableProductionView";
 import { Profile, Machine, Buyer, CuttingEntry, AuditLog, UserRole, PolyEntry, HeatSealEntry, HeatSealOperator, HeatSealTarget, Requisition, FabricMetricsEntry } from "./types";
-import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift } from "./utils/calculations";
+import { compileDashboardKPIs, calculateFields, getCurrentProductionDateAndShift, sortSizes } from "./utils/calculations";
 import PolyTrackingModule from "./components/PolyTrackingModule";
 import HeatSealModule from "./components/HeatSealModule";
 import HeatSealDashboardInsight from "./components/HeatSealDashboardInsight";
@@ -259,6 +259,27 @@ export default function App() {
   useEffect(() => {
     setIsConfirmingDelete(false);
   }, [editingEntry]);
+
+  const handleEditSizeRatioChange = (size: string, ratioVal: string) => {
+    if (!editingEntry) return;
+    const rVal = parseInt(ratioVal) || 0;
+    const nextSizes = {
+      ...(editingEntry.sizes || {}),
+      [size]: rVal
+    };
+    if (rVal <= 0) {
+      delete nextSizes[size];
+    }
+    
+    // Sum all size ratios
+    const totalRatioSum = Object.values(nextSizes).reduce((sum, curr) => sum + curr, 0);
+    
+    setEditingEntry({
+      ...editingEntry,
+      sizes: nextSizes,
+      ratio: totalRatioSum > 0 ? totalRatioSum : editingEntry.ratio
+    });
+  };
 
   // --- Theme State & Handler ---
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -2398,6 +2419,7 @@ export default function App() {
                 <DataEntryForm 
                   machines={machines} 
                   buyers={buyers}
+                  fabricMetrics={fabricMetrics}
                   onSubmitEntry={handleSubmitEntry}
                   onWebImport={handleBulkImport}
                   jobNoDigits={jobNoDigits}
@@ -2730,6 +2752,76 @@ export default function App() {
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-1.5 focus:outline-none"
                   required
                 />
+              </div>
+
+              {/* Size-Wise Production Ratio breakdown */}
+              <div className="col-span-1 md:col-span-2 bg-slate-50/75 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg p-3 mt-1 font-sans">
+                <div className="flex items-center justify-between pb-1.5 mb-2.5 border-b border-slate-200/50 dark:border-slate-800">
+                  <div>
+                    <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider block">
+                      Size-Wise Production Ratio
+                    </span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">
+                      Marker ratios here drive the total Ratio automatically.
+                    </p>
+                  </div>
+                </div>
+
+                {(() => {
+                  const activeSpec = editingEntry.fabric_metric_id
+                    ? fabricMetrics.find(m => m.id === editingEntry.fabric_metric_id)
+                    : null;
+                  const activeSpecSizes = activeSpec?.size_bookings ? Object.keys(activeSpec.size_bookings) : [];
+                  const defaultSizes = ["S", "M", "L", "XL", "XXL"];
+                  
+                  const allVisibleSizes = sortSizes(Array.from(new Set([
+                    ...Object.keys(editingEntry.sizes || {}),
+                    ...(activeSpecSizes.length > 0 ? activeSpecSizes : (Object.keys(editingEntry.sizes || {}).length === 0 ? defaultSizes : []))
+                  ])));
+
+                  if (allVisibleSizes.length === 0) {
+                    return (
+                      <p className="text-[10px] text-slate-400 text-center py-1">
+                        No sizes configured.
+                      </p>
+                    );
+                  }
+
+                  const layVal = Number(editingEntry.lay) || 0;
+
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {allVisibleSizes.map(sz => {
+                        const ratioVal = editingEntry.sizes?.[sz] !== undefined ? editingEntry.sizes[sz] : 0;
+                        const computedQty = layVal * ratioVal;
+
+                        return (
+                          <div key={sz} className="bg-white dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{sz}</span>
+                              {computedQty > 0 && (
+                                <span className="text-[9px] font-mono text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/30 px-1 rounded">
+                                  {computedQty}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] text-slate-400">Ratio:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={ratioVal === 0 ? "" : ratioVal}
+                                onChange={(e) => handleEditSizeRatioChange(sz, e.target.value)}
+                                placeholder="0"
+                                className="w-full h-6 text-[10px] text-center border border-slate-200 dark:border-slate-800 rounded bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

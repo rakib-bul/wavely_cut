@@ -118,15 +118,105 @@ const supabase = createClient(
 
 // Helper to fetch first 300 cutting entries
 async function fetchAllCuttingEntries() {
-  const { data, error } = await supabase
-    .from("cutting_entries")
-    .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
-    .order("entry_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(300);
+  try {
+    const { data, error } = await supabase
+      .from("cutting_entries")
+      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id, sizes")
+      .order("entry_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(300);
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      if (error.code === "42703" || error.message?.includes("sizes") || error.message?.includes("color_type") || error.message?.includes("order_qty")) {
+        console.warn("Missing columns in cutting_entries. Retrying without sizes.");
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("cutting_entries")
+          .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
+          .order("entry_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(300);
+
+        if (fallbackError) throw fallbackError;
+        return (fallbackData || []).map((e: any) => ({
+          ...e,
+          sizes: {},
+          color_type: "Solid",
+          order_qty: 0
+        }));
+      }
+      throw error;
+    }
+    return data || [];
+  } catch (err: any) {
+    if (err.code === "42703" || err.message?.includes("sizes") || err.message?.includes("color_type") || err.message?.includes("order_qty")) {
+      console.warn("Caught error in fetchAllCuttingEntries. Retrying fallback query.");
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("cutting_entries")
+        .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      if (fallbackError) throw fallbackError;
+      return (fallbackData || []).map((e: any) => ({
+        ...e,
+        sizes: {},
+        color_type: "Solid",
+        order_qty: 0
+      }));
+    }
+    throw err;
+  }
+}
+
+// Robust helper to fetch a single cutting entry with fallback for missing column
+async function fetchSingleCuttingEntry(id: string) {
+  try {
+    const { data, error } = await supabase
+      .from("cutting_entries")
+      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id, sizes")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      if (error.code === "42703" || error.message?.includes("sizes") || error.message?.includes("color_type") || error.message?.includes("order_qty")) {
+        console.warn("Column missing on single fetch, retrying without sizes.");
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("cutting_entries")
+          .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
+          .eq("id", id)
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        return {
+          ...fallbackData,
+          sizes: {},
+          color_type: "Solid",
+          order_qty: 0
+        };
+      }
+      throw error;
+    }
+    return data;
+  } catch (err: any) {
+    if (err.code === "42703" || err.message?.includes("sizes") || err.message?.includes("color_type") || err.message?.includes("order_qty")) {
+      console.warn("Caught error in fetchSingleCuttingEntry, retrying without sizes.");
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("cutting_entries")
+        .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
+        .eq("id", id)
+        .single();
+
+      if (fallbackError) throw fallbackError;
+      return {
+        ...fallbackData,
+        sizes: {},
+        color_type: "Solid",
+        order_qty: 0
+      };
+    }
+    throw err;
+  }
 }
 
 // Paginated helper to fetch all heat seal entries
@@ -846,6 +936,8 @@ app.post("/api/entries", async (req, res) => {
       po_no: data.po_no || null,
       order_qty: data.order_qty !== undefined && data.order_qty !== null && data.order_qty !== "" ? Number(data.order_qty) : null,
       color_type: data.color_type || null,
+      fabric_metric_id: data.fabric_metric_id || null,
+      sizes: data.sizes || {},
       item: (data.item || "").trim() || "DRAFT",
       cut_no: (data.cut_no || "").trim() || "DRAFT",
       lay: layNum,
@@ -883,11 +975,12 @@ app.post("/api/entries", async (req, res) => {
       insertErr = e;
     }
 
-    if (insertErr && (insertErr.message?.includes("order_qty") || insertErr.message?.includes("color_type") || insertErr.code === "42703")) {
-      console.warn("DB columns missing for color type wise metrics. Falling back to retry without them.");
+    if (insertErr && (insertErr.message?.includes("order_qty") || insertErr.message?.includes("color_type") || insertErr.message?.includes("sizes") || insertErr.code === "42703")) {
+      console.warn("DB columns missing. Falling back to retry without them.");
       const fallbackData = { ...dataToInsert };
       delete fallbackData.order_qty;
       delete fallbackData.color_type;
+      delete fallbackData.sizes;
       const { data: ins, error: err } = await supabase
         .from("cutting_entries")
         .insert(fallbackData)
@@ -1100,14 +1193,15 @@ app.put("/api/entries/:id", async (req, res) => {
   const user_email = (req.headers["x-user-email"] as string || "").toLowerCase();
 
   try {
-    // 1. Fetch current entry from Supabase
-    const { data: existingEntry, error: fetchErr } = await supabase
-      .from("cutting_entries")
-      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
-      .eq("id", id)
-      .single();
+    // 1. Fetch current entry from Supabase using resilient helper
+    let existingEntry: any = null;
+    try {
+      existingEntry = await fetchSingleCuttingEntry(id);
+    } catch (fetchErr: any) {
+      return res.status(404).json({ error: "Entry not found in system storage: " + fetchErr.message });
+    }
 
-    if (fetchErr || !existingEntry) {
+    if (!existingEntry) {
       return res.status(404).json({ error: "Entry not found in system storage." });
     }
 
@@ -1197,6 +1291,8 @@ app.put("/api/entries/:id", async (req, res) => {
       po_no: data.po_no || null,
       order_qty: data.order_qty !== undefined && data.order_qty !== null && data.order_qty !== "" ? Number(data.order_qty) : null,
       color_type: data.color_type || null,
+      fabric_metric_id: data.fabric_metric_id || null,
+      sizes: data.sizes || {},
       item: (data.item || "").trim() || "DRAFT",
       cut_no: (data.cut_no || "").trim() || "DRAFT",
       lay: Number(data.lay),
@@ -1235,11 +1331,12 @@ app.put("/api/entries/:id", async (req, res) => {
       updateErr = e;
     }
 
-    if (updateErr && (updateErr.message?.includes("order_qty") || updateErr.message?.includes("color_type") || updateErr.code === "42703")) {
-      console.warn("DB columns missing for color type wise metrics on update. Falling back to retry without them.");
+    if (updateErr && (updateErr.message?.includes("order_qty") || updateErr.message?.includes("color_type") || updateErr.message?.includes("sizes") || updateErr.code === "42703")) {
+      console.warn("DB columns missing on update. Falling back to retry without them.");
       const fallbackData = { ...updateData };
       delete fallbackData.order_qty;
       delete fallbackData.color_type;
+      delete fallbackData.sizes;
       const { data: upd, error: err } = await supabase
         .from("cutting_entries")
         .update(fallbackData)
@@ -1296,14 +1393,15 @@ app.delete("/api/entries/:id", async (req, res) => {
   // Any role can delete cutting records (no admin approval/restriction)
 
   try {
-    // 1. Fetch current entry for audit logs
-    const { data: existingEntry, error: fetchErr } = await supabase
-      .from("cutting_entries")
-      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
-      .eq("id", id)
-      .single();
+    // 1. Fetch current entry for audit logs using resilient helper
+    let existingEntry: any = null;
+    try {
+      existingEntry = await fetchSingleCuttingEntry(id);
+    } catch (fetchErr: any) {
+      return res.status(404).json({ error: "Entry not found: " + fetchErr.message });
+    }
 
-    if (fetchErr || !existingEntry) {
+    if (!existingEntry) {
       return res.status(404).json({ error: "Entry not found" });
     }
 
@@ -1331,13 +1429,14 @@ app.post("/api/entries/:id/approve", async (req, res) => {
   }
 
   try {
-    const { data: existingEntry, error: fetchErr } = await supabase
-      .from("cutting_entries")
-      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker")
-      .eq("id", id)
-      .single();
+    let existingEntry: any = null;
+    try {
+      existingEntry = await fetchSingleCuttingEntry(id);
+    } catch (fetchErr: any) {
+      return res.status(404).json({ error: "Entry not found: " + fetchErr.message });
+    }
 
-    if (fetchErr || !existingEntry) {
+    if (!existingEntry) {
       return res.status(404).json({ error: "Entry not found" });
     }
 
@@ -2289,6 +2388,7 @@ app.post("/api/fabric-metrics", async (req, res) => {
       neck_binding_con: data.has_neck_binding && data.neck_binding_con ? parseFloat(data.neck_binding_con) : null,
       neck_binding_gsm: data.has_neck_binding && data.neck_binding_gsm ? parseInt(data.neck_binding_gsm) : null,
       neck_binding_dia: data.has_neck_binding && data.neck_binding_dia ? parseInt(data.neck_binding_dia) : null,
+      size_bookings: data.size_bookings || null,
       status: finalStatus,
       created_by: creatorId,
       updated_at: new Date().toISOString()
@@ -2379,6 +2479,7 @@ app.put("/api/fabric-metrics/:id", async (req, res) => {
       neck_binding_con: data.has_neck_binding && data.neck_binding_con ? parseFloat(data.neck_binding_con) : null,
       neck_binding_gsm: data.has_neck_binding && data.neck_binding_gsm ? parseInt(data.neck_binding_gsm) : null,
       neck_binding_dia: data.has_neck_binding && data.neck_binding_dia ? parseInt(data.neck_binding_dia) : null,
+      size_bookings: data.size_bookings || null,
       status: data.status || "draft",
       updated_at: new Date().toISOString()
     };

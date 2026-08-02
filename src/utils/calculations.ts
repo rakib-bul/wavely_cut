@@ -366,3 +366,76 @@ export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: str
     today_fabric_save_loss_percent
   };
 }
+
+function getGarmentSizeRank(s: string): number | null {
+  s = s.trim().toUpperCase();
+  
+  if (s === "M" || s === "MEDIUM") return 0;
+  
+  // Match L-type sizes: L, XL, XXL, 2XL, etc.
+  const lMatch = s.match(/^(\d+)?\s*X*-*L(ARGE)?$/);
+  if (lMatch || s === "L" || s === "LARGE") {
+    if (s === "L" || s === "LARGE") return 1;
+    let xCount = (s.match(/X/g) || []).length;
+    const num = lMatch && lMatch[1] ? parseInt(lMatch[1], 10) : 0;
+    if (num > 0) {
+      xCount = num;
+    }
+    return 1 + xCount;
+  }
+  
+  // Match S-type sizes: S, XS, XXS, 2XS, etc.
+  const sMatch = s.match(/^(\d+)?\s*X*-*S(MALL)?$/);
+  if (sMatch || s === "S" || s === "SMALL") {
+    if (s === "S" || s === "SMALL") return -1;
+    let xCount = (s.match(/X/g) || []).length;
+    const num = sMatch && sMatch[1] ? parseInt(sMatch[1], 10) : 0;
+    if (num > 0) {
+      xCount = num;
+    }
+    return -1 - xCount;
+  }
+  
+  return null;
+}
+
+export function sortSizes(sizes: string[]): string[] {
+  const getScore = (size: string): number => {
+    const s = size.trim().toUpperCase();
+    
+    // 1. Check if standard garment size
+    const rank = getGarmentSizeRank(s);
+    if (rank !== null) {
+      return rank;
+    }
+    
+    // 2. Toddler/Baby sizes (e.g. "NB", "3M", "2T")
+    if (s === "NB" || s === "NEWBORN") return -100;
+    const babyMatch = s.match(/^(\d+)\s*M(ONTHS?)?$/);
+    if (babyMatch) {
+      const months = parseInt(babyMatch[1], 10);
+      return -90 + months / 100;
+    }
+    const toddlerMatch = s.match(/^(\d+)\s*T$/);
+    if (toddlerMatch) {
+      const age = parseInt(toddlerMatch[1], 10);
+      return -80 + age;
+    }
+    
+    // 3. Numeric sizes (e.g., "28", "30", "32")
+    const numericMatch = s.match(/^(\d+)(\s*-\s*\d+)?$/);
+    if (numericMatch) {
+      const num = parseInt(numericMatch[1], 10);
+      return 1000 + num;
+    }
+    
+    // 4. Fallback: alphabetical sorting
+    let score = 5000;
+    for (let i = 0; i < Math.min(s.length, 5); i++) {
+      score += s.charCodeAt(i) * Math.pow(0.1, i);
+    }
+    return score;
+  };
+
+  return [...sizes].sort((a, b) => getScore(a) - getScore(b));
+}

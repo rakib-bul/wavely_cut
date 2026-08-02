@@ -48,4 +48,5 @@ CREATE POLICY delete_requisitions ON public.requisitions
 -- 5. Add color_type and order_qty to cutting_entries for color type wise metrics
 ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS order_qty INT;
 ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS color_type VARCHAR(100);
+ALTER TABLE public.cutting_entries ADD COLUMN IF NOT EXISTS sizes JSONB DEFAULT '{}'::jsonb;
 

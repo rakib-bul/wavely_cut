@@ -57,6 +57,8 @@ export interface CuttingEntry {
   po_no?: string;
   order_qty?: number;
   color_type?: string;
+  fabric_metric_id?: string;
+  sizes?: Record<string, number>;
   supervisor_name?: string;
   created_by: string; // profile_id / email
   approved_by?: string; // profile_id / email
@@ -196,6 +198,7 @@ export interface FabricMetricsEntry {
   neck_binding_con?: number;
   neck_binding_gsm?: number;
   neck_binding_dia?: number;
+  size_bookings?: Record<string, number>;
   status: EntryStatus;
   created_by: string; // email / profile_id
   approved_by?: string; // email / profile_id

@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { FabricMetricsEntry, Buyer, UserRole, Profile } from "../types";
 import * as XLSX from "xlsx";
+import { sortSizes } from "../utils/calculations";
 
 interface FabricMetricsModuleProps {
   fabricMetrics: FabricMetricsEntry[];
@@ -16,6 +17,14 @@ interface FabricMetricsModuleProps {
   onApproveEntry: (id: string, status: "approved" | "rejected") => Promise<any>;
   onRefresh: () => void;
 }
+
+const SIZE_GROUPS = {
+  "Alpha (XXS-7XL)": ["XXS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "7XL"],
+  "Baby (New Born-2)": ["New Born", "0000", "000", "00", "0", "1", "2"],
+  "Toddler (1T-5T)": ["1T", "2T", "3T", "4T", "5T"],
+  "Kids Numeric (1-9)": ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
+  "Adult Numeric (8-24)": ["8", "9", "10", "12", "14", "16", "18", "20", "22", "24"]
+};
 
 export default function FabricMetricsModule({
   fabricMetrics = [],
@@ -32,6 +41,8 @@ export default function FabricMetricsModule({
 
   // Form State
   const [isEditing, setIsEditing] = useState<string | null>(null);
+  const [activeSizeGroup, setActiveSizeGroup] = useState<string>("Alpha (XXS-7XL)");
+  
   const [formData, setFormData] = useState<Partial<FabricMetricsEntry>>({
     entry_date: new Date().toISOString().split("T")[0],
     buyer: "",
@@ -58,6 +69,7 @@ export default function FabricMetricsModule({
     neck_binding_con: undefined,
     neck_binding_gsm: undefined,
     neck_binding_dia: undefined,
+    size_bookings: {},
     status: "draft"
   });
 
@@ -109,11 +121,57 @@ export default function FabricMetricsModule({
         } : {})
       }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData(prev => {
+        const rawVal = value === "" ? "" : (type === "number" ? parseFloat(value) || 0 : value);
+        const nextState = {
+          ...prev,
+          [name]: rawVal
+        };
+        if (name === "gross_consumption" || name === "po_order_qty") {
+          const gross = name === "gross_consumption" ? (parseFloat(value) || 0) : (prev.gross_consumption || 0);
+          const pcs = name === "po_order_qty" ? (parseInt(value) || 0) : (prev.po_order_qty || 0);
+          if (gross > 0 && pcs > 0) {
+            nextState.booking_kg = parseFloat(((pcs * gross) / 12).toFixed(3));
+          }
+        }
+        return nextState;
+      });
     }
+  };
+
+  const handleSizeBookingChange = (size: string, valStr: string) => {
+    const val = parseInt(valStr) || 0;
+    const currentBookings = formData.size_bookings || {};
+    const updatedBookings = { ...currentBookings };
+    
+    if (val <= 0) {
+      delete updatedBookings[size];
+    } else {
+      updatedBookings[size] = val;
+    }
+    
+    // Sum up all sizes for total order pcs
+    const totalPcs = Object.values(updatedBookings).reduce((sum: number, cur: number) => sum + cur, 0);
+    
+    // Recalculate booking_kg if gross_consumption is present
+    const gross = formData.gross_consumption || 0;
+    const computedBookingKg = gross > 0 ? parseFloat(((totalPcs * gross) / 12).toFixed(3)) : formData.booking_kg;
+    
+    setFormData(prev => ({
+      ...prev,
+      size_bookings: updatedBookings,
+      po_order_qty: totalPcs,
+      booking_kg: computedBookingKg > 0 ? computedBookingKg : prev.booking_kg
+    }));
+  };
+
+  const handleClearSizeBookings = () => {
+    setFormData(prev => ({
+      ...prev,
+      size_bookings: {},
+      po_order_qty: 0,
+      booking_kg: 0
+    }));
   };
 
   // Submit Logic
@@ -167,6 +225,7 @@ export default function FabricMetricsModule({
         neck_binding_con: undefined,
         neck_binding_gsm: undefined,
         neck_binding_dia: undefined,
+        size_bookings: {},
         status: "draft"
       });
       onRefresh();
@@ -180,6 +239,16 @@ export default function FabricMetricsModule({
   // Set form to edit an existing entry
   const handleEditClick = (entry: FabricMetricsEntry) => {
     setIsEditing(entry.id);
+    
+    // Auto-select size group based on size_bookings keys
+    if (entry.size_bookings && Object.keys(entry.size_bookings).length > 0) {
+      const firstSize = Object.keys(entry.size_bookings)[0];
+      const matchingGroup = Object.entries(SIZE_GROUPS).find(([groupName, sizes]) => sizes.includes(firstSize));
+      if (matchingGroup) {
+        setActiveSizeGroup(matchingGroup[0]);
+      }
+    }
+
     setFormData({
       entry_date: entry.entry_date,
       buyer: entry.buyer,
@@ -206,6 +275,7 @@ export default function FabricMetricsModule({
       neck_binding_con: entry.neck_binding_con,
       neck_binding_gsm: entry.neck_binding_gsm,
       neck_binding_dia: entry.neck_binding_dia,
+      size_bookings: entry.size_bookings || {},
       status: entry.status
     });
     // Scroll smoothly to form
@@ -243,6 +313,7 @@ export default function FabricMetricsModule({
       neck_binding_con: undefined,
       neck_binding_gsm: undefined,
       neck_binding_dia: undefined,
+      size_bookings: {},
       status: "draft"
     });
   };
@@ -478,6 +549,71 @@ export default function FabricMetricsModule({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Size-Wise Fabric Booking Card */}
+          <div className="border border-indigo-100 dark:border-slate-800 p-4 rounded-xl space-y-4 bg-indigo-50/20 dark:bg-slate-900/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100/50 dark:border-slate-800/50 pb-3">
+              <div>
+                <h3 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span> Size-Wise Fabric Booking (Master)
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">Define fabric booking quantity by sizes in Pcs. The total sums up to PO Order Qty and automatically calculates Booking KG based on Gross Consumption.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={activeSizeGroup}
+                  onChange={(e) => setActiveSizeGroup(e.target.value)}
+                  className="px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500"
+                >
+                  {Object.keys(SIZE_GROUPS).map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleClearSizeBookings}
+                  className="px-2 py-1 text-[10px] text-red-600 hover:text-red-700 font-semibold border border-red-200 rounded hover:bg-red-50 transition"
+                >
+                  Clear Sizes
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+              {SIZE_GROUPS[activeSizeGroup as keyof typeof SIZE_GROUPS].map((size) => {
+                const val = formData.size_bookings?.[size] || "";
+                return (
+                  <div key={size} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85 p-2 rounded shadow-sm flex flex-col justify-between hover:border-indigo-300 dark:hover:border-slate-700 transition">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1 font-mono text-center">{size}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={val}
+                      onChange={(e) => handleSizeBookingChange(size, e.target.value)}
+                      className="w-full px-1.5 py-1 border border-slate-200 dark:border-slate-800 rounded text-xs bg-slate-50/50 dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 font-semibold text-center"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {formData.size_bookings && Object.keys(formData.size_bookings).length > 0 && (
+              <div className="mt-2 pt-2 border-t border-slate-150 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-indigo-700 dark:text-indigo-400 font-semibold bg-indigo-50/10 p-2 rounded gap-2">
+                <span>Selected Sizes Booking breakdown:</span>
+                <span className="font-mono flex flex-wrap gap-2 justify-end">
+                  {sortSizes(Object.keys(formData.size_bookings)).map((sz) => {
+                    const wk = formData.size_bookings[sz];
+                    return (
+                      <span key={sz} className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-slate-800 text-[10px]">{sz}: <strong>{wk} pcs</strong></span>
+                    );
+                  })}
+                  <span className="bg-indigo-600 text-white px-2 py-0.5 rounded text-[10px]">Total Qty: <strong>{formData.po_order_qty || 0} pcs</strong></span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Core Booking Metrics Group */}
@@ -1086,6 +1222,30 @@ export default function FabricMetricsModule({
                                 </div>
                               </div>
                             </div>
+                            
+                            {entry.size_bookings && Object.keys(entry.size_bookings).length > 0 && (
+                              <div className="mt-4 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+                                <h4 className="font-bold text-slate-900 dark:text-white pb-1 border-b uppercase text-[10px] tracking-wider text-indigo-600 dark:text-indigo-400 mb-2">
+                                  Size-Wise Fabric Booking Breakdown
+                                </h4>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  {sortSizes(Object.keys(entry.size_bookings)).map((sz) => {
+                                    const qty = entry.size_bookings[sz];
+                                    return (
+                                      <div key={sz} className="bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800/50 text-[11px] flex items-center gap-1.5">
+                                        <span className="font-bold text-indigo-600 dark:text-indigo-400 font-mono text-[10px] bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded">{sz}</span>
+                                        <span className="text-slate-500">Booking:</span>
+                                        <strong className="text-slate-900 dark:text-white font-mono">{qty} kg</strong>
+                                      </div>
+                                    );
+                                  })}
+                                  <div className="sm:ml-auto bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono">
+                                    Total Booking: {entry.booking_kg} kg
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="mt-3 text-[10px] text-slate-400 text-right">
                               Logged by: <span className="font-mono">{entry.created_by}</span>
                               {entry.approved_by && (

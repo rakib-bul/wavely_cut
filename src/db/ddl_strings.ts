@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS public.cutting_entries (
     marker_efficiency_percent NUMERIC(5, 2) NOT NULL CHECK (marker_efficiency_percent > 0 AND marker_efficiency_percent <= 100),
     order_qty INT,
     color_type VARCHAR(100),
+    fabric_metric_id UUID REFERENCES public.fabric_metrics(id) ON DELETE SET NULL,
+    sizes JSONB DEFAULT '{}'::jsonb,
     remarks TEXT,
     supervisor_name VARCHAR(150),
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,

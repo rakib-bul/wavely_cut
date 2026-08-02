@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { CustomDatePicker } from "./common/DatePicker";
 import { 
   Save, 
@@ -17,12 +17,13 @@ import {
   RefreshCw,
   Cpu
 } from "lucide-react";
-import { Machine, CuttingEntry, Buyer, UserRole } from "../types";
-import { getCurrentProductionDateAndShift } from "../utils/calculations";
+import { Machine, CuttingEntry, Buyer, UserRole, FabricMetricsEntry } from "../types";
+import { getCurrentProductionDateAndShift, sortSizes } from "../utils/calculations";
 
 interface DataEntryFormProps {
   machines: Machine[];
   buyers?: Buyer[];
+  fabricMetrics?: FabricMetricsEntry[];
   onSubmitEntry: (entry: Omit<CuttingEntry, 'id' | 'created_by' | 'created_at' | 'updated_at'> & { id?: string; status: 'draft' | 'submitted' }) => Promise<{ success: boolean; error?: string }>;
   onWebImport: (entries: any[]) => Promise<{ success: boolean; count?: number; errors?: string[] }>;
   jobNoDigits?: number;
@@ -83,7 +84,16 @@ const SUPERVISORS = [
   "Raju Islam"
 ];
 
-export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, onWebImport, jobNoDigits = 7, isPoNumberRequired = false, colorTypeMetrics }: DataEntryFormProps) {
+export default function DataEntryForm({ 
+  machines, 
+  buyers = [], 
+  fabricMetrics = [], 
+  onSubmitEntry, 
+  onWebImport, 
+  jobNoDigits = 7, 
+  isPoNumberRequired = false, 
+  colorTypeMetrics 
+}: DataEntryFormProps) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
 
@@ -114,7 +124,8 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     po_no: "",
     supervisor_name: "",
     order_qty: "",
-    color_type: "Solid"
+    color_type: "Solid",
+    sizes: {} as Record<string, number>
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -125,6 +136,84 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
   const [forceCustomItem, setForceCustomItem] = useState(false);
   const [forceCustomFabric, setForceCustomFabric] = useState(false);
   const [forceCustomBuyer, setForceCustomBuyer] = useState(false);
+  const [newSizeName, setNewSizeName] = useState("");
+
+  // Master Fabric Metric Sync States
+  const [selectedMasterMetricId, setSelectedMasterMetricId] = useState<string>("");
+  const [searchSyncTerm, setSearchSyncTerm] = useState<string>("");
+  const [selectedSyncBuyer, setSelectedSyncBuyer] = useState<string>("");
+
+  const handleSelectMasterMetric = (metricId: string) => {
+    setSelectedMasterMetricId(metricId);
+    if (!metricId) {
+      setFormData(initialFormState);
+      return;
+    }
+
+    const matched = fabricMetrics.find(m => m.id === metricId);
+    if (matched) {
+      // Initialize sizes with 0 for all keys defined in the master booking
+      const initialSizes: Record<string, number> = {};
+      if (matched.size_bookings) {
+        Object.keys(matched.size_bookings).forEach(k => {
+          initialSizes[k] = 0;
+        });
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        buyer: matched.buyer || "",
+        job_no: matched.job_no || "",
+        color: matched.color || "",
+        item: matched.item || "",
+        fabric_type: matched.fabric_type || "",
+        po_no: matched.po_no || "",
+        booking_consumption: matched.gross_consumption ? matched.gross_consumption.toString() : "",
+        order_qty: matched.po_order_qty ? matched.po_order_qty.toString() : "",
+        sizes: initialSizes
+      }));
+      // Reset force custom indicators if matched is predefined
+      if (matched.item && PREDEFINED_ITEMS.includes(matched.item)) {
+        setForceCustomItem(false);
+      } else {
+        setForceCustomItem(true);
+      }
+      if (matched.fabric_type && PREDEFINED_FABRICS.includes(matched.fabric_type)) {
+        setForceCustomFabric(false);
+      } else {
+        setForceCustomFabric(true);
+      }
+      if (matched.buyer && buyers.some(b => b.name.toUpperCase() === matched.buyer.toUpperCase())) {
+        setForceCustomBuyer(false);
+      } else {
+        setForceCustomBuyer(true);
+      }
+    }
+  };
+
+  const filteredSyncMetrics = useMemo(() => {
+    return fabricMetrics.filter(m => {
+      const matchBuyer = selectedSyncBuyer ? m.buyer === selectedSyncBuyer : true;
+      const matchTerm = searchSyncTerm ? (
+        m.job_no?.toLowerCase().includes(searchSyncTerm.toLowerCase()) ||
+        m.po_no?.toLowerCase().includes(searchSyncTerm.toLowerCase()) ||
+        m.color?.toLowerCase().includes(searchSyncTerm.toLowerCase()) ||
+        m.item?.toLowerCase().includes(searchSyncTerm.toLowerCase())
+      ) : true;
+      return matchBuyer && matchTerm;
+    });
+  }, [fabricMetrics, selectedSyncBuyer, searchSyncTerm]);
+
+  const jobSuggestions = useMemo(() => {
+    if (!formData.buyer) return [];
+    return fabricMetrics.filter(m => {
+      const matchBuyer = m.buyer?.toUpperCase() === formData.buyer.toUpperCase();
+      const matchJob = formData.job_no 
+        ? m.job_no?.toLowerCase().includes(formData.job_no.toLowerCase())
+        : true;
+      return matchBuyer && matchJob;
+    });
+  }, [fabricMetrics, formData.buyer, formData.job_no]);
 
   // --- Autosave Draft State ---
   const [hasDraft, setHasDraft] = useState(false);
@@ -177,6 +266,40 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
     }));
     setValidationError(null);
     setSubmitSuccess(null);
+  };
+
+  const handleSizeRatioChange = (size: string, ratioVal: string) => {
+    const rVal = parseInt(ratioVal) || 0;
+    const nextSizes = {
+      ...(formData.sizes || {}),
+      [size]: rVal
+    };
+    if (rVal <= 0) {
+      delete nextSizes[size];
+    }
+    
+    const totalRatioSum = Object.values(nextSizes).reduce((sum, curr) => sum + curr, 0);
+    
+    setFormData(prev => ({
+      ...prev,
+      sizes: nextSizes,
+      ratio: totalRatioSum > 0 ? String(totalRatioSum) : prev.ratio
+    }));
+  };
+
+  const handleAddCustomSize = () => {
+    const sz = newSizeName.trim().toUpperCase();
+    if (!sz) return;
+    if (formData.sizes && formData.sizes[sz] !== undefined) return;
+    
+    setFormData(prev => ({
+      ...prev,
+      sizes: {
+        ...(prev.sizes || {}),
+        [sz]: 0
+      }
+    }));
+    setNewSizeName("");
   };
 
   // Keyboard Hotkeys listener (Alt + S, Alt + C)
@@ -323,6 +446,8 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
         supervisor_name: formData.supervisor_name || undefined,
         order_qty: formData.order_qty !== "" ? Number(formData.order_qty) : undefined,
         color_type: formData.color_type || "Solid",
+        fabric_metric_id: selectedMasterMetricId || undefined,
+        sizes: formData.sizes || {},
         status
       };
 
@@ -593,6 +718,139 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               </div>
             </div>
 
+            {/* Master Fabric Spec Synchronization Drawer */}
+            <div className="border border-indigo-150 dark:border-slate-800 p-4 rounded-xl bg-indigo-50/25 dark:bg-slate-900/10 space-y-3 font-sans">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-indigo-100/40 dark:border-slate-800">
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-indigo-500" /> Sync with Fabric Metrics Master
+                  </h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Search and select a pre-defined Fabric Metric to auto-populate Buyer, Job, Color, Item, PO, and Consumption.</p>
+                </div>
+                {selectedMasterMetricId && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectMasterMetric("")}
+                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 text-[10px] rounded font-semibold border border-rose-200/50 transition cursor-pointer"
+                  >
+                    Disconnect Master
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Filter by Buyer</label>
+                  <select
+                    value={selectedSyncBuyer}
+                    onChange={(e) => setSelectedSyncBuyer(e.target.value)}
+                    className="w-full h-9 px-3 border border-slate-250 dark:border-slate-800 rounded-lg text-xs bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-semibold"
+                  >
+                    <option value="">-- All Buyers --</option>
+                    {buyers.map(b => (
+                      <option key={b.id || b.name} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Search Job, PO, Color, Item</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. JB-10293..."
+                    value={searchSyncTerm}
+                    onChange={(e) => setSearchSyncTerm(e.target.value)}
+                    className="w-full h-9 px-3 border border-slate-250 dark:border-slate-800 rounded-lg text-xs bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Specs Scroller */}
+              <div className="space-y-2">
+                <label className="block text-[9px] font-bold text-slate-400 uppercase">Available Pre-defined Master Specs ({filteredSyncMetrics.length})</label>
+                {filteredSyncMetrics.length === 0 ? (
+                  <div className="p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg text-center text-[11px] text-slate-400">
+                    No matching fabric metric entries found. Create them in the Fabric Specifications panel first.
+                  </div>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto border border-slate-250 dark:border-slate-800 rounded-lg divide-y divide-slate-150 dark:divide-slate-850 bg-white dark:bg-slate-950">
+                    {filteredSyncMetrics.map((metric) => {
+                      const isSelected = selectedMasterMetricId === metric.id;
+                      return (
+                        <button
+                          key={metric.id}
+                          type="button"
+                          onClick={() => handleSelectMasterMetric(metric.id)}
+                          className={`w-full text-left p-2.5 flex items-center justify-between text-xs transition duration-150 cursor-pointer ${
+                            isSelected 
+                              ? "bg-indigo-50/70 dark:bg-slate-800/60 font-medium text-indigo-700 dark:text-indigo-400 border-l-2 border-indigo-600" 
+                              : "hover:bg-slate-50/50 dark:hover:bg-slate-900/40 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold flex items-center gap-1.5 text-slate-900 dark:text-white">
+                              <span>Job: {metric.job_no}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">• Buyer: {metric.buyer}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              {metric.item} | {metric.color} | PO: {metric.po_no}
+                            </div>
+                          </div>
+                          <div className="text-right flex items-center gap-2">
+                            <span className="text-[10px] bg-indigo-100/50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded font-mono">
+                              Cons: {metric.gross_consumption} kg/dz
+                            </span>
+                            {isSelected && (
+                              <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Display details of active master spec */}
+              {selectedMasterMetricId && (() => {
+                const activeSpec = fabricMetrics.find(m => m.id === selectedMasterMetricId);
+                if (!activeSpec) return null;
+                return (
+                  <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-slate-700 dark:text-slate-300">
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-bold">Booking Weight</span>
+                      <strong className="text-slate-900 dark:text-white">{activeSpec.booking_kg || "-"} kg</strong>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-bold">Booking GSM / DIA</span>
+                      <strong className="text-slate-900 dark:text-white">{activeSpec.booking_gsm || "-"} / {activeSpec.booking_dia ? `${activeSpec.booking_dia}"` : "-"}</strong>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-bold">Rib Fabric</span>
+                      <strong className="text-slate-900 dark:text-white">{activeSpec.rib_fabric_type || "None"}</strong>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-bold">Gross Cons / Order Qty</span>
+                      <strong className="text-slate-900 dark:text-white">{activeSpec.gross_consumption || "-"} kg/dz ({activeSpec.po_order_qty || 0} pcs)</strong>
+                    </div>
+
+                    {activeSpec.size_bookings && Object.keys(activeSpec.size_bookings).length > 0 && (
+                      <div className="col-span-2 sm:col-span-4 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <span className="block text-[9px] uppercase text-slate-400 font-bold mb-1">Pre-defined Size-Wise Booking Quantity Breakdown</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(activeSpec.size_bookings).map(([sz, wk]) => (
+                            <span key={sz} className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-[10px] px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">
+                              {sz}: <strong className="text-slate-900 dark:text-white font-mono">{wk} pcs</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* Serial input grids organized in order */}
             {/* Serial input grids organized in order */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 font-sans text-slate-700 dark:text-slate-200">
@@ -609,9 +867,11 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                       if (val === "custom") {
                         setFormData(prev => ({ ...prev, buyer: "" }));
                         setForceCustomBuyer(true);
+                        setSelectedSyncBuyer("");
                       } else {
                         setFormData(prev => ({ ...prev, buyer: val }));
                         setForceCustomBuyer(false);
+                        setSelectedSyncBuyer(val);
                       }
                     }}
                     className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 cursor-pointer shadow-xs"
@@ -631,7 +891,10 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                       name="buyer"
                       placeholder="Type custom buyer partner"
                       value={formData.buyer}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        handleInputChange(e);
+                        setSelectedSyncBuyer(e.target.value);
+                      }}
                       className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs animate-fade-in"
                     />
                   )}
@@ -639,7 +902,7 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
               </div>
 
               {/* 2. Job no */}
-              <div>
+              <div className="relative">
                 <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Job no</label>
                 <input
                   type="text"
@@ -650,6 +913,48 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-medium">Must be exactly {jobNoDigits} numeric digits.</p>
+
+                {/* Inline suggestions based on selected/typed Buyer and Job No */}
+                {formData.buyer && !selectedMasterMetricId && jobSuggestions.length > 0 && (
+                  <div className="mt-2 p-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/20 dark:bg-slate-900/20 rounded-lg space-y-1 z-10 relative">
+                    <span className="block text-[9px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
+                      💡 Found Pre-defined Specs for {formData.buyer}:
+                    </span>
+                    <div className="max-h-28 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-950 rounded-md border border-slate-200 dark:border-slate-800">
+                      {jobSuggestions.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleSelectMasterMetric(m.id)}
+                          className="w-full text-left p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 text-[10px] text-slate-700 dark:text-slate-300 flex items-center justify-between transition cursor-pointer"
+                        >
+                          <div className="truncate pr-2">
+                            <span className="font-bold text-slate-900 dark:text-white">Job {m.job_no}</span> • {m.color} ({m.item})
+                          </div>
+                          <span className="font-mono text-[9px] text-indigo-600 dark:text-indigo-400 shrink-0 font-bold">
+                            Cons: {m.gross_consumption}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Synced confirmation indicator */}
+                {selectedMasterMetricId && (
+                  <div className="mt-2 p-2 bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-800 rounded-lg flex items-center justify-between text-[10px] z-10 relative animate-fade-in">
+                    <span className="text-emerald-800 dark:text-emerald-400 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Synced with Master Fabric Spec
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectMasterMetric("")}
+                      className="text-red-600 dark:text-red-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* 3. color */}
@@ -751,6 +1056,92 @@ export default function DataEntryForm({ machines, buyers = [], onSubmitEntry, on
                   onChange={handleInputChange}
                   className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
                 />
+              </div>
+
+              {/* Size-Wise Marker Ratio Breakdown */}
+              <div className="col-span-1 md:col-span-2 bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mt-1 font-sans">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 mb-3 border-b border-slate-200/50 dark:border-slate-800">
+                  <div>
+                    <span className="text-[11px] font-extrabold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider block">
+                      Size-Wise Production Breakdown
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Enter marker ratio per size. Total ratio and production quantities will be computed automatically.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Custom Size"
+                      value={newSizeName}
+                      onChange={(e) => setNewSizeName(e.target.value)}
+                      className="w-20 h-7 text-[10px] px-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomSize}
+                      className="h-7 px-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-slate-850 dark:hover:bg-slate-750 text-indigo-700 dark:text-indigo-300 text-[10px] rounded-md font-bold transition cursor-pointer"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+
+                {(() => {
+                  const activeSpec = selectedMasterMetricId
+                    ? fabricMetrics.find(m => m.id === selectedMasterMetricId)
+                    : null;
+                  const activeSpecSizes = activeSpec?.size_bookings ? Object.keys(activeSpec.size_bookings) : [];
+                  const defaultSizes = ["S", "M", "L", "XL", "XXL"];
+                  
+                  const allVisibleSizes = sortSizes(Array.from(new Set([
+                    ...Object.keys(formData.sizes || {}),
+                    ...(activeSpecSizes.length > 0 ? activeSpecSizes : (Object.keys(formData.sizes || {}).length === 0 ? defaultSizes : []))
+                  ])));
+
+                  if (allVisibleSizes.length === 0) {
+                    return (
+                      <p className="text-[11px] text-slate-400 text-center py-2">
+                        No sizes configured. Use the custom size input above to add sizes.
+                      </p>
+                    );
+                  }
+
+                  const layVal = Number(formData.lay) || 0;
+
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                      {allVisibleSizes.map(sz => {
+                        const ratioVal = formData.sizes?.[sz] !== undefined ? formData.sizes[sz] : 0;
+                        const computedQty = layVal * ratioVal;
+
+                        return (
+                          <div key={sz} className="bg-white dark:bg-slate-950 p-2.5 rounded-lg border border-slate-250 dark:border-slate-800 flex flex-col justify-between">
+                            <div className="flex justify-between items-center mb-1.5">
+                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{sz}</span>
+                              {computedQty > 0 && (
+                                <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-1 py-0.2 rounded">
+                                  {computedQty} pcs
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-slate-400 font-medium">Ratio:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={ratioVal === 0 ? "" : ratioVal}
+                                onChange={(e) => handleSizeRatioChange(sz, e.target.value)}
+                                placeholder="0"
+                                className="w-full h-7 text-xs text-center border border-slate-250 dark:border-slate-750 rounded bg-slate-50/50 dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 8. Table */}
