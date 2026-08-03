@@ -24,11 +24,56 @@ export function getCurrentProductionDateAndShift() {
 }
 
 /**
+ * Calculate total ratio from size ratios map.
+ */
+export function calculateTotalRatio(sizes?: Record<string, number>): number {
+  if (!sizes || typeof sizes !== 'object') return 0;
+  return Object.values(sizes).reduce((sum, r) => sum + (Number(r) || 0), 0);
+}
+
+/**
+ * Calculate size-wise pcs for each size given lay count and size ratios.
+ * Size Pcs = Lay * Size Ratio
+ */
+export function calculateSizeWisePcs(lay: number, sizes?: Record<string, number>): Record<string, number> {
+  if (!sizes || typeof sizes !== 'object') return {};
+  const layVal = Number(lay) || 0;
+  const result: Record<string, number> = {};
+  for (const [sz, r] of Object.entries(sizes)) {
+    const rVal = Number(r) || 0;
+    if (rVal > 0) {
+      result[sz] = layVal * rVal;
+    }
+  }
+  return result;
+}
+
+/**
+ * Calculate total cut pcs quantity.
+ * Total Cut Pcs = Lay * Total Ratio (or sum of size-wise pcs).
+ */
+export function calculateTotalCutPcs(lay: number, ratio: number, sizes?: Record<string, number>): number {
+  const layVal = Number(lay) || 0;
+  const totalRatio = calculateTotalRatio(sizes);
+  if (totalRatio > 0) {
+    return layVal * totalRatio;
+  }
+  return layVal * (Number(ratio) || 0);
+}
+
+/**
  * Perform automatic industrial calculations on a CuttingEntry.
  * Returns the entry populated with the calculated fields.
  */
 export function calculateFields(entry: Omit<CuttingEntry, 'total_length_inch' | 'total_used_fabric_inch' | 'spreading_scrap_kg' | 'scrap_percent_per_marker' | 'cutting_scrap_percent' | 'deviation_percent' | 'efficiency_gap' | 'actual_marker_scrap_kg' | 'actual_marker_scrap_percent' | 'actual_physical_marker_efficiency_ete'>): CuttingEntry {
   const lay = Number(entry.lay) || 0;
+  
+  // Calculate total ratio from sizes if size breakdown is provided
+  let ratio = Number(entry.ratio) || 0;
+  const totalRatioFromSizes = calculateTotalRatio(entry.sizes);
+  if (totalRatioFromSizes > 0) {
+    ratio = totalRatioFromSizes;
+  }
   const marker_length_inch = Number(entry.marker_length_inch) || 0;
   const fabric_used_kg = Number(entry.fabric_used_kg) || 0;
   // Remarks field now maps to Remnant Kg
@@ -236,7 +281,7 @@ export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: str
   // Overall sums requested for extra KPI cards
   const total_cutting_lots = targetEntries.length;
   const total_lay_layers = targetEntries.reduce((sum, e) => sum + (Number(e.lay) || 0), 0);
-  const total_cutting_qty = targetEntries.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
+  const total_cutting_qty = targetEntries.reduce((sum, e) => sum + calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes), 0);
   const total_used_fabric_inch = targetEntries.reduce((acc, c) => acc + (Number(c.total_used_fabric_inch) || (Number(c.lay) || 0) * (Number(c.marker_length_inch) || 0) * ((Number(c.marker_efficiency_percent) || 0) / 100)), 0);
 
   // --- Fabric Save/Loss Calculations ---
@@ -251,7 +296,7 @@ export function compileDashboardKPIs(entries: CuttingEntry[], selectedDate?: str
   let today_booking_vs_cut_count = 0;
 
   targetEntries.forEach(e => {
-    const totalCutQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+    const totalCutQty = calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes);
     const bookingCons = (e.booking_consumption !== undefined && e.booking_consumption !== null) ? Number(e.booking_consumption) : null;
     const cuttingCons = totalCutQty > 0 ? (Number(e.fabric_used_kg) / totalCutQty) * 12 : null;
     const bookingVsCut = (bookingCons !== null && cuttingCons !== null) ? (bookingCons - cuttingCons) : null;

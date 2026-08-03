@@ -925,7 +925,13 @@ app.post("/api/entries", async (req, res) => {
 
     // Compute lay, ratio and calculate remaining fields
     const layNum = Number(data.lay) || 1;
-    const ratioNum = Number(data.ratio) || 1;
+    let ratioNum = Number(data.ratio) || 1;
+    if (data.sizes && typeof data.sizes === "object" && Object.keys(data.sizes).length > 0) {
+      const sumRatio: number = Object.values(data.sizes as Record<string, any>).reduce((s: number, r: any) => s + (Number(r) || 0), 0);
+      if (sumRatio > 0) {
+        ratioNum = sumRatio;
+      }
+    }
     const dataToInsert: any = {
       entry_date: data.entry_date,
       shift: sanitizeShift(data.shift),
@@ -1281,6 +1287,14 @@ app.put("/api/entries/:id", async (req, res) => {
 
     const approvedBy = finalStatus === "approved" ? (existingEntry.approved_by || editorId) : null;
 
+    let updatedRatio = Number(data.ratio) || 0;
+    if (data.sizes && typeof data.sizes === "object" && Object.keys(data.sizes).length > 0) {
+      const sumRatio: number = Object.values(data.sizes as Record<string, any>).reduce((s: number, r: any) => s + (Number(r) || 0), 0);
+      if (sumRatio > 0) {
+        updatedRatio = sumRatio;
+      }
+    }
+
     // Update inside Supabase
     const updateData: any = {
       entry_date: data.entry_date,
@@ -1296,7 +1310,7 @@ app.put("/api/entries/:id", async (req, res) => {
       item: (data.item || "").trim() || "DRAFT",
       cut_no: (data.cut_no || "").trim() || "DRAFT",
       lay: Number(data.lay),
-      ratio: Number(data.ratio),
+      ratio: updatedRatio,
       table_no: data.table_no,
       fabric_type: data.fabric_type,
       parts: data.parts,

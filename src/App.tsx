@@ -277,7 +277,7 @@ export default function App() {
     setEditingEntry({
       ...editingEntry,
       sizes: nextSizes,
-      ratio: totalRatioSum > 0 ? totalRatioSum : editingEntry.ratio
+      ratio: totalRatioSum
     });
   };
 
@@ -2420,6 +2420,7 @@ export default function App() {
                   machines={machines} 
                   buyers={buyers}
                   fabricMetrics={fabricMetrics}
+                  entries={mainEntries}
                   onSubmitEntry={handleSubmitEntry}
                   onWebImport={handleBulkImport}
                   jobNoDigits={jobNoDigits}
@@ -2788,37 +2789,57 @@ export default function App() {
                   }
 
                   const layVal = Number(editingEntry.lay) || 0;
+                  const totalRatioVal = Object.values(editingEntry.sizes || {}).reduce((s, r) => s + (Number(r) || 0), 0) || (Number(editingEntry.ratio) || 0);
+                  const totalCutPcs = layVal * totalRatioVal;
 
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {allVisibleSizes.map(sz => {
-                        const ratioVal = editingEntry.sizes?.[sz] !== undefined ? editingEntry.sizes[sz] : 0;
-                        const computedQty = layVal * ratioVal;
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {allVisibleSizes.map(sz => {
+                          const ratioVal = editingEntry.sizes?.[sz] !== undefined ? editingEntry.sizes[sz] : 0;
+                          const computedQty = layVal * ratioVal;
 
-                        return (
-                          <div key={sz} className="bg-white dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{sz}</span>
-                              {computedQty > 0 && (
-                                <span className="text-[9px] font-mono text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/30 px-1 rounded">
-                                  {computedQty}
-                                </span>
-                              )}
+                          return (
+                            <div key={sz} className="bg-white dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{sz}</span>
+                                {computedQty > 0 && (
+                                  <span className="text-[9px] font-mono text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/30 px-1 rounded">
+                                    {computedQty} pcs
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[9px] text-slate-400">Ratio:</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={ratioVal === 0 ? "" : ratioVal}
+                                  onChange={(e) => handleEditSizeRatioChange(sz, e.target.value)}
+                                  placeholder="0"
+                                  className="w-full h-6 text-[10px] text-center border border-slate-200 dark:border-slate-800 rounded bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                                />
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[9px] text-slate-400">Ratio:</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={ratioVal === 0 ? "" : ratioVal}
-                                onChange={(e) => handleEditSizeRatioChange(sz, e.target.value)}
-                                placeholder="0"
-                                className="w-full h-6 text-[10px] text-center border border-slate-200 dark:border-slate-800 rounded bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+
+                      {/* Total Ratio & Cut Qty Summary */}
+                      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-500 font-medium">Total Ratio:</span>
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded">
+                            {totalRatioVal}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-500 font-medium">Total Cut Qty:</span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded">
+                            {totalCutPcs} pcs
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}

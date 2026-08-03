@@ -24,6 +24,7 @@ import {
   ArrowRightLeft
 } from "lucide-react";
 import { PolyEntry, CuttingEntry } from "../types";
+import { calculateTotalCutPcs } from "../utils/calculations";
 import {
   ResponsiveContainer,
   BarChart,
@@ -967,7 +968,7 @@ export default function KPICards({
       grouped[d].eteSum += Number(e.actual_physical_marker_efficiency_ete) || 0;
       grouped[d].count++;
       
-      const vol = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+      const vol = calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes);
       grouped[d].volumeSum += vol;
       
       // Calculate individual Save/Loss

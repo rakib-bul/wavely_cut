@@ -18,7 +18,7 @@ import {
   Printer
 } from "lucide-react";
 import { CuttingEntry, Machine } from "../types";
-import { getCurrentProductionDateAndShift } from "../utils/calculations";
+import { getCurrentProductionDateAndShift, calculateTotalCutPcs } from "../utils/calculations";
 
 interface DailyReportProps {
   entries: CuttingEntry[];
@@ -69,7 +69,7 @@ export default function DailyReport({
   const stats = useMemo(() => {
     const totalCuttingLots = dayEntries.length;
     const totalLay = dayEntries.reduce((sum, e) => sum + (Number(e.lay) || 0), 0);
-    const totalCuttingQty = dayEntries.reduce((sum, e) => sum + ((Number(e.lay) || 0) * (Number(e.ratio) || 0)), 0);
+    const totalCuttingQty = dayEntries.reduce((sum, e) => sum + calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes), 0);
     const totalFabricUsedKg = dayEntries.reduce((sum, e) => sum + (Number(e.fabric_used_kg) || 0), 0);
 
     // Calculate 19 Overall Fabric Metrics
@@ -212,7 +212,7 @@ export default function DailyReport({
 
       item.cutsCount += 1;
       item.laySum += lay;
-      item.cuttingQtySum += (lay * ratio);
+      item.cuttingQtySum += calculateTotalCutPcs(lay, ratio, e.sizes);
       item.fabricUsedSum += Number(e.fabric_used_kg) || 0;
       item.calculatedMetricSum += (lay * length * (efficiency / 100));
     });
@@ -510,7 +510,7 @@ export default function DailyReport({
           </thead>
           <tbody>
             ${dayEntries.map((e, idx) => {
-              const cuttingQty = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+              const cuttingQty = calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes);
               const machineName = machines.find(m => m.id === e.machine_id)?.machine_name || e.machine_id;
               return `
                 <tr class="${idx % 2 === 0 ? 'ledger-row-even' : 'ledger-row-odd'}">

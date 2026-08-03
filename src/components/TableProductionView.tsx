@@ -19,6 +19,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { CuttingEntry } from "../types";
+import { calculateTotalCutPcs } from "../utils/calculations";
 
 interface TableProductionViewProps {
   entries: CuttingEntry[];
@@ -209,7 +210,7 @@ export default function TableProductionView({ entries }: TableProductionViewProp
 
         tEntries.forEach(e => {
           sumLays += Number(e.lay) || 0;
-          sumPieces += (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+          sumPieces += calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes);
           sumFabric += Number(e.fabric_used_kg) || 0;
           sumScrap += Number(e.cutting_scrap_weight_kg) || 0;
           
@@ -264,7 +265,7 @@ export default function TableProductionView({ entries }: TableProductionViewProp
 
         tEntries.forEach(e => {
           sumLays += Number(e.lay) || 0;
-          sumPieces += (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+          sumPieces += calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes);
           sumFabric += Number(e.fabric_used_kg) || 0;
           sumScrap += Number(e.cutting_scrap_weight_kg) || 0;
           

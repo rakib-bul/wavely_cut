@@ -12,6 +12,7 @@ import {
   Line 
 } from "recharts";
 import { CuttingEntry, Machine } from "../types";
+import { calculateTotalCutPcs } from "../utils/calculations";
 import { Cpu, Scissors, Award, TrendingUp, Layers, HelpCircle, AlertCircle } from "lucide-react";
 import { formatDate } from "../utils/dateUtils";
 
@@ -135,7 +136,7 @@ export default function AnalyticsModule({ entries, machines }: AnalyticsModulePr
       grouped[d].fabricSum += fabric;
       grouped[d].scrapSum += (Number(e.cutting_scrap_weight_kg) || 0) + (Number(e.remnant_weight_kg) || 0);
       
-      const vol = (Number(e.lay) || 0) * (Number(e.ratio) || 0);
+      const vol = calculateTotalCutPcs(Number(e.lay) || 0, Number(e.ratio) || 0, e.sizes);
       grouped[d].volumeSum += vol;
       
       // Calculate individual Save/Loss

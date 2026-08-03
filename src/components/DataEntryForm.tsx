@@ -88,12 +88,13 @@ export default function DataEntryForm({
   machines, 
   buyers = [], 
   fabricMetrics = [], 
+  entries = [],
   onSubmitEntry, 
   onWebImport, 
   jobNoDigits = 7, 
   isPoNumberRequired = false, 
   colorTypeMetrics 
-}: DataEntryFormProps) {
+}: DataEntryFormProps & { entries?: CuttingEntry[] }) {
   // --- Form Tab State ---
   const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
 
@@ -192,6 +193,10 @@ export default function DataEntryForm({
   };
 
   const filteredSyncMetrics = useMemo(() => {
+    // Require user search query or selected buyer before listing any master specs
+    if (!searchSyncTerm.trim() && !selectedSyncBuyer) {
+      return [];
+    }
     return fabricMetrics.filter(m => {
       const matchBuyer = selectedSyncBuyer ? m.buyer === selectedSyncBuyer : true;
       const matchTerm = searchSyncTerm ? (
@@ -206,14 +211,100 @@ export default function DataEntryForm({
 
   const jobSuggestions = useMemo(() => {
     if (!formData.buyer) return [];
+    const searchJob = (formData.job_no || "").trim();
+    const searchPo = (formData.po_no || "").trim();
+    const searchColor = (formData.color || "").trim();
+    // Only search/suggest if user typed something in Job No, PO No, or Color
+    if (!searchJob && !searchPo && !searchColor) return [];
+
     return fabricMetrics.filter(m => {
       const matchBuyer = m.buyer?.toUpperCase() === formData.buyer.toUpperCase();
-      const matchJob = formData.job_no 
-        ? m.job_no?.toLowerCase().includes(formData.job_no.toLowerCase())
-        : true;
-      return matchBuyer && matchJob;
+      const matchJob = searchJob ? m.job_no?.toLowerCase().includes(searchJob.toLowerCase()) : false;
+      const matchPo = searchPo ? m.po_no?.toLowerCase().includes(searchPo.toLowerCase()) : false;
+      const matchColor = searchColor ? m.color?.toLowerCase().includes(searchColor.toLowerCase()) : false;
+      return matchBuyer && (matchJob || matchPo || matchColor);
     });
-  }, [fabricMetrics, formData.buyer, formData.job_no]);
+  }, [fabricMetrics, formData.buyer, formData.job_no, formData.po_no, formData.color]);
+
+  // Active Master Spec matched either by direct selection or by Job/Color/PO matching
+  const activeMasterSpec = useMemo(() => {
+    if (selectedMasterMetricId) {
+      return fabricMetrics.find(m => m.id === selectedMasterMetricId) || null;
+    }
+    const jobStr = formData.job_no.trim().toUpperCase();
+    if (!jobStr) return null;
+
+    return fabricMetrics.find(m => {
+      const matchJob = m.job_no?.trim().toUpperCase() === jobStr;
+      const matchColor = !formData.color.trim() || !m.color || m.color.trim().toLowerCase() === formData.color.trim().toLowerCase();
+      const matchPo = !formData.po_no.trim() || !m.po_no || m.po_no.trim().toLowerCase() === formData.po_no.trim().toLowerCase();
+      return matchJob && matchColor && matchPo;
+    }) || null;
+  }, [selectedMasterMetricId, fabricMetrics, formData.job_no, formData.color, formData.po_no]);
+
+  // Previous Cut Totals from entries for active master spec
+  const masterPreviousStats = useMemo(() => {
+    if (!activeMasterSpec) return { totalFabricKg: 0, sizePcs: {} as Record<string, number>, totalCutPcs: 0 };
+
+    const matchedEntries = (entries || []).filter(e => {
+      if (e.fabric_metric_id && e.fabric_metric_id === activeMasterSpec.id) return true;
+      if (e.job_no && e.job_no.toUpperCase() === activeMasterSpec.job_no?.toUpperCase()) {
+        const matchColor = !activeMasterSpec.color || e.color?.toLowerCase() === activeMasterSpec.color.toLowerCase();
+        const matchPo = !activeMasterSpec.po_no || e.po_no?.toLowerCase() === activeMasterSpec.po_no.toLowerCase();
+        return matchColor && matchPo;
+      }
+      return false;
+    });
+
+    let totalFabricKg = 0;
+    const sizePcs: Record<string, number> = {};
+    let totalCutPcs = 0;
+
+    matchedEntries.forEach(e => {
+      totalFabricKg += Number(e.fabric_used_kg) || 0;
+      const lay = Number(e.lay) || 0;
+      if (e.sizes && typeof e.sizes === 'object') {
+        Object.entries(e.sizes).forEach(([sz, r]) => {
+          const pcs = lay * (Number(r) || 0);
+          sizePcs[sz] = (sizePcs[sz] || 0) + pcs;
+        });
+      }
+      const ratio = Number(e.ratio) || 0;
+      totalCutPcs += lay * ratio;
+    });
+
+    return { totalFabricKg, sizePcs, totalCutPcs };
+  }, [activeMasterSpec, entries]);
+
+  // Current Form Calculations & Limits
+  const currentFormLay = Number(formData.lay) || 0;
+  const currentFormFabricKg = Number(formData.fabric_used_kg) || 0;
+
+  const cumulativeFabricKg = masterPreviousStats.totalFabricKg + currentFormFabricKg;
+  const bookedFabricKg = Number(activeMasterSpec?.booking_kg) || 0;
+  const isFabricKgExceeded = Boolean(activeMasterSpec && bookedFabricKg > 0 && cumulativeFabricKg > bookedFabricKg);
+
+  const cumulativeSizePcsMap = useMemo(() => {
+    const res: Record<string, number> = { ...masterPreviousStats.sizePcs };
+    Object.entries(formData.sizes || {}).forEach(([sz, r]) => {
+      const curPcs = currentFormLay * (Number(r) || 0);
+      res[sz] = (res[sz] || 0) + curPcs;
+    });
+    return res;
+  }, [masterPreviousStats.sizePcs, formData.sizes, currentFormLay]);
+
+  const exceededSizesList = useMemo(() => {
+    if (!activeMasterSpec || !activeMasterSpec.size_bookings) return [];
+    const list: { size: string; booked: number; actual: number; excess: number }[] = [];
+    Object.entries(activeMasterSpec.size_bookings).forEach(([sz, bookedQtyVal]) => {
+      const booked = Number(bookedQtyVal) || 0;
+      const actual = cumulativeSizePcsMap[sz] || 0;
+      if (booked > 0 && actual > booked) {
+        list.push({ size: sz, booked, actual, excess: actual - booked });
+      }
+    });
+    return list;
+  }, [activeMasterSpec, cumulativeSizePcsMap]);
 
   // --- Autosave Draft State ---
   const [hasDraft, setHasDraft] = useState(false);
@@ -283,7 +374,7 @@ export default function DataEntryForm({
     setFormData(prev => ({
       ...prev,
       sizes: nextSizes,
-      ratio: totalRatioSum > 0 ? String(totalRatioSum) : prev.ratio
+      ratio: String(totalRatioSum)
     }));
   };
 
@@ -408,6 +499,23 @@ export default function DataEntryForm({
               `Validation Error: Actual Cut Qty (${actualCutQty.toLocaleString()} pcs) exceeds the maximum allowed quantity (${maxAllowedCutQty.toLocaleString()} pcs) for ${colorType} color type. Allowed allowance is ${percentage}% (${allowedAllowance.toLocaleString()} pcs) for order quantity of ${orderQtyVal.toLocaleString()} pcs.`
             );
           }
+        }
+      }
+
+      // --- FABRIC METRICS MASTER SPEC VALIDATION ---
+      if (activeMasterSpec) {
+        if (isFabricKgExceeded) {
+          const excess = (cumulativeFabricKg - bookedFabricKg).toFixed(1);
+          return setValidationError(
+            `Fabric Metrics Validation Error: Cumulative Fabric Used (${cumulativeFabricKg.toFixed(1)} kg) exceeds Fabric Metrics Master booked weight (${bookedFabricKg} kg) by ${excess} kg.`
+          );
+        }
+
+        if (exceededSizesList.length > 0) {
+          const sizeErrStr = exceededSizesList.map(s => `${s.size} (${s.actual} pcs cut vs ${s.booked} pcs booked, +${s.excess} pcs excess)`).join("; ");
+          return setValidationError(
+            `Fabric Metrics Validation Error: Cut quantity for size(s) exceeds Fabric Metrics Master booked quantity: ${sizeErrStr}.`
+          );
         }
       }
     } else {
@@ -767,10 +875,13 @@ export default function DataEntryForm({
 
               {/* Specs Scroller */}
               <div className="space-y-2">
-                <label className="block text-[9px] font-bold text-slate-400 uppercase">Available Pre-defined Master Specs ({filteredSyncMetrics.length})</label>
                 {filteredSyncMetrics.length === 0 ? (
-                  <div className="p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg text-center text-[11px] text-slate-400">
-                    No matching fabric metric entries found. Create them in the Fabric Specifications panel first.
+                  <div className="p-3.5 border border-dashed border-indigo-200/60 dark:border-slate-800 rounded-lg text-center text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    {!searchSyncTerm.trim() && !selectedSyncBuyer ? (
+                      <span>Search by typing JOB, PO, Color, or Item above to find and sync with Fabric Metrics Master.</span>
+                    ) : (
+                      <span>No matching fabric metric entries found for "{searchSyncTerm || selectedSyncBuyer}".</span>
+                    )}
                   </div>
                 ) : (
                   <div className="max-h-36 overflow-y-auto border border-slate-250 dark:border-slate-800 rounded-lg divide-y divide-slate-150 dark:divide-slate-850 bg-white dark:bg-slate-950">
@@ -1088,10 +1199,7 @@ export default function DataEntryForm({
                 </div>
 
                 {(() => {
-                  const activeSpec = selectedMasterMetricId
-                    ? fabricMetrics.find(m => m.id === selectedMasterMetricId)
-                    : null;
-                  const activeSpecSizes = activeSpec?.size_bookings ? Object.keys(activeSpec.size_bookings) : [];
+                  const activeSpecSizes = activeMasterSpec?.size_bookings ? Object.keys(activeMasterSpec.size_bookings) : [];
                   const defaultSizes = ["S", "M", "L", "XL", "XXL"];
                   
                   const allVisibleSizes = sortSizes(Array.from(new Set([
@@ -1108,37 +1216,88 @@ export default function DataEntryForm({
                   }
 
                   const layVal = Number(formData.lay) || 0;
+                  const totalRatioVal = Object.values(formData.sizes || {}).reduce((s, r) => s + (Number(r) || 0), 0) || (Number(formData.ratio) || 0);
+                  const totalCutPcs = layVal * totalRatioVal;
 
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                      {allVisibleSizes.map(sz => {
-                        const ratioVal = formData.sizes?.[sz] !== undefined ? formData.sizes[sz] : 0;
-                        const computedQty = layVal * ratioVal;
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        {allVisibleSizes.map(sz => {
+                          const ratioVal = formData.sizes?.[sz] !== undefined ? formData.sizes[sz] : 0;
+                          const currentPcs = layVal * ratioVal;
+                          const prevPcs = masterPreviousStats.sizePcs[sz] || 0;
+                          const totalPcs = prevPcs + currentPcs;
+                          const bookedQty = activeMasterSpec?.size_bookings?.[sz] ? Number(activeMasterSpec.size_bookings[sz]) : 0;
+                          const isExceeded = Boolean(bookedQty > 0 && totalPcs > bookedQty);
 
-                        return (
-                          <div key={sz} className="bg-white dark:bg-slate-950 p-2.5 rounded-lg border border-slate-250 dark:border-slate-800 flex flex-col justify-between">
-                            <div className="flex justify-between items-center mb-1.5">
-                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{sz}</span>
-                              {computedQty > 0 && (
-                                <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-1 py-0.2 rounded">
-                                  {computedQty} pcs
+                          return (
+                            <div 
+                              key={sz} 
+                              className={`p-2.5 rounded-lg border flex flex-col justify-between transition-all ${
+                                isExceeded 
+                                  ? "bg-red-50/80 dark:bg-red-950/40 border-red-300 dark:border-red-800 shadow-xs" 
+                                  : "bg-white dark:bg-slate-950 border-slate-250 dark:border-slate-800"
+                              }`}
+                            >
+                              <div className="flex justify-between items-center mb-1 gap-1">
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{sz}</span>
+                                <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  isExceeded 
+                                    ? "text-red-700 bg-red-100 dark:bg-red-900/60 dark:text-red-300" 
+                                    : "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+                                }`}>
+                                  {currentPcs} pcs
                                 </span>
+                              </div>
+
+                              {bookedQty > 0 && (
+                                <div className="text-[9px] text-slate-500 mb-1.5 font-mono flex items-center justify-between">
+                                  <span>Booked: <strong>{bookedQty}</strong></span>
+                                  {prevPcs > 0 && <span className="text-slate-400">Prev: {prevPcs}</span>}
+                                </div>
                               )}
+
+                              {isExceeded && (
+                                <div className="text-[9px] font-bold text-red-600 dark:text-red-400 mb-1.5 flex items-center gap-1 bg-red-100/60 dark:bg-red-900/40 px-1.5 py-0.5 rounded">
+                                  <span>⚠️ Exceeds ({totalPcs}/{bookedQty})</span>
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400 font-medium">Ratio:</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={ratioVal === 0 ? "" : ratioVal}
+                                  onChange={(e) => handleSizeRatioChange(sz, e.target.value)}
+                                  placeholder="0"
+                                  className={`w-full h-7 text-xs text-center border rounded bg-slate-50/50 dark:bg-slate-900 focus:outline-none focus:ring-1 font-bold ${
+                                    isExceeded 
+                                      ? "border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 focus:ring-red-500" 
+                                      : "border-slate-250 dark:border-slate-750 focus:ring-blue-500 text-slate-800 dark:text-slate-200"
+                                  }`}
+                                />
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-slate-400 font-medium">Ratio:</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={ratioVal === 0 ? "" : ratioVal}
-                                onChange={(e) => handleSizeRatioChange(sz, e.target.value)}
-                                placeholder="0"
-                                className="w-full h-7 text-xs text-center border border-slate-250 dark:border-slate-750 rounded bg-slate-50/50 dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+
+                      {/* Total Ratio & Total Cut Pcs Summary */}
+                      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 font-semibold">Total Ratio:</span>
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md">
+                            {totalRatioVal}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 font-semibold">Total Cut Qty:</span>
+                          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-md">
+                            {totalCutPcs} pcs <span className="text-[10px] font-normal text-slate-400">({layVal} lay × {totalRatioVal} ratio)</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
@@ -1217,15 +1376,37 @@ export default function DataEntryForm({
 
               {/* 11. Fabric Weight Used (KG) */}
               <div>
-                <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">Fabric Weight Used (KG)</label>
+                <div className="flex justify-between items-center mb-1.5 gap-2">
+                  <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Fabric Weight Used (KG)
+                  </label>
+                  {bookedFabricKg > 0 && (
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                      isFabricKgExceeded 
+                        ? "text-red-700 bg-red-100 dark:bg-red-950/50 dark:text-red-300 border border-red-200" 
+                        : "text-indigo-700 bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-300"
+                    }`}>
+                      Booked: {bookedFabricKg} kg | Total: {cumulativeFabricKg.toFixed(1)} kg
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
                   step="0.001"
                   name="fabric_used_kg"
                   value={formData.fabric_used_kg}
                   onChange={handleInputChange}
-                  className="w-full h-11 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200 shadow-xs"
+                  className={`w-full h-11 bg-white dark:bg-slate-950 border rounded-xl px-4 text-xs font-bold focus:outline-none focus:ring-2 transition-all text-slate-800 dark:text-slate-200 shadow-xs ${
+                    isFabricKgExceeded 
+                      ? "border-red-500 focus:ring-red-500 bg-red-50/30 dark:bg-red-950/20 text-red-900 dark:text-red-200" 
+                      : "border-slate-300 dark:border-slate-700 focus:ring-blue-500"
+                  }`}
                 />
+                {isFabricKgExceeded && (
+                  <p className="text-[10px] text-red-600 dark:text-red-400 font-bold mt-1 flex items-center gap-1">
+                    <AlertCircle size={12} /> Total fabric used ({cumulativeFabricKg.toFixed(1)} kg) exceeds Fabric Metrics Master limit ({bookedFabricKg} kg) by {(cumulativeFabricKg - bookedFabricKg).toFixed(1)} kg!
+                  </p>
+                )}
               </div>
 
               {/* 12. Remnants Weight (KG) */}
