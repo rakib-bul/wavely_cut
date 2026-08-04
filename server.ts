@@ -116,57 +116,70 @@ const supabase = createClient(
   }
 );
 
-// Helper to fetch first 300 cutting entries
+// Helper to fetch all cutting entries using pagination
 async function fetchAllCuttingEntries() {
-  try {
-    const { data, error } = await supabase
-      .from("cutting_entries")
-      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id, sizes")
-      .order("entry_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(300);
+  let allEntries: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
 
-    if (error) {
-      if (error.code === "42703" || error.message?.includes("sizes") || error.message?.includes("color_type") || error.message?.includes("order_qty")) {
-        console.warn("Missing columns in cutting_entries. Retrying without sizes.");
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("cutting_entries")
-          .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
-          .order("entry_date", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(300);
-
-        if (fallbackError) throw fallbackError;
-        return (fallbackData || []).map((e: any) => ({
-          ...e,
-          sizes: {},
-          color_type: "Solid",
-          order_qty: 0
-        }));
-      }
-      throw error;
-    }
-    return data || [];
-  } catch (err: any) {
-    if (err.code === "42703" || err.message?.includes("sizes") || err.message?.includes("color_type") || err.message?.includes("order_qty")) {
-      console.warn("Caught error in fetchAllCuttingEntries. Retrying fallback query.");
-      const { data: fallbackData, error: fallbackError } = await supabase
+  while (hasMore) {
+    try {
+      const { data, error } = await supabase
         .from("cutting_entries")
-        .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
+        .select("*")
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(300);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      if (fallbackError) throw fallbackError;
-      return (fallbackData || []).map((e: any) => ({
-        ...e,
-        sizes: {},
-        color_type: "Solid",
-        order_qty: 0
-      }));
+      if (error) {
+        console.warn(`Error on page ${page} fetching cutting_entries with select(*):`, error.message);
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("cutting_entries")
+          .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, marker_length_inch, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at")
+          .order("entry_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (fallbackError) {
+          console.error("Fallback query in fetchAllCuttingEntries failed:", fallbackError.message);
+          hasMore = false;
+          break;
+        }
+
+        if (!fallbackData || fallbackData.length === 0) {
+          hasMore = false;
+        } else {
+          allEntries = allEntries.concat(fallbackData);
+          if (fallbackData.length < pageSize) hasMore = false;
+          else page++;
+        }
+      } else {
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allEntries = allEntries.concat(data);
+          if (data.length < pageSize) hasMore = false;
+          else page++;
+        }
+      }
+    } catch (err: any) {
+      console.error("Caught error in fetchAllCuttingEntries pagination:", err);
+      hasMore = false;
+      break;
     }
-    throw err;
   }
+
+  return (allEntries || []).map((e: any) => ({
+    ...e,
+    sizes: e.sizes || {},
+    color_type: e.color_type || "Solid",
+    order_qty: Number(e.order_qty) || 0,
+    total_length_inch: Number(e.total_length_inch) || 0,
+    spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
+    scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - (Number(e.marker_efficiency_percent) || 0)),
+    fabric_metric_id: e.fabric_metric_id || null
+  }));
 }
 
 // Robust helper to fetch a single cutting entry with fallback for missing column
@@ -174,47 +187,43 @@ async function fetchSingleCuttingEntry(id: string) {
   try {
     const { data, error } = await supabase
       .from("cutting_entries")
-      .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id, sizes")
+      .select("*")
       .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === "42703" || error.message?.includes("sizes") || error.message?.includes("color_type") || error.message?.includes("order_qty")) {
-        console.warn("Column missing on single fetch, retrying without sizes.");
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("cutting_entries")
-          .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
-          .eq("id", id)
-          .single();
-
-        if (fallbackError) throw fallbackError;
-        return {
-          ...fallbackData,
-          sizes: {},
-          color_type: "Solid",
-          order_qty: 0
-        };
-      }
-      throw error;
-    }
-    return data;
-  } catch (err: any) {
-    if (err.code === "42703" || err.message?.includes("sizes") || err.message?.includes("color_type") || err.message?.includes("order_qty")) {
-      console.warn("Caught error in fetchSingleCuttingEntry, retrying without sizes.");
+      console.warn("Single fetch with select(*) failed, trying basic fields fallback:", error.message);
       const { data: fallbackData, error: fallbackError } = await supabase
         .from("cutting_entries")
-        .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, remnants_scrap_weight_kg, marker_length_inch, marker_consumption, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at, updated_at, total_length_inch, spreading_scrap_kg, scrap_percent_per_marker, fabric_metric_id")
+        .select("id, entry_date, shift, machine_id, buyer, job_no, color, po_no, item, cut_no, lay, ratio, table_no, fabric_type, parts, fabric_used_kg, remnant_weight_kg, booking_consumption, cutting_consumption, cutting_scrap_weight_kg, reject_qty, marker_length_inch, marker_efficiency_percent, remarks, supervisor_name, created_by, approved_by, status, created_at")
         .eq("id", id)
         .single();
 
       if (fallbackError) throw fallbackError;
+      const fb = fallbackData as any;
       return {
-        ...fallbackData,
-        sizes: {},
-        color_type: "Solid",
-        order_qty: 0
+        ...fb,
+        sizes: fb?.sizes || {},
+        color_type: fb?.color_type || "Solid",
+        order_qty: Number(fb?.order_qty) || 0,
+        total_length_inch: Number(fb?.total_length_inch) || 0,
+        spreading_scrap_kg: Number(fb?.spreading_scrap_kg) || (Number(fb?.fabric_used_kg) * 0.025),
+        scrap_percent_per_marker: Number(fb?.scrap_percent_per_marker) || (100.00 - (Number(fb?.marker_efficiency_percent) || 0)),
+        fabric_metric_id: fb?.fabric_metric_id || null
       };
     }
+    return {
+      ...data,
+      sizes: data?.sizes || {},
+      color_type: data?.color_type || "Solid",
+      order_qty: Number(data?.order_qty) || 0,
+      total_length_inch: Number(data?.total_length_inch) || 0,
+      spreading_scrap_kg: Number(data?.spreading_scrap_kg) || (Number(data?.fabric_used_kg) * 0.025),
+      scrap_percent_per_marker: Number(data?.scrap_percent_per_marker) || (100.00 - (Number(data?.marker_efficiency_percent) || 0)),
+      fabric_metric_id: data?.fabric_metric_id || null
+    };
+  } catch (err: any) {
+    console.error("Error in fetchSingleCuttingEntry:", err);
     throw err;
   }
 }
@@ -1898,22 +1907,27 @@ app.get("/api/sync", async (req, res) => {
 
     // 3. Fetch cutting entries
     const entriesPromise = (async () => {
-      const entries = await fetchAllCuttingEntries();
+      try {
+        const entries = await fetchAllCuttingEntries();
 
-      const { data: profiles } = await supabase.from("profiles").select("id, email");
-      const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
-      
-      const mappedEntries = (entries || []).map((e: any) => ({
-        ...e,
-        total_length_inch: Number(e.total_length_inch) || 0,
-        spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
-        scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - Number(e.marker_efficiency_percent)),
-        created_by: profileMap.get(e.created_by) || e.created_by || user_email,
-        approved_by: profileMap.get(e.approved_by) || e.approved_by || null
-      }));
+        const { data: profiles } = await supabase.from("profiles").select("id, email");
+        const profileMap = new Map((profiles || []).map(p => [p.id, p.email]));
+        
+        const mappedEntries = (entries || []).map((e: any) => ({
+          ...e,
+          total_length_inch: Number(e.total_length_inch) || 0,
+          spreading_scrap_kg: Number(e.spreading_scrap_kg) || (Number(e.fabric_used_kg) * 0.025),
+          scrap_percent_per_marker: Number(e.scrap_percent_per_marker) || (100.00 - Number(e.marker_efficiency_percent)),
+          created_by: profileMap.get(e.created_by) || e.created_by || user_email,
+          approved_by: profileMap.get(e.approved_by) || e.approved_by || null
+        }));
 
-      mappedEntries.sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      return mappedEntries;
+        mappedEntries.sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return mappedEntries;
+      } catch (err: any) {
+        console.error("Could not fetch cutting_entries in /api/sync:", err.message);
+        return [];
+      }
     })();
 
     // 4. Fetch audit logs (Only if admin)

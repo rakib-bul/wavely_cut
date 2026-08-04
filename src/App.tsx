@@ -341,7 +341,7 @@ export default function App() {
       };
 
       // Perform a single unified synchronized load of all dashboard states
-      const activeVersion = (entries.length > 0 && machines.length > 0) ? syncVersion : "";
+      const activeVersion = (isSilent && entries.length > 0 && machines.length > 0) ? syncVersion : "";
       const syncData = await safeFetchJson(`/api/sync?version=${encodeURIComponent(activeVersion)}`, { headers });
 
       if (syncData) {
