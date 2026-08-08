@@ -7,7 +7,7 @@ import {
   Flame, Users, Target, ShieldAlert, CheckCircle2, AlertTriangle, FileSpreadsheet,
   Layers, UserCheck, Sparkles, Download
 } from "lucide-react";
-import { HeatSealEntry, HourlyHeatSealData, Profile, HeatSealOperator, HeatSealTarget } from "../types";
+import { HeatSealEntry, HourlyHeatSealData, Profile, HeatSealOperator, HeatSealTarget, CuttingEntry } from "../types";
 
 const HOURS_LABELS = [
   "8-9 AM", "9-10 AM", "10-11 AM", "11-12 PM", "12-1 PM", "1-2 PM", 
@@ -20,6 +20,7 @@ interface HeatSealModuleProps {
   entries: HeatSealEntry[];
   operators?: HeatSealOperator[];
   targets?: HeatSealTarget[];
+  cuttingEntries?: CuttingEntry[];
   currentProfile: Profile;
   onSubmitEntry: (entry: Partial<HeatSealEntry>) => Promise<void>;
   onUpdateEntry: (id: string, updates: Partial<HeatSealEntry>) => Promise<void>;
@@ -37,6 +38,7 @@ export default function HeatSealModule({
   entries = [],
   operators = [],
   targets = [],
+  cuttingEntries = [],
   currentProfile,
   onSubmitEntry,
   onUpdateEntry,
@@ -138,6 +140,8 @@ export default function HeatSealModule({
     color: "",
     po_no: "",
     hourly_target: 100,
+    target_qty: 0,
+    max_po_qty: 0,
     status: 'active'
   });
 
@@ -183,6 +187,90 @@ export default function HeatSealModule({
     });
   }, [formData.hourly_data, isDayShift]);
 
+  // Maximum PO Quantity fetched from Cutting Entries
+  const getCuttingMaxPoQty = (jobNo?: string, poNo?: string, color?: string) => {
+    if (!jobNo || !cuttingEntries || cuttingEntries.length === 0) return 0;
+    const cleanJob = jobNo.trim().toLowerCase();
+    const cleanPo = (poNo || "").trim().toLowerCase();
+    const cleanCol = (color || "").trim().toLowerCase();
+
+    const matching = cuttingEntries.filter(c => {
+      if (!c.job_no || c.job_no.trim().toLowerCase() !== cleanJob) return false;
+      if (cleanPo && c.po_no && c.po_no.trim().toLowerCase() !== cleanPo) return false;
+      if (cleanCol && c.color && c.color.trim().toLowerCase() !== cleanCol) return false;
+      return true;
+    });
+
+    if (matching.length === 0) return 0;
+
+    let maxQty = 0;
+    matching.forEach(c => {
+      const orderQty = Number(c.order_qty) || 0;
+      if (orderQty > maxQty) maxQty = orderQty;
+    });
+
+    // If order_qty is 0, sum cut pcs across sizes
+    if (maxQty === 0) {
+      matching.forEach(c => {
+        const lay = Number(c.lay) || 1;
+        const ratio = Number(c.ratio) || 1;
+        let sumSizes = 0;
+        if (c.sizes && typeof c.sizes === 'object') {
+          Object.values(c.sizes).forEach(v => sumSizes += Number(v) || 0);
+        }
+        const pcs = lay * ratio * (sumSizes || 1);
+        if (pcs > maxQty) maxQty = pcs;
+      });
+    }
+
+    return maxQty;
+  };
+
+  // Calculate Cumulative Production Achieved for a given target
+  const getTargetAchievedQty = (targetId?: string, targetObj?: HeatSealTarget) => {
+    if (!targetId && !targetObj) return 0;
+    let total = 0;
+    entries.forEach(e => {
+      let isMatch = false;
+      if (targetId && e.target_id === targetId) {
+        isMatch = true;
+      } else if (targetObj) {
+        if (
+          e.operator_id === targetObj.operator_id &&
+          e.job_no === targetObj.job_no &&
+          (!targetObj.po_no || e.po_no === targetObj.po_no)
+        ) {
+          isMatch = true;
+        }
+      }
+      if (isMatch && e.hourly_data) {
+        e.hourly_data.forEach(s => {
+          total += Number(s.production) || 0;
+        });
+      }
+    });
+    return total;
+  };
+
+  // Quick action: Assign new target to operator when current target is filled up
+  const handleAssignNewTargetForOperator = (opId: string, opName: string) => {
+    setTargetFormData({
+      target_date: new Date().toISOString().split('T')[0],
+      shift: "D",
+      operator_id: opId,
+      operator_name: opName,
+      job_no: "",
+      color: "",
+      po_no: "",
+      hourly_target: 100,
+      target_qty: 0,
+      max_po_qty: 0,
+      status: 'active'
+    });
+    setActiveSubTab("targets");
+    setIsFormOpen(false);
+  };
+
   // Check and auto-apply target assignments whenever entry_date, shift, or operator_id changes
   useEffect(() => {
     if (!formData.entry_date || !formData.shift || !formData.operator_id) {
@@ -194,6 +282,9 @@ export default function HeatSealModule({
     const matchedTarget = targets.find(t => 
       t.target_date === formData.entry_date && 
       t.shift === formData.shift && 
+      t.operator_id === formData.operator_id &&
+      t.status !== 'completed'
+    ) || targets.find(t => 
       t.operator_id === formData.operator_id &&
       t.status !== 'completed'
     );
@@ -253,11 +344,69 @@ export default function HeatSealModule({
 
   const [isJobFetching, setIsJobFetching] = useState(false);
   const [jobFetchStatus, setJobFetchStatus] = useState<'idle' | 'found' | 'not_found'>('idle');
-  const [jobResults, setJobResults] = useState<{ color: string; po_no: string }[]>([]);
+  const [jobResults, setJobResults] = useState<{ color: string; po_no: string; po_qty?: number }[]>([]);
 
   const [isTargetJobFetching, setIsTargetJobFetching] = useState(false);
   const [targetJobFetchStatus, setTargetJobFetchStatus] = useState<'idle' | 'found' | 'not_found'>('idle');
-  const [targetJobResults, setTargetJobResults] = useState<{ color: string; po_no: string }[]>([]);
+  const [targetJobResults, setTargetJobResults] = useState<{ color: string; po_no: string; po_qty?: number }[]>([]);
+
+  // Helper: Perform client-side local memory job lookup using client CPU/RAM
+  const performClientLocalJobLookup = (jobNoToSearch: string) => {
+    const cleanJob = jobNoToSearch.trim().toLowerCase();
+    const map = new Map<string, { color: string; po_no: string; po_qty: number }>();
+
+    // 1. Search cuttingEntries in client memory
+    (cuttingEntries || []).forEach(c => {
+      if (c.job_no && c.job_no.trim().toLowerCase().includes(cleanJob)) {
+        const col = (c.color || "").trim();
+        const po = (c.po_no || "").trim();
+        if (col) {
+          const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
+          const qty = Number(c.order_qty) || 0;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, { color: col, po_no: po, po_qty: qty });
+          } else if (qty > existing.po_qty) {
+            existing.po_qty = qty;
+          }
+        }
+      }
+    });
+
+    // 2. Search targets in client memory
+    (targets || []).forEach(t => {
+      if (t.job_no && t.job_no.trim().toLowerCase().includes(cleanJob)) {
+        const col = (t.color || "").trim();
+        const po = (t.po_no || "").trim();
+        if (col) {
+          const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
+          const qty = Number(t.max_po_qty || t.target_qty) || 0;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, { color: col, po_no: po, po_qty: qty });
+          } else if (qty > existing.po_qty) {
+            existing.po_qty = qty;
+          }
+        }
+      }
+    });
+
+    // 3. Search heat seal entries in client memory
+    (entries || []).forEach(e => {
+      if (e.job_no && e.job_no.trim().toLowerCase().includes(cleanJob)) {
+        const col = (e.color || "").trim();
+        const po = (e.po_no || "").trim();
+        if (col) {
+          const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
+          if (!map.has(key)) {
+            map.set(key, { color: col, po_no: po, po_qty: 0 });
+          }
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  };
 
   // Fetch job details (color & po number) when job_no is typed in the entry field
   useEffect(() => {
@@ -268,6 +417,25 @@ export default function HeatSealModule({
     }
 
     const jobNoToSearch = formData.job_no.trim();
+
+    // First check client CPU memory instantly (0ms network overhead)
+    const localResults = performClientLocalJobLookup(jobNoToSearch);
+    if (localResults.length > 0) {
+      setJobResults(localResults);
+      setFormData(prev => {
+        if (prev.job_no?.trim() === jobNoToSearch) {
+          return {
+            ...prev,
+            color: localResults[0].color || prev.color || "",
+            po_no: localResults[0].po_no || prev.po_no || ""
+          };
+        }
+        return prev;
+      });
+      setJobFetchStatus('found');
+      setIsJobFetching(false);
+      return;
+    }
 
     const delayDebounceFn = setTimeout(async () => {
       setIsJobFetching(true);
@@ -280,7 +448,6 @@ export default function HeatSealModule({
             setJobResults(result.results);
             setFormData(prev => {
               if (prev.job_no?.trim() === jobNoToSearch) {
-                // Auto-fill the first matched combination
                 return {
                   ...prev,
                   color: result.results[0].color || prev.color || "",
@@ -308,7 +475,7 @@ export default function HeatSealModule({
     }, 600);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [formData.job_no, foundTarget]);
+  }, [formData.job_no, foundTarget, cuttingEntries, entries, targets]);
 
   // Fetch job details (color & po number) when job_no is typed in the preset targets form
   useEffect(() => {
@@ -319,6 +486,25 @@ export default function HeatSealModule({
     }
 
     const jobNoToSearch = targetFormData.job_no.trim();
+
+    // First check client CPU memory instantly (0ms network overhead)
+    const localResults = performClientLocalJobLookup(jobNoToSearch);
+    if (localResults.length > 0) {
+      setTargetJobResults(localResults);
+      setTargetFormData(prev => {
+        if (prev.job_no?.trim() === jobNoToSearch) {
+          return {
+            ...prev,
+            color: localResults[0].color || prev.color || "",
+            po_no: localResults[0].po_no || prev.po_no || ""
+          };
+        }
+        return prev;
+      });
+      setTargetJobFetchStatus('found');
+      setIsTargetJobFetching(false);
+      return;
+    }
 
     const delayDebounceFn = setTimeout(async () => {
       setIsTargetJobFetching(true);
@@ -331,7 +517,6 @@ export default function HeatSealModule({
             setTargetJobResults(result.results);
             setTargetFormData(prev => {
               if (prev.job_no?.trim() === jobNoToSearch) {
-                // Auto-fill the first matched combination
                 return {
                   ...prev,
                   color: result.results[0].color || prev.color || "",
@@ -359,7 +544,7 @@ export default function HeatSealModule({
     }, 600);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [targetFormData.job_no]);
+  }, [targetFormData.job_no, cuttingEntries, entries, targets]);
 
   const handleOpenForm = (entry?: HeatSealEntry) => {
     if (entry) {
@@ -1200,45 +1385,116 @@ export default function HeatSealModule({
 
                 {/* Preset Targets Verification Panel */}
                 {targetSearchTriggered && (
-                  <div className={`p-4 rounded-xl border flex items-start gap-3 transition ${
+                  <div className={`p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${
                     foundTarget 
-                      ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-400"
-                      : "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-400"
+                      ? (() => {
+                          const achievedSoFar = getTargetAchievedQty(foundTarget.id, foundTarget);
+                          const currentFormProd = (formData.hourly_data || []).reduce((acc, h) => acc + (Number(h.production) || 0), 0);
+                          const totalAchieved = achievedSoFar + (editingId ? 0 : currentFormProd);
+                          const targetMaxQty = foundTarget.target_qty || foundTarget.max_po_qty || getCuttingMaxPoQty(formData.job_no, formData.po_no, formData.color) || (foundTarget.hourly_target ? foundTarget.hourly_target * 10 : 0);
+                          const isFilledUp = targetMaxQty > 0 && (totalAchieved >= targetMaxQty || foundTarget.status === 'completed');
+                          return isFilledUp 
+                            ? "bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800" 
+                            : "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40";
+                        })()
+                      : "bg-amber-50/70 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40"
                   }`}>
-                    <div className="mt-0.5">
-                      {foundTarget ? <CheckCircle2 size={18} className="text-emerald-500" /> : <AlertTriangle size={18} className="text-amber-500" />}
-                    </div>
-                    <div className="flex-1 text-sm">
-                      {foundTarget ? (
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                          <div className="flex-1">
-                            <span className="font-bold">Target Assignment Pre-set Verified!</span> Automatic lock-in completed: 
-                            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                              <span className="font-mono bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border text-slate-700 dark:text-slate-300 text-[10px]">Job: {formData.job_no}</span>
-                              <span className="font-mono bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border text-slate-700 dark:text-slate-300 text-[10px]">Color: {formData.color}</span>
-                              <span className="font-mono bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border text-slate-700 dark:text-slate-300 text-[10px]">PO: {formData.po_no}</span>
-                              <span className="font-mono bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border text-slate-700 dark:text-slate-300 text-[10px]">Hourly Target: {foundTarget.hourly_target} pcs</span>
+                    {foundTarget ? (() => {
+                      const achievedSoFar = getTargetAchievedQty(foundTarget.id, foundTarget);
+                      const currentFormProd = (formData.hourly_data || []).reduce((acc, h) => acc + (Number(h.production) || 0), 0);
+                      const totalAchieved = achievedSoFar + (editingId ? 0 : currentFormProd);
+                      const targetMaxQty = foundTarget.target_qty || foundTarget.max_po_qty || getCuttingMaxPoQty(formData.job_no, formData.po_no, formData.color) || (foundTarget.hourly_target ? foundTarget.hourly_target * 10 : 0);
+                      const fillPercent = targetMaxQty > 0 ? Math.min(100, Math.round((totalAchieved / targetMaxQty) * 100)) : 0;
+                      const isFilledUp = targetMaxQty > 0 && (totalAchieved >= targetMaxQty || foundTarget.status === 'completed');
+
+                      return (
+                        <>
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className={`p-2.5 rounded-xl text-white shrink-0 mt-0.5 ${
+                              isFilledUp ? "bg-amber-500 shadow-md shadow-amber-200 dark:shadow-none" : "bg-emerald-600 shadow-md shadow-emerald-200 dark:shadow-none"
+                            }`}>
+                              {isFilledUp ? <CheckCircle2 size={20} /> : <Target size={20} />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="font-extrabold text-sm md:text-base text-slate-900 dark:text-white">
+                                  {isFilledUp ? "🎉 Target Quantity Filled Up!" : "Target Assignment Active"}
+                                </h4>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  isFilledUp 
+                                    ? "bg-amber-500 text-white animate-pulse" 
+                                    : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300"
+                                }`}>
+                                  {fillPercent}% Achieved ({totalAchieved.toLocaleString()} / {targetMaxQty > 0 ? targetMaxQty.toLocaleString() : "N/A"} Pcs)
+                                </span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-700 dark:text-slate-300">
+                                <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border text-[11px] font-bold">
+                                  Job: {formData.job_no}
+                                </span>
+                                <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border text-[11px]">
+                                  Color: {formData.color}
+                                </span>
+                                <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border text-[11px]">
+                                  PO: {formData.po_no}
+                                </span>
+                                <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                                  Hourly Target: {foundTarget.hourly_target} pcs/hr
+                                </span>
+                              </div>
+
+                              {/* Progress bar */}
+                              <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full mt-2 overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${isFilledUp ? "bg-amber-500" : "bg-emerald-500"}`}
+                                  style={{ width: `${Math.min(100, fillPercent)}%` }}
+                                />
+                              </div>
+
+                              {isFilledUp && (
+                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mt-2">
+                                  Target of {targetMaxQty.toLocaleString()} pcs for PO {formData.po_no} is 100% completed. Please assign a new target to {formData.operator_name || foundTarget.operator_name}.
+                                </p>
+                              )}
                             </div>
                           </div>
-                          {canEditEverything && (
-                            <button 
-                              type="button"
-                              onClick={() => handleCompleteTarget(foundTarget.id)}
-                              disabled={isCompletingTargetId === foundTarget.id}
-                              className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 dark:text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition border border-amber-200/50 dark:border-amber-800/50 shadow-sm disabled:opacity-50"
-                            >
-                              {isCompletingTargetId === foundTarget.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} className="stroke-[3]" />}
-                              Finish Job / Switch
-                            </button>
-                          )}
+
+                          <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0 w-full md:w-auto">
+                            {canEditEverything && isFilledUp && (
+                              <button 
+                                type="button"
+                                onClick={() => handleAssignNewTargetForOperator(foundTarget.operator_id, formData.operator_name || foundTarget.operator_name)}
+                                className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition"
+                              >
+                                <Plus size={14} className="stroke-[3]" />
+                                Assign New Target
+                              </button>
+                            )}
+
+                            {canEditEverything && (
+                              <button 
+                                type="button"
+                                onClick={() => handleCompleteTarget(foundTarget.id)}
+                                disabled={isCompletingTargetId === foundTarget.id}
+                                className="w-full sm:w-auto px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition border border-slate-200 dark:border-slate-700 shadow-sm disabled:opacity-50"
+                              >
+                                {isCompletingTargetId === foundTarget.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} className="stroke-[3]" />}
+                                {isFilledUp ? "Close Target" : "Finish Job / Switch"}
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })() : (
+                      <div className="flex items-center gap-3">
+                        <AlertTriangle size={20} className="text-amber-500 shrink-0" />
+                        <div className="text-sm">
+                          <span className="font-bold text-slate-800 dark:text-white">No beforehand target pre-allocation found</span> for Operator on this date/shift. 
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">An admin or officer can preset a target assignment beforehand to populate Targets, Job No, Color, PO No, and Max PO Qty.</p>
                         </div>
-                      ) : (
-                        <div>
-                          <span className="font-bold">No beforehand target pre-allocation found</span> for Operator on this date/shift. 
-                          <p className="text-xs text-amber-600/90 dark:text-amber-400/90 mt-1">An admin or officer must preset a target assignment beforehand to populate standard Targets, Job No, Color, and PO No fields.</p>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1815,6 +2071,28 @@ export default function HeatSealModule({
                   />
                 </div>
 
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Set Target Qty (pcs)</label>
+                    {targetFormData.max_po_qty ? (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-800">
+                        Max PO: {targetFormData.max_po_qty.toLocaleString()} pcs
+                      </span>
+                    ) : null}
+                  </div>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={targetFormData.target_qty || ""} 
+                    onChange={e => setTargetFormData({ ...targetFormData, target_qty: Number(e.target.value) })}
+                    placeholder={targetFormData.max_po_qty ? `Default Max PO: ${targetFormData.max_po_qty}` : "Total Target Qty"}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Max PO quantity automatically fetched from Cutting Entries. Operator is prompted for a new target upon completion.
+                  </p>
+                </div>
+
                 <button 
                   type="submit" 
                   disabled={isTargetSubmitting || operators.length === 0}
@@ -1855,14 +2133,21 @@ export default function HeatSealModule({
                         <th className="py-2.5 px-3 font-semibold text-xs">Shift</th>
                         <th className="py-2.5 px-3 font-semibold text-xs">Operator</th>
                         <th className="py-2.5 px-3 font-semibold text-xs">Job Details</th>
-                        <th className="py-2.5 px-3 font-semibold text-xs">Hourly Target</th>
-                        <th className="py-2.5 px-3 font-semibold text-xs">Status</th>
+                        <th className="py-2.5 px-3 font-semibold text-xs">Targets (Hourly / PO Max)</th>
+                        <th className="py-2.5 px-3 font-semibold text-xs">Fill Status</th>
                         <th className="py-2.5 px-3 font-semibold text-xs text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {targets.map(t => (
-                        <tr key={t.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${t.status === 'completed' ? 'opacity-60 bg-slate-50/20' : ''}`}>
+                      {targets.map(t => {
+                        const totalAchieved = getTargetAchievedQty(t.id, t);
+                        const maxPoQty = t.max_po_qty || getCuttingMaxPoQty(t.job_no, t.po_no, t.color);
+                        const totalTargetQty = t.target_qty || maxPoQty || (t.hourly_target * 10);
+                        const fillPercent = totalTargetQty > 0 ? Math.min(100, Math.round((totalAchieved / totalTargetQty) * 100)) : 0;
+                        const isFilledUp = totalTargetQty > 0 && (totalAchieved >= totalTargetQty || t.status === 'completed');
+
+                        return (
+                          <tr key={t.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${t.status === 'completed' ? 'opacity-60 bg-slate-50/20' : ''}`}>
                           <td className="py-3 px-3 font-mono text-xs whitespace-nowrap text-slate-800 dark:text-slate-200">{formatDate(t.target_date)}</td>
                           <td className="py-3 px-3">
                             <span className="font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
@@ -1877,8 +2162,11 @@ export default function HeatSealModule({
                             <div className="font-mono text-slate-700 dark:text-slate-300">Job: {t.job_no}</div>
                             <div className="text-[11px] text-slate-400 mt-0.5">Color: {t.color} | PO: {t.po_no}</div>
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-slate-800 dark:text-white">
-                            {t.hourly_target} pcs/hr
+                          <td className="py-3 px-3 text-xs">
+                            <div className="font-mono font-bold text-slate-800 dark:text-white">{t.hourly_target} pcs/hr</div>
+                            <div className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                              Target: {totalTargetQty > 0 ? totalTargetQty.toLocaleString() + ' pcs' : 'N/A'}
+                            </div>
                           </td>
                           <td className="py-3 px-3">
                             {t.status === 'completed' ? (
@@ -1922,7 +2210,8 @@ export default function HeatSealModule({
                              </div>
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                     </tbody>
                   </table>
                 </div>

@@ -2481,6 +2481,7 @@ export default function App() {
                   entries={heatSealEntries}
                   operators={heatSealOperators}
                   targets={heatSealTargets}
+                  cuttingEntries={entries}
                   currentProfile={currentProfile!}
                   onSubmitEntry={handleAddHeatSealEntry}
                   onUpdateEntry={handleUpdateHeatSealEntry}

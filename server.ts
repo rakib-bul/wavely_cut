@@ -356,16 +356,18 @@ function saveSettings(settings: any) {
 // Call loadSettings on startup
 loadSettings();
 
-// Server-side cache for sync metadata to reduce Supabase hits
+// Server-side cache for sync metadata and job lookups to reduce Supabase hits and server CPU
 let lastMetadataCheck = 0;
 let cachedMetadata: string | null = null;
-const METADATA_CACHE_TTL = 5000; // 5 seconds cache for metadata checks
+const METADATA_CACHE_TTL = 15000; // 15 seconds cache for metadata checks when idle
+const jobLookupCache = new Map<string, { timestamp: number; response: any }>();
 
-// Middleware to automatically invalidate sync metadata cache on any database mutation (POST, PUT, DELETE)
+// Middleware to automatically invalidate sync metadata and lookup cache on any database mutation (POST, PUT, DELETE)
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") {
     cachedMetadata = null;
     lastMetadataCheck = 0;
+    jobLookupCache.clear();
   }
   next();
 });
@@ -2022,7 +2024,7 @@ app.get("/api/sync", async (req, res) => {
       try {
         const { data, error } = await supabase
           .from("heat_seal_targets")
-          .select("id, target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target, status, created_by, created_at, updated_at")
+          .select("*")
           .order("target_date", { ascending: false });
         if (error) {
           console.warn("Could not fetch heat_seal_targets from Supabase:", error.message);
@@ -2030,7 +2032,9 @@ app.get("/api/sync", async (req, res) => {
         }
         return (data || []).map(item => ({
           ...item,
-          shift: mapShiftFromDb(item.shift)
+          shift: mapShiftFromDb(item.shift),
+          target_qty: Number(item.target_qty) || 0,
+          max_po_qty: Number(item.max_po_qty) || 0
         }));
       } catch (err: any) {
         console.warn("Could not fetch heat_seal_targets from Supabase:", err.message);
@@ -2903,30 +2907,42 @@ app.post("/api/heat-seal-targets", async (req, res) => {
     const { data: profile } = await supabase.from("profiles").select("id").ilike("email", user_email).maybeSingle();
     if (profile) created_by = profile.id;
 
-    const { target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target } = req.body;
+    const { target_date, shift, operator_id, operator_name, job_no, color, po_no, hourly_target, target_qty, max_po_qty } = req.body;
     const dbShift = mapShiftToDb(shift);
+
+    const targetPayload = {
+      target_date,
+      shift: dbShift,
+      operator_id,
+      operator_name,
+      job_no,
+      color,
+      po_no,
+      hourly_target,
+      target_qty: Number(target_qty) || 0,
+      max_po_qty: Number(max_po_qty) || 0,
+      created_by
+    };
 
     const { data, error } = await supabase
       .from("heat_seal_targets")
-      .insert([{ target_date, shift: dbShift, operator_id, operator_name, job_no, color, po_no, hourly_target, created_by }])
+      .insert([targetPayload])
       .select();
     
     if (error) {
-      if (error.message.includes("status") || error.message.includes("schema cache")) {
-        // Fallback if status column is missing
-        const { data: retryData, error: retryError } = await supabase
-          .from("heat_seal_targets")
-          .insert([{ target_date, shift: dbShift, operator_id, operator_name, job_no, color, po_no, hourly_target, created_by }])
-          .select();
-        if (retryError) throw retryError;
-        const returnedData = retryData?.[0] ? { ...retryData[0], status: 'active', shift: mapShiftFromDb(retryData[0].shift) } : null;
-        await addAuditLog(user_email, "create", "heat_seal_target", retryData?.[0]?.id || "", null, returnedData);
-        return res.json({ success: true, data: returnedData, warning: "Database schema needs update for Status tracking." });
-      }
-      throw error;
+      // Fallback if target_qty / max_po_qty or status column is missing
+      const { target_qty: _, max_po_qty: __, ...basicPayload } = targetPayload;
+      const { data: retryData, error: retryError } = await supabase
+        .from("heat_seal_targets")
+        .insert([basicPayload])
+        .select();
+      if (retryError) throw retryError;
+      const returnedData = retryData?.[0] ? { ...retryData[0], target_qty: Number(target_qty) || 0, max_po_qty: Number(max_po_qty) || 0, status: 'active', shift: mapShiftFromDb(retryData[0].shift) } : null;
+      await addAuditLog(user_email, "create", "heat_seal_target", retryData?.[0]?.id || "", null, returnedData);
+      return res.json({ success: true, data: returnedData });
     }
 
-    const returnedData = data?.[0] ? { ...data[0], status: data[0].status || 'active', shift: mapShiftFromDb(data[0].shift) } : null;
+    const returnedData = data?.[0] ? { ...data[0], target_qty: Number(data[0].target_qty || target_qty) || 0, max_po_qty: Number(data[0].max_po_qty || max_po_qty) || 0, status: data[0].status || 'active', shift: mapShiftFromDb(data[0].shift) } : null;
     await addAuditLog(user_email, "create", "heat_seal_target", data?.[0]?.id || "", null, returnedData);
 
     return res.json({ success: true, data: returnedData });
@@ -2965,6 +2981,8 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
       color,
       po_no,
       hourly_target,
+      target_qty,
+      max_po_qty,
       status
     } = req.body;
 
@@ -2977,6 +2995,8 @@ app.put("/api/heat-seal-targets/:id", async (req, res) => {
     if (color !== undefined) updates.color = color;
     if (po_no !== undefined) updates.po_no = po_no;
     if (hourly_target !== undefined) updates.hourly_target = hourly_target;
+    if (target_qty !== undefined) updates.target_qty = Number(target_qty) || 0;
+    if (max_po_qty !== undefined) updates.max_po_qty = Number(max_po_qty) || 0;
     if (status !== undefined) updates.status = status;
     updates.updated_at = new Date().toISOString();
 
@@ -3051,12 +3071,18 @@ app.get("/api/job-lookup/:job_no", async (req, res) => {
       return res.status(400).json({ error: "Job number is required" });
     }
 
-    const uniqueCombinations = new Map<string, { color: string; po_no: string }>();
+    const cacheKey = job_no.toLowerCase().trim();
+    const cached = jobLookupCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) {
+      return res.json(cached.response);
+    }
+
+    const uniqueCombinations = new Map<string, { color: string; po_no: string; po_qty: number }>();
 
     // 1. Find in cutting_entries
     const { data: cuttingData } = await supabase
       .from("cutting_entries")
-      .select("color, po_no")
+      .select("color, po_no, order_qty")
       .ilike("job_no", job_no)
       .limit(100);
 
@@ -3066,8 +3092,12 @@ app.get("/api/job-lookup/:job_no", async (req, res) => {
           const col = row.color.trim();
           const po = (row.po_no || "").trim();
           const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
-          if (!uniqueCombinations.has(key)) {
-            uniqueCombinations.set(key, { color: col, po_no: po });
+          const qty = Number(row.order_qty) || 0;
+          const existing = uniqueCombinations.get(key);
+          if (!existing) {
+            uniqueCombinations.set(key, { color: col, po_no: po, po_qty: qty });
+          } else if (qty > existing.po_qty) {
+            existing.po_qty = qty;
           }
         }
       }
@@ -3076,7 +3106,7 @@ app.get("/api/job-lookup/:job_no", async (req, res) => {
     // 2. Find in heat_seal_targets
     const { data: targetData } = await supabase
       .from("heat_seal_targets")
-      .select("color, po_no")
+      .select("color, po_no, target_qty, max_po_qty")
       .ilike("job_no", job_no)
       .limit(100);
 
@@ -3086,8 +3116,12 @@ app.get("/api/job-lookup/:job_no", async (req, res) => {
           const col = row.color.trim();
           const po = (row.po_no || "").trim();
           const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
-          if (!uniqueCombinations.has(key)) {
-            uniqueCombinations.set(key, { color: col, po_no: po });
+          const qty = Number(row.max_po_qty || row.target_qty) || 0;
+          const existing = uniqueCombinations.get(key);
+          if (!existing) {
+            uniqueCombinations.set(key, { color: col, po_no: po, po_qty: qty });
+          } else if (qty > existing.po_qty) {
+            existing.po_qty = qty;
           }
         }
       }
@@ -3107,23 +3141,19 @@ app.get("/api/job-lookup/:job_no", async (req, res) => {
           const po = (row.po_no || "").trim();
           const key = `${col.toLowerCase()}|||${po.toLowerCase()}`;
           if (!uniqueCombinations.has(key)) {
-            uniqueCombinations.set(key, { color: col, po_no: po });
+            uniqueCombinations.set(key, { color: col, po_no: po, po_qty: 0 });
           }
         }
       }
     }
 
     const results = Array.from(uniqueCombinations.values());
+    const responsePayload = results.length > 0
+      ? { found: true, job_no, results }
+      : { found: false, results: [] };
 
-    if (results.length > 0) {
-      return res.json({
-        found: true,
-        job_no,
-        results
-      });
-    }
-
-    return res.json({ found: false, results: [] });
+    jobLookupCache.set(cacheKey, { timestamp: Date.now(), response: responsePayload });
+    return res.json(responsePayload);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
